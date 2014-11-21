@@ -1,0 +1,166 @@
+```{r echo=FALSE}
+library(dplyr)
+library(xlsx)
+library(Biostrings)
+
+options(stringsAsFactors = FALSE,
+        import.path = file.path(Sys.getenv('HOME'), 'Projects/R'))
+
+base = import('ebits/base')
+```
+
+## GO term gene set data
+
+Load the data for the GO terms. We use the 2012 data here, since we want to
+reproduce the results of Gingold *& al.* exactly.
+
+```{r}
+go_terms_40 = read.xlsx('./data/GO_2012.xlsx', sheetName = 'GOs_40',
+                        header = FALSE)
+colnames(go_terms_40) = c('GO', 'Description')
+```
+
+Load GO–Gene associations.
+
+```{r}
+associations = read.csv('./data/gene_association.goa_human', sep = '\t',
+                        comment = '!', quote = '', header = FALSE) %>%
+    select(Gene = V3, GO = V5)
+```
+
+Join selected GO terms with associations, to retrieve just those GO terms (and
+their associated genes) with > 40 hits, and filter out duplicate genes.
+
+```{r}
+go_genes = inner_join(go_terms_40, associations, by = 'GO') %>%
+    group_by(GO) %>%
+    filter(! duplicated(Gene))
+```
+
+As a sanity check, let’s see whether all GO terms have > 40 genes.
+
+```{r}
+go_genes %>%
+    group_by(GO) %>%
+    summarize(Genes = n()) %>%
+    filter(Genes < 40) %>%
+    nrow == 0
+```
+
+Great. On to the codon usage.
+
+## Consensus CDS
+
+The consensus CDS information is in a complicated to parse format. Luckily, we
+only need the mapping gene name to CCDS ID.
+
+```{r}
+ccds_info = read.csv('./data/CCDS.current.txt', sep = '\t') %>%
+    select(Gene = gene, CCDS = ccds_id)
+```
+
+Now load the actual CCDS from (gzipped) Fasta.
+
+```{r}
+ccds = readDNAStringSet('./data/CCDS_nucleotide.current.fna.gz')
+names(ccds) = sub('\\|.*', '', names(ccds))
+```
+
+We are going to use only the “canonical CDS”, i.e. the longest one for each
+gene.
+
+```{r}
+existing_ccds = ccds_info$CCDS[match(names(ccds), ccds_info$CCDS)]
+ccds_lengths = data.frame(CCDS = existing_ccds,
+                          Length = width(ccds[existing_ccds]))
+ccds_info = left_join(ccds_lengths, ccds_info, by = 'CCDS')
+```
+
+`ccds_info` now contains duplicate CCDS IDs. We filter these out.
+
+```{r}
+ccds_info = filter(ccds_info, ! duplicated(CCDS))
+```
+
+And finally, we choose the longest CDS per gene only.
+
+```{r}
+canonical_ccds = ccds_info %>%
+    group_by(Gene) %>%
+    filter(Length == max(Length)) %>%
+    # Because more than one CDS of the same length may exist:
+    summarize(CCDS = first(CCDS), Length = first(Length)) %>%
+    mutate(Seq = as.character(ccds[CCDS]))
+```
+
+Sanity check: every length is divisible by three.
+
+```{r}
+! any(canonical_ccds$Length %% 3 != 0)
+```
+
+Bummer. Log and remove those. And make sure they *are* removed.
+
+```{r}
+invalid_cds = canonical_ccds %>% filter(Length %% 3 != 0)
+invalid_cds
+
+canonical_ccds = canonical_ccds %>% filter(Length %% 3 == 0)
+! any(canonical_ccds$Length %% 3 != 0)
+```
+
+Good.
+
+## Codon usage
+
+Define a helper function to calculate the codon usage.
+
+```{r}
+codon_usage = function (sequence) {
+    codons = as.character(codons(DNAString(sequence)))
+    freqs = table(codons)
+    all_codons = names(GENETIC_CODE)
+    all_codon_freqs = setNames(rep(0, length(all_codons)), all_codons)
+    all_codon_freqs[names(freqs)] = freqs
+    all_codon_freqs
+}
+```
+
+Now create a table with the codon usage for every gene, based on its canonical
+CDS.
+
+```{r}
+gene_codon_usage = canonical_ccds %>%
+    # `do` requires grouped data here.
+    group_by(Gene) %>%
+    do(CU = codon_usage(.$Seq)) %>%
+    ungroup
+```
+
+Using that, we can generate the mean per-GO codon usage.
+
+```{r}
+go_cu = inner_join(gene_codon_usage, go_genes) %>%
+    group_by(GO) %>%
+    do(CU = rowMeans(do.call(cbind, .$CU)))
+```
+
+We now compute the principal components for the codon usage and plot them.
+
+
+```{r}
+pctable = `colnames<-`(do.call(cbind, go_cu$CU), go_cu$GO)
+pc = prcomp(pctable)
+
+pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc))) {
+    v1 = summary(pc)$importance[2, pc1] * 100
+    v2 = summary(pc)$importance[2, pc2] * 100
+    plot(pc$rotation[, pc1], pc$rotation[, pc2], main = main,
+         xlab = sprintf('PC%d (%.0f%% variance explained)', pc1, v1),
+         ylab = sprintf('PC%d (%.0f%% variance explained)', pc2, v2),
+         pch = 19,
+         col = '#00000040')
+}
+
+pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
+```
