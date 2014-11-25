@@ -66,8 +66,8 @@ ccds = readDNAStringSet('./data/CCDS_nucleotide.current.fna.gz')
 names(ccds) = sub('\\|.*', '', names(ccds))
 ```
 
-We are going to use only the “canonical CDS”, i.e. the longest one for each
-gene.
+We are going to use, as a gene’s codon usage, the mean codon usage of all its
+annotated coding sequences.
 
 ```{r}
 existing_ccds = ccds_info$CCDS[match(names(ccds), ccds_info$CCDS)]
@@ -82,31 +82,24 @@ ccds_info = left_join(ccds_lengths, ccds_info, by = 'CCDS')
 ccds_info = filter(ccds_info, ! duplicated(CCDS))
 ```
 
-And finally, we choose the longest CDS per gene only.
-
 ```{r}
-canonical_ccds = ccds_info %>%
-    group_by(Gene) %>%
-    filter(Length == max(Length)) %>%
-    # Because more than one CDS of the same length may exist:
-    summarize(CCDS = first(CCDS), Length = first(Length)) %>%
-    mutate(Seq = as.character(ccds[CCDS]))
+all_ccds = ccds_info %>% mutate(Seq = as.character(ccds[CCDS]))
 ```
 
 Sanity check: every length is divisible by three.
 
 ```{r}
-! any(canonical_ccds$Length %% 3 != 0)
+! any(all_ccds$Length %% 3 != 0)
 ```
 
 Bummer. Log and remove those. And make sure they *are* removed.
 
 ```{r}
-invalid_cds = canonical_ccds %>% filter(Length %% 3 != 0)
-invalid_cds
+invalid_cds = all_ccds %>% filter(Length %% 3 != 0)
+invalid_cds$CCDS
 
-canonical_ccds = canonical_ccds %>% filter(Length %% 3 == 0)
-! any(canonical_ccds$Length %% 3 != 0)
+all_ccds = all_ccds %>% filter(Length %% 3 == 0)
+! any(all_ccds$Length %% 3 != 0)
 ```
 
 Good.
@@ -126,15 +119,22 @@ codon_usage = function (sequence) {
 }
 ```
 
-Now create a table with the codon usage for every gene, based on its canonical
-CDS.
+Now create a table with the codon usage for every CDS.
 
 ```{r}
-gene_codon_usage = canonical_ccds %>%
+ccds_codon_usage = all_ccds %>%
     # `do` requires grouped data here.
-    group_by(Gene) %>%
+    group_by(CCDS) %>%
     do(CU = codon_usage(.$Seq)) %>%
     ungroup
+```
+
+Now create a table with the codon usage for every gene.
+
+```{r}
+gene_codon_usage = inner_join(all_ccds, ccds_codon_usage, by = 'CCDS') %>%
+    group_by(Gene) %>%
+    do(CU  = rowMeans(do.call(cbind, .$CU)))
 ```
 
 Using that, we can generate the mean per-GO codon usage.
