@@ -56,7 +56,9 @@ only need the mapping gene name to CCDS ID.
 
 ```{r}
 ccds_info = read.csv('./data/CCDS.current.txt', sep = '\t') %>%
-    select(Gene = gene, CCDS = ccds_id)
+    select(Gene = gene, CCDS = ccds_id, Status = ccds_status) %>%
+    filter(Status != 'Withdrawn') %>%
+    select(-Status)
 ```
 
 Now load the actual CCDS from (gzipped) Fasta.
