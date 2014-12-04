@@ -29,12 +29,10 @@ associations = read.csv('./data/gene_association.goa_human', sep = '\t',
 ```
 
 Join selected GO terms with associations, to retrieve just those GO terms (and
-their associated genes) with > 40 hits, and filter out duplicate genes.
+their associated genes) with > 40 hits.
 
 ```{r}
-go_genes = inner_join(go_terms_40, associations, by = 'GO') %>%
-    group_by(GO) %>%
-    filter(! duplicated(Gene))
+go_genes = inner_join(go_terms_40, associations, by = 'GO')
 ```
 
 As a sanity check, let’s see whether all GO terms have > 40 genes.
