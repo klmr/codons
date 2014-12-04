@@ -149,7 +149,6 @@ go_cu = inner_join(gene_codon_usage, go_genes) %>%
 
 We now compute the principal components for the codon usage and plot them.
 
-
 ```{r}
 pctable = `colnames<-`(do.call(cbind, go_cu$CU), go_cu$GO)
 pc = prcomp(pctable)
