@@ -139,10 +139,14 @@ gene_codon_usage = inner_join(all_ccds, ccds_codon_usage, by = 'CCDS') %>%
     do(CU  = rowMeans(do.call(cbind, .$CU)))
 ```
 
-Using that, we can generate the mean per-GO codon usage.
+Now create a table with the mean codon usage for every GO term, based on the
+CCDSs of its constituent genes.
 
 ```{r}
-go_cu = inner_join(gene_codon_usage, go_genes) %>%
+ccds_for_gene = inner_join(all_ccds, ccds_codon_usage, by = 'CCDS') %>%
+    select(CCDS, Gene, CU)
+
+go_cu = inner_join(ccds_for_gene, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     do(CU = rowMeans(do.call(cbind, .$CU)))
 ```
