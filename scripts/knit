@@ -1,0 +1,26 @@
+#!/usr/bin/env Rscript
+
+sys = modules::import('sys')
+
+main = function () {
+    input = sys$args[1]
+    output = sys$args[2]
+
+    message('Using input file ', input)
+    message('Using output file ', output)
+
+    library = function (...)
+        suppressMessages(base::library(...))
+
+    library(knitr)
+    processor = if (grepl('\\.html$', output)) 'knit2html' else 'knit'
+    message('Using processor ', processor)
+    result = try(match.fun(processor)(input, output))
+    if (is(result, 'try-error'))
+        1
+}
+
+if (is.null(modules::module_name()))
+    sys$exit(main())
+
+# vim: ft=r
