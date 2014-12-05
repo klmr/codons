@@ -76,7 +76,7 @@ plot_compare_replicates = function (data, cols, main) {
             geom_point() +
             scale_x_log10() +
             scale_y_log10() +
-            ggtitle(main)
+            ggtitle(main) + theme_bw()
         plot(p)
     }
 
@@ -156,13 +156,13 @@ de = function (data, col_data, contrast) {
     DESeq(cds)
 }
 
-summarize_de = function (cds) {
+summarize_de = function (cds, ϑ = 0.01) {
     contrast = levels(cds$Condition)
     main = function (title)
         sprintf('%s between %s and %s',
                 title, contrast[1], contrast[2])
     plotDispEsts(cds, main = main('Dispersion estimates'))
-    plotMA(results(cds), alpha = 0.01, main = main('Differential expression'))
+    plotMA(results(cds), ϑ = 0.01, main = main('Differential expression'))
 }
 
 cds_e155_hepa16 = de(raw_counts_table, experimental_design,
@@ -179,4 +179,61 @@ cds_hepa = de(raw_counts_table, experimental_design,
               c('Hepa1-6', 'Hepa1c1c7'))
 
 summarize_de(cds_hepa)
+```
+
+Group differentially expressed genes per codon.
+
+First, load the tRNA annotation.
+
+```{r}
+trna_annotation = read.table('./data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
+                             sep = '\t', header = FALSE) %>%
+    select(Chr = 1, ID = 2, AA = 5, Codon = 6) %>%
+    mutate(Gene = paste(Chr, ID, sep = '.trna')) %>%
+    select(Gene, AA, Codon)
+```
+
+```{r}
+gather_codons = function (cds, ϑ = 0.01) {
+    de_genes = results(cds) %>%
+        as.data.frame() %>%
+        add_rownames('Gene') %>%
+        filter(! is.na(padj) & padj < ϑ) %>%
+        arrange(padj)
+
+    de_codons = inner_join(de_genes, trna_annotation, by = 'Gene') %>%
+        group_by(Codon) %>%
+        summarize(AA = first(AA),
+                  A = sum(log2FoldChange > 0),
+                  B = sum(log2FoldChange < 0))
+}
+
+codons_e155_hepa16 = gather_codons(cds_e155_hepa16)
+codons_e155_hepa1c1c7 = gather_codons(cds_e155_hepa1c1c7)
+codons_hepa = gather_codons(cds_hepa)
+```
+
+Plot shifts in anticodon abundandance for each of the contrasts.
+
+```{r}
+library(reshape2)
+
+plot_codon_shifts = function (cds) {
+    contrast = levels(cds$Condition)
+    contrast_colors = setNames(celltype_colors[contrast], c('A', 'B'))
+    codons = gather_codons(cds) %>%
+        mutate(A = -A) %>%
+        melt(id.vars = c('Codon', 'AA'), variable.name = 'Celltype',
+             value.name = 'Value')
+
+    ggplot(codons, aes(x = Codon, xend = Codon, y = 0, yend = Value,
+                       color = Celltype)) +
+        geom_segment(size = 3) +
+        coord_flip() +
+        scale_color_manual(values = contrast_colors) + theme_bw()
+}
+
+plot_codon_shifts(cds_e155_hepa16)
+plot_codon_shifts(cds_e155_hepa1c1c7)
+plot_codon_shifts(cds_hepa)
 ```
