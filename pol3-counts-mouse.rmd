@@ -1,0 +1,153 @@
+```{r echo=FALSE}
+options(stringsAsFactors = FALSE)
+library(dplyr)
+library(magrittr)
+```
+Read pol III tRNA counts.
+
+```{r}
+cancer_counts = read.csv('./data/pol3-chip-trna-counts-cancer.tsv', sep = '\t', row.names = 1)
+
+head(cancer_counts)
+```
+
+Read sample library metadata.
+
+```{r}
+cancer_libraries = read.csv('./data/pol3-chip-cancer-libraries.tsv') %>%
+    select(DO = 1, Type = 2, Celltype = 3) %>%
+    filter(DO %in% colnames(cancer_counts))
+
+cancer_libraries
+```
+
+Show sample distributions.
+
+```{r}
+# Reorder columns to match `cancer_libraries`
+cancer_counts = cancer_counts[, cancer_libraries$DO]
+
+eps = min(cancer_counts[cancer_counts > 0])
+boxplot(cancer_counts + eps, log = 'y',
+        col = ifelse(cancer_libraries$Type == 'input', 'gray', 'white'))
+```
+
+Normalise by library size.
+
+```{r}
+library(DESeq2)
+
+cancer_libraries %<>% filter(Type == 'ChIP') %>%
+    select(-Type)
+
+cancer_counts_chip = select(cancer_counts, one_of(cancer_libraries$DO))
+cancer_size_factors = estimateSizeFactorsForMatrix(cancer_counts_chip)
+cancer_counts_chip = t(t(cancer_counts_chip) / cancer_size_factors) %>%
+    as.data.frame
+```
+
+Plot normalised counts.
+
+```{r}
+eps = min(cancer_counts_chip[cancer_counts_chip > 0])
+boxplot(cancer_counts_chip + eps, log = 'y')
+```
+
+Replicate variability: log-log-plot of counts.
+
+```{r}
+library(ggplot2)
+
+plot_compare_replicates = function (data, cols, main) {
+    do_plot = function (data, cols, main) {
+        if (missing(main))
+            main = sprintf('Replicate variability between %s and %s',
+                           cols[1], cols[2])
+        p = ggplot(data, aes_string(x = cols[1], y = cols[2])) +
+            geom_point() +
+            scale_x_log10() +
+            scale_y_log10() +
+            ggtitle(main)
+        plot(p)
+    }
+
+    cols = if (is.list(cols)) cols else list(cols)
+
+    if (missing(main))
+        mapply(do_plot, list(data), cols)
+    else
+        mapply(do_plot, list(data), cols, main)
+
+    invisible()
+}
+
+cancer_libraries %>%
+    group_by(Celltype) %>% do(Replicates = .$DO) %T>%
+    {plot_compare_replicates(cancer_counts_chip, .$Replicates,
+                             unique(.$Celltype))} %>%
+    invisible
+```
+
+Load the mouse development data.
+
+```{r}
+devo_libraries = read.csv('./data/trna/chip-sample-map.tsv', sep = '\t',
+                          header = FALSE) %>%
+    select(DO = 1, Type = 2, Tissue = 3, Stage = 4) %>%
+    mutate(DO = paste0('do', DO), Stage = toupper(Stage)) %>%
+    filter(Type == 'PolIII', Tissue == 'liver') %>%
+    select(-Type, -Tissue)
+
+devo_counts = read.csv('./data/trna/pol3-trna-counts.tsv', sep = '\t')
+devo_counts = devo_counts[, devo_libraries$DO]
+head(devo_counts)
+```
+
+Build DESeq experiment, comparing cancers against E15.5.
+
+```{r}
+devo_libraries %<>% filter(Stage == 'E15.5') %>%
+    dplyr::rename(Condition = Stage)
+cancer_libraries %<>% dplyr::rename(Condition = Celltype)
+experimental_design = rbind(devo_libraries, cancer_libraries)
+raw_counts_table = cbind(devo_counts, cancer_counts)[, experimental_design$DO]
+size_factors = estimateSizeFactorsForMatrix(raw_counts_table)
+normalized_counts = t(t(raw_counts_table) / size_factors)
+```
+
+Compare the samples
+
+```{r fig.width=9}
+cor = cor(normalized_counts, method = 'spearman')
+
+library(gplots)
+divergent_colors = colorRampPalette(c('#603D71', 'white', '#A4B962'))(30)
+celltype_colors = c(E15.5 = 'chartreuse4',
+                    `Hepa1-6` = 'dodgerblue3',
+                    Hepa1c1c7 = 'deepskyblue3')
+heatmap.2(cor, trace = 'none', density.info = 'none', col = divergent_colors,
+          ColSideColors = celltype_colors[experimental_design$Condition],
+          lmat = cbind(c(5, 5, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
+```
+
+Do DE analysis.
+
+```{r}
+col_data = experimental_design %>%
+    filter(Condition %in% c('E15.5', 'Hepa1-6'))
+cds_hepa16_e155 = DESeqDataSetFromMatrix(raw_counts_table[, col_data$DO],
+                                         col_data,
+                                         design = ~Condition)
+cds_hepa16_e155$Condition = relevel(cds_hepa16_e155$Condition, 'E15.5')
+cds_hepa16_e155 = DESeq(cds_hepa16_e155)
+plotDispEsts(cds_hepa16_e155,
+             main = 'Dispersion estimates between E15.5 and Hepa1-6')
+
+res_hepa16_e155 = results(cds_hepa16_e155)
+plotMA(res_hepa16_e155, alpha = 0.05,
+       main = 'Differential expression between E15.5 and Hepa1-6')
+```
