@@ -134,20 +134,40 @@ legend('right', bty = 'n', legend = names(celltype_colors),
        fill = celltype_colors)
 ```
 
-Do DE analysis.
+Perform differential expression analysis between all pairwise conditions: in
+particular, we want to know what changes between cancer and developmental
+tissue; however, the between-cancer comparison may yield insight into the
+inherent variability of the different conditions.
 
 ```{r}
-col_data = experimental_design %>%
-    filter(Condition %in% c('E15.5', 'Hepa1-6'))
-cds_hepa16_e155 = DESeqDataSetFromMatrix(raw_counts_table[, col_data$DO],
-                                         col_data,
-                                         design = ~Condition)
-cds_hepa16_e155$Condition = relevel(cds_hepa16_e155$Condition, 'E15.5')
-cds_hepa16_e155 = DESeq(cds_hepa16_e155)
-plotDispEsts(cds_hepa16_e155,
-             main = 'Dispersion estimates between E15.5 and Hepa1-6')
+de = function (data, col_data, contrast) {
+    col_data %<>% filter(Condition %in% contrast)
+    cds = DESeqDataSetFromMatrix(data[, col_data$DO], col_data, ~Condition)
+    cds$Condition = relevel(cds$Condition, contrast[1])
+    DESeq(cds)
+}
 
-res_hepa16_e155 = results(cds_hepa16_e155)
-plotMA(res_hepa16_e155, alpha = 0.05,
-       main = 'Differential expression between E15.5 and Hepa1-6')
+summarize_de = function (cds) {
+    contrast = levels(cds$Condition)
+    main = function (title)
+        sprintf('%s between %s and %s',
+                title, contrast[1], contrast[2])
+    plotDispEsts(cds, main = main('Dispersion estimates'))
+    plotMA(results(cds), alpha = 0.01, main = main('Differential expression'))
+}
+
+cds_e155_hepa16 = de(raw_counts_table, experimental_design,
+                     c('E15.5', 'Hepa1-6'))
+
+summarize_de(cds_e155_hepa16)
+
+cds_e155_hepa1c1c7 = de(raw_counts_table, experimental_design,
+                        c('E15.5', 'Hepa1c1c7'))
+
+summarize_de(cds_e155_hepa1c1c7)
+
+cds_hepa = de(raw_counts_table, experimental_design,
+              c('Hepa1-6', 'Hepa1c1c7'))
+
+summarize_de(cds_hepa)
 ```
