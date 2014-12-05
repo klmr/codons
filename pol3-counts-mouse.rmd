@@ -3,6 +3,15 @@ options(stringsAsFactors = FALSE)
 library(dplyr)
 library(magrittr)
 ```
+
+## Preface
+
+This analysis merges two data sets: experimental data from our *Schmitt,
+Rudolph & al.* paper, and cancer cell line data. We are investigating
+differences in tRNA abundance between these conditions.
+
+## Analysis
+
 Read pol III tRNA counts.
 
 ```{r}
