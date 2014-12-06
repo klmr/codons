@@ -24,7 +24,7 @@ Read sample library metadata.
 
 ```{r}
 cancer_libraries = read.csv('./data/pol3-chip-cancer-libraries.tsv') %>%
-    select(DO = 1, Type = 2, Celltype = 3) %>%
+    select(DO = 1, Type = 2, Condition = 3) %>%
     filter(DO %in% colnames(cancer_counts))
 
 cancer_libraries
@@ -78,6 +78,8 @@ plot_compare_replicates = function (data, cols, main) {
             scale_y_log10() +
             ggtitle(main) + theme_bw()
         plot(p)
+
+        cor(data[, cols],  method = 'spearman')[1, 2]
     }
 
     cols = if (is.list(cols)) cols else list(cols)
@@ -86,15 +88,12 @@ plot_compare_replicates = function (data, cols, main) {
         mapply(do_plot, list(data), cols)
     else
         mapply(do_plot, list(data), cols, main)
-
-    invisible()
 }
 
 cancer_libraries %>%
-    group_by(Celltype) %>% do(Replicates = .$DO) %T>%
+    group_by(Condition) %>% do(Replicates = .$DO) %>%
     {plot_compare_replicates(cancer_counts_chip, .$Replicates,
-                             unique(.$Celltype))} %>%
-    invisible
+                             unique(.$Condition))}
 ```
 
 Load the mouse development data.
@@ -117,7 +116,6 @@ Build DESeq experiment, comparing cancers against E15.5.
 ```{r}
 devo_libraries %<>% filter(Stage == 'E15.5') %>%
     dplyr::rename(Condition = Stage)
-cancer_libraries %<>% dplyr::rename(Condition = Celltype)
 experimental_design = rbind(devo_libraries, cancer_libraries)
 raw_counts_table = cbind(devo_counts, cancer_counts)[, experimental_design$DO]
 size_factors = estimateSizeFactorsForMatrix(raw_counts_table)
