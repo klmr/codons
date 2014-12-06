@@ -162,7 +162,7 @@ summarize_de = function (cds, ϑ = 0.01) {
         sprintf('%s between %s and %s',
                 title, contrast[1], contrast[2])
     plotDispEsts(cds, main = main('Dispersion estimates'))
-    plotMA(results(cds), ϑ = 0.01, main = main('Differential expression'))
+    plotMA(results(cds), alpha = ϑ, main = main('Differential expression'))
 }
 
 cds_e155_hepa16 = de(raw_counts_table, experimental_design,
