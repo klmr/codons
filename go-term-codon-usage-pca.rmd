@@ -2,11 +2,9 @@
 library(dplyr)
 library(xlsx)
 library(Biostrings)
+library(parallel)
 
-options(stringsAsFactors = FALSE,
-        import.path = file.path(Sys.getenv('HOME'), 'Projects/R'))
-
-base = import('ebits/base')
+options(stringsAsFactors = FALSE)
 ```
 
 ## GO term gene set data
@@ -52,7 +50,7 @@ Great. On to the codon usage.
 ## Consensus CDS
 
 The consensus CDS information is in a complicated to parse format. Luckily, we
-only need the mapping gene name to CCDS ID.
+only need the mapping gene name to CCDS ID, and this part is trivial to parse.
 
 ```{r}
 ccds_info = read.csv('./data/CCDS.current.txt', sep = '\t') %>%
@@ -73,9 +71,6 @@ annotated coding sequences.
 
 ```{r}
 existing_ccds = ccds_info$CCDS[match(names(ccds), ccds_info$CCDS)]
-ccds_lengths = data.frame(CCDS = existing_ccds,
-                          Length = width(ccds[existing_ccds]))
-ccds_info = left_join(ccds_lengths, ccds_info, by = 'CCDS')
 ```
 
 `ccds_info` now contains duplicate CCDS IDs. We filter these out.
@@ -84,23 +79,27 @@ ccds_info = left_join(ccds_lengths, ccds_info, by = 'CCDS')
 ccds_info = filter(ccds_info, ! duplicated(CCDS))
 ```
 
+Next retrieve the CCDS sequences.
+
 ```{r}
-all_ccds = ccds_info %>% mutate(Seq = as.character(ccds[CCDS]))
+all_ccds = ccds_info %>%
+    filter(CCDS %in% existing_ccds) %>%
+    mutate(Seq = as.character(ccds[CCDS]))
 ```
 
 Sanity check: every length is divisible by three.
 
 ```{r}
-! any(all_ccds$Length %% 3 != 0)
+! any(nchar(all_ccds$Seq) %% 3 != 0)
 ```
 
 Bummer. Log and remove those. And make sure they *are* removed.
 
 ```{r}
-invalid_cds = all_ccds %>% filter(Length %% 3 != 0)
+invalid_cds = all_ccds %>% filter(nchar(Seq) %% 3 != 0)
 invalid_cds$CCDS
 
-all_ccds = all_ccds %>% filter(Length %% 3 == 0)
+all_ccds = all_ccds %>% filter(nchar(Seq) %% 3 == 0)
 ! any(all_ccds$Length %% 3 != 0)
 ```
 
@@ -124,19 +123,20 @@ codon_usage = function (sequence) {
 Now create a table with the codon usage for every CDS.
 
 ```{r}
+ncores = detectCores()
 ccds_codon_usage = all_ccds %>%
-    # `do` requires grouped data here.
-    group_by(CCDS) %>%
-    do(CU = codon_usage(.$Seq)) %>%
-    ungroup
+    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    select(CCDS, Gene, CU)
 ```
 
-Now create a table with the codon usage for every gene.
+And, from that, a table with the codon usage for every gene.
 
 ```{r}
-gene_codon_usage = inner_join(all_ccds, ccds_codon_usage, by = 'CCDS') %>%
+gene_codon_usage = ccds_codon_usage %>%
     group_by(Gene) %>%
-    do(CU  = rowMeans(do.call(cbind, .$CU)))
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(Gene, CU) %>%
+    filter(row_number() == 1)
 ```
 
 Using that, we can generate the mean per-GO codon usage.
@@ -144,7 +144,9 @@ Using that, we can generate the mean per-GO codon usage.
 ```{r}
 go_cu = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
-    do(CU = rowMeans(do.call(cbind, .$CU)))
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(GO, CU) %>%
+    filter(row_number() == 1)
 ```
 
 We now compute the principal components for the codon usage and plot them.
@@ -164,21 +166,4 @@ pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc))) {
 }
 
 pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
-```
-
-Find the per-amino acid codon usage bias.
-
-```{r}
-genetic_code = read.csv('./data/genetic_code.tsv', sep = '\t', header = FALSE)
-colnames(genetic_code) = c('Codon', 'AA')
-go_table = mutate(as.data.frame(pctable), Codon = rownames(pctable))
-go_table = inner_join(go_table, genetic_code, by = 'Codon')
-
-go_cub = by(select(go_table, -Codon, -AA), go_table$AA,
-            function (rows) scale(rows, scale = colSums(rows), center = FALSE)) %>%
-    do.call(rbind, .)
-
-cub_pc = prcomp(go_cub)
-
-pc_plot(cub_pc, main = 'GO terms by their codon usage bias')
 ```
