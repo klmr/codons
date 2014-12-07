@@ -32,13 +32,33 @@ cancer_libraries
 
 Show sample distributions.
 
+```{r echo=FALSE}
+asinh_trans = function () {
+    # `trans_new` is hidden deep inside ggplot2, even `ggplot2:::` doesn’t work.
+    trans_new = local(trans_new, envir = environment(scale_y_continuous))
+    trans_new('asinh', asinh, sinh, domain = c(-Inf, Inf))
+}
+
+scale_y_asinh = function (...)
+    scale_y_continuous(..., trans = asinh_trans())
+```
+
 ```{r}
 # Reorder columns to match `cancer_libraries`
 cancer_counts = cancer_counts[, cancer_libraries$DO]
 
-eps = min(cancer_counts[cancer_counts > 0])
-boxplot(cancer_counts + eps, log = 'y',
-        col = ifelse(cancer_libraries$Type == 'input', 'gray', 'white'))
+library(reshape2)
+library(ggplot2)
+
+cancer_counts_bp = melt(cancer_counts, id.vars = NULL, variable.name = 'DO',
+                        value.name = 'Count')
+cancer_counts_bp %<>% inner_join(cancer_libraries, by = 'DO')
+ggplot(cancer_counts_bp, aes(factor(DO), Count)) +
+    geom_boxplot(aes(fill = Type)) +
+    xlab('Library') +
+    scale_y_asinh() +
+    scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
+    theme_bw()
 ```
 
 Normalise by library size.
@@ -58,15 +78,20 @@ cancer_counts_chip = t(t(cancer_counts_chip) / cancer_size_factors) %>%
 Plot normalised counts.
 
 ```{r}
-eps = min(cancer_counts_chip[cancer_counts_chip > 0])
-boxplot(cancer_counts_chip + eps, log = 'y')
+cancer_counts_bp = melt(cancer_counts_chip, id.vars = NULL,
+                        variable.name = 'DO', value.name = 'Count')
+cancer_counts_bp %<>% inner_join(cancer_libraries, by = 'DO')
+ggplot(cancer_counts_bp, aes(factor(DO), Count)) +
+    geom_boxplot(aes(fill = Type)) +
+    xlab('Library') +
+    scale_y_asinh() +
+    scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
+    theme_bw()
 ```
 
 Replicate variability: log-log-plot of counts.
 
 ```{r}
-library(ggplot2)
-
 plot_compare_replicates = function (data, cols, main) {
     do_plot = function (data, cols, main) {
         if (missing(main))
@@ -214,8 +239,6 @@ codons_hepa = gather_codons(cds_hepa)
 Plot shifts in anticodon abundandance for each of the contrasts.
 
 ```{r}
-library(reshape2)
-
 plot_codon_shifts = function (cds) {
     contrast = levels(cds$Condition)
     contrast_colors = setNames(celltype_colors[contrast], c('A', 'B'))
