@@ -3,10 +3,7 @@ library(dplyr)
 library(xlsx)
 library(Biostrings)
 
-options(stringsAsFactors = FALSE,
-        import.path = file.path(Sys.getenv('HOME'), 'Projects/R'))
-
-base = import('ebits/base')
+options(stringsAsFactors = FALSE)
 ```
 
 ## GO term gene set data
