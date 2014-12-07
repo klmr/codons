@@ -167,24 +167,3 @@ pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc))) {
 
 pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
 ```
-
-Just out of curiosity, plot the PCA for the per-amino acid codon usage bias.
-
-```{r}
-genetic_code = read.csv('./data/genetic_code.tsv', sep = '\t', header = FALSE)
-colnames(genetic_code) = c('Codon', 'AA')
-go_table = mutate(as.data.frame(pctable), Codon = rownames(pctable))
-go_table = inner_join(go_table, genetic_code, by = 'Codon')
-
-scale_row = function (rows)
-    scale(rows, scale = colSums(rows), center = FALSE)
-
-go_cub = by(select(go_table, -Codon, -AA), go_table$AA, scale_row) %>%
-    do.call(rbind, .)
-
-cub_pc = prcomp(go_cub)
-
-pc_plot(cub_pc, main = 'GO terms by their codon usage bias')
-```
-
-PCs 1 and 2 are strongly anti-correlated …
