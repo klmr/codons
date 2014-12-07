@@ -2,6 +2,7 @@
 library(dplyr)
 library(xlsx)
 library(Biostrings)
+library(parallel)
 
 options(stringsAsFactors = FALSE)
 ```
@@ -122,19 +123,20 @@ codon_usage = function (sequence) {
 Now create a table with the codon usage for every CDS.
 
 ```{r}
+ncores = detectCores()
 ccds_codon_usage = all_ccds %>%
-    # `do` requires grouped data here.
-    group_by(CCDS) %>%
-    do(CU = codon_usage(.$Seq)) %>%
-    ungroup
+    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    select(CCDS, Gene, CU)
 ```
 
-Now create a table with the codon usage for every gene.
+And, from that, a table with the codon usage for every gene.
 
 ```{r}
-gene_codon_usage = inner_join(all_ccds, ccds_codon_usage, by = 'CCDS') %>%
+gene_codon_usage = ccds_codon_usage %>%
     group_by(Gene) %>%
-    do(CU  = rowMeans(do.call(cbind, .$CU)))
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(Gene, CU) %>%
+    filter(row_number() == 1)
 ```
 
 Using that, we can generate the mean per-GO codon usage.
@@ -142,7 +144,9 @@ Using that, we can generate the mean per-GO codon usage.
 ```{r}
 go_cu = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
-    do(CU = rowMeans(do.call(cbind, .$CU)))
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(GO, CU) %>%
+    filter(row_number() == 1)
 ```
 
 We now compute the principal components for the codon usage and plot them.
