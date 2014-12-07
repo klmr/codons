@@ -1,7 +1,10 @@
 ```{r echo=FALSE}
-options(stringsAsFactors = FALSE)
 library(dplyr)
 library(magrittr)
+library(reshape2)
+library(ggplot2)
+
+options(stringsAsFactors = FALSE)
 ```
 
 ## Preface
@@ -47,18 +50,19 @@ scale_y_asinh = function (...)
 # Reorder columns to match `cancer_libraries`
 cancer_counts = cancer_counts[, cancer_libraries$DO]
 
-library(reshape2)
-library(ggplot2)
+gg_boxplot = function (data, col_data) {
+    data = melt(data, id.vars = NULL, variable.name = 'DO',
+                value.name = 'Count') %>%
+        inner_join(col_data, by = 'DO')
+    ggplot(data, aes(factor(DO), Count)) +
+        geom_boxplot(aes(fill = Type)) +
+        xlab('Library') +
+        scale_y_asinh() +
+        scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
+        theme_bw()
+}
 
-cancer_counts_bp = melt(cancer_counts, id.vars = NULL, variable.name = 'DO',
-                        value.name = 'Count')
-cancer_counts_bp %<>% inner_join(cancer_libraries, by = 'DO')
-ggplot(cancer_counts_bp, aes(factor(DO), Count)) +
-    geom_boxplot(aes(fill = Type)) +
-    xlab('Library') +
-    scale_y_asinh() +
-    scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
-    theme_bw()
+gg_boxplot(cancer_counts, cancer_libraries)
 ```
 
 Normalise by library size.
@@ -66,8 +70,7 @@ Normalise by library size.
 ```{r}
 library(DESeq2)
 
-cancer_libraries %<>% filter(Type == 'ChIP') %>%
-    select(-Type)
+cancer_libraries %<>% filter(Type == 'ChIP') %>% select(-Type)
 
 cancer_counts_chip = select(cancer_counts, one_of(cancer_libraries$DO))
 cancer_size_factors = estimateSizeFactorsForMatrix(cancer_counts_chip)
@@ -78,15 +81,7 @@ cancer_counts_chip = t(t(cancer_counts_chip) / cancer_size_factors) %>%
 Plot normalised counts.
 
 ```{r}
-cancer_counts_bp = melt(cancer_counts_chip, id.vars = NULL,
-                        variable.name = 'DO', value.name = 'Count')
-cancer_counts_bp %<>% inner_join(cancer_libraries, by = 'DO')
-ggplot(cancer_counts_bp, aes(factor(DO), Count)) +
-    geom_boxplot(aes(fill = Type)) +
-    xlab('Library') +
-    scale_y_asinh() +
-    scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
-    theme_bw()
+gg_boxplot(cancer_counts_chip, cancer_libraries)
 ```
 
 Replicate variability: log-log-plot of counts.
