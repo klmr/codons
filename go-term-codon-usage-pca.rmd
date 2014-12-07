@@ -49,7 +49,7 @@ Great. On to the codon usage.
 ## Consensus CDS
 
 The consensus CDS information is in a complicated to parse format. Luckily, we
-only need the mapping gene name to CCDS ID.
+only need the mapping gene name to CCDS ID, and this part is trivial to parse.
 
 ```{r}
 ccds_info = read.csv('./data/CCDS.current.txt', sep = '\t') %>%
@@ -80,6 +80,8 @@ ccds_info = left_join(ccds_lengths, ccds_info, by = 'CCDS')
 ```{r}
 ccds_info = filter(ccds_info, ! duplicated(CCDS))
 ```
+
+Next retrieve the CCDS sequences.
 
 ```{r}
 all_ccds = ccds_info %>% mutate(Seq = as.character(ccds[CCDS]))
@@ -163,7 +165,7 @@ pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc))) {
 pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
 ```
 
-Find the per-amino acid codon usage bias.
+Just out of curiosity, plot the PCA for the per-amino acid codon usage bias.
 
 ```{r}
 genetic_code = read.csv('./data/genetic_code.tsv', sep = '\t', header = FALSE)
@@ -179,3 +181,5 @@ cub_pc = prcomp(go_cub)
 
 pc_plot(cub_pc, main = 'GO terms by their codon usage bias')
 ```
+
+PCs 1 and 2 are strongly anti-correlated …
