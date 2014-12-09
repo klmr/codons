@@ -167,3 +167,43 @@ pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc))) {
 
 pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
 ```
+
+Add colours according to the GO categories, as done in the paper by Gingold
+*&al.*.
+
+```{r}
+categories = list(`Multi-cellular` = c(Development = 24,
+                                       Differentiation = 21,
+                                       `Cell adhesion` = 22,
+                                       `Pattern specification` = 23,
+                                       `Multicellular organism growth` = 11,
+                                       Angiogenesis = 8),
+                  `Cell autonomous` = c(`Mitotic cell cycle` = 24,
+                                        `Nucleosome assembly` = 21,
+                                        `Chromatin remodeling` = 22,
+                                        `Chromatin modification` = 22,
+                                        Translation = 23,
+                                        `mRNA metabolic process` = 11,
+                                        `Negative regulation of cell cycle` = 6))
+
+category_names = unlist(lapply(categories, names))
+category_symbol = setNames(do.call(c, categories), category_names)
+category_color = setNames(c(rep('blue', length(categories[[1]])),
+                            rep('red', length(categories[[2]]))),
+                          category_names)
+
+go_indices = setNames(sapply(category_names, grep, go_terms_40$Description,
+                             ignore.case = TRUE),
+                      category_names)
+
+go_category_map = sapply(go_indices, function (i) colnames(pctable)[i])
+category_for_go = unlist(go_category_map)
+category_for_go = setNames(names(category_for_go), category_for_go)
+category_for_go = sub('\\d+$', '', category_for_go)
+
+pcr = pc$rotation
+plot(pcr[, 1], pcr[, 2],
+     pch = category_symbol[category_for_go[rownames(pcr)]],
+     col = category_color[category_for_go[rownames(pcr)]],
+     bg = category_color[category_for_go[rownames(pcr)]])
+```
