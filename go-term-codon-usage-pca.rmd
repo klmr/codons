@@ -127,6 +127,21 @@ ncores = detectCores()
 ccds_codon_usage = all_ccds %>%
     mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
     select(CCDS, Gene, CU)
+
+# ERROR: not compatible with STRSXP
+#ccds_codon_freq = ccds_codon_usage %>%
+#    mutate(CU = list(list(CU[[1]] / sum(CU[[1]]))))
+# TOO SLOW (VERY!)
+#ccds_codon_freq = ccds_codon_usage %>%
+#    group_by(CCDS) %>%
+#    do(CU = list(.$CU[[1]] / sum(.$CU[[1]]))) %>%
+#    ungroup()
+
+ccds_codon_freq = ccds_codon_usage
+for (i in 1 : nrow(ccds_codon_freq)) {
+    CU = ccds_codon_freq[i, 'CU'][[1]]
+    ccds_codon_freq[i, 'CU'] = list(list(CU / sum(CU)))
+}
 ```
 
 And, from that, a table with the codon usage for every gene.
@@ -137,12 +152,18 @@ gene_codon_usage = ccds_codon_usage %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
     select(Gene, CU) %>%
     filter(row_number() == 1)
+
+gene_codon_freq = ccds_codon_freq %>%
+    group_by(Gene) %>%
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(Gene, CU) %>%
+    filter(row_number() == 1)
 ```
 
 Using that, we can generate the mean per-GO codon usage.
 
 ```{r}
-go_cu = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
+go_cu = inner_join(gene_codon_freq, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
     select(GO, CU) %>%
@@ -201,9 +222,11 @@ category_for_go = unlist(go_category_map)
 category_for_go = setNames(names(category_for_go), category_for_go)
 category_for_go = sub('\\d+$', '', category_for_go)
 
+# Quick and dirty plot to check placement of categories.
 pcr = pc$rotation
+cat = unname(category_for_go[rownames(pcr)])
 plot(pcr[, 1], pcr[, 2],
-     pch = category_symbol[category_for_go[rownames(pcr)]],
-     col = category_color[category_for_go[rownames(pcr)]],
-     bg = category_color[category_for_go[rownames(pcr)]])
+     pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+     col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+     bg = category_color[cat])
 ```
