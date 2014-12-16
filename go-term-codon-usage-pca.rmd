@@ -174,7 +174,7 @@ We now compute the principal components for the codon usage and plot them.
 
 ```{r}
 pctable = `colnames<-`(do.call(cbind, go_cu$CU), go_cu$GO)
-pc = prcomp(pctable)
+pc = prcomp(t(pctable), scale. = TRUE)
 
 pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc)),
                     pch, col, ...) {
@@ -184,7 +184,7 @@ pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc)),
         col = '#00000040'
     v1 = summary(pc)$importance[2, pc1] * 100
     v2 = summary(pc)$importance[2, pc2] * 100
-    plot(pc$rotation[, pc1], pc$rotation[, pc2], main = main,
+    plot(pc$x[, pc1], pc$x[, pc2], main = main,
          xlab = sprintf('PC%d (%.0f%% variance explained)', pc1, v1),
          ylab = sprintf('PC%d (%.0f%% variance explained)', pc2, v2),
          pch = pch, col = col, ...)
@@ -217,18 +217,19 @@ category_color = setNames(c(rep('blue', length(categories[[1]])),
                             rep('red', length(categories[[2]]))),
                           category_names)
 
+go_term_match_indices = match(go_terms_40$GO, colnames(pctable))
 go_indices = setNames(sapply(category_names, grep, go_terms_40$Description,
                              ignore.case = TRUE),
                       category_names)
 
-go_category_map = sapply(go_indices, function (i) colnames(pctable)[i])
+go_category_map = sapply(go_indices, function (i) colnames(pctable)[go_term_match_indices][i])
 category_for_go = unlist(go_category_map)
 category_for_go = setNames(names(category_for_go), category_for_go)
 category_for_go = sub('\\d+$', '', category_for_go)
 
 # Quick and dirty plot to check placement of categories.
-pcr = pc$rotation
-cat = unname(category_for_go[rownames(pcr)])
+pcx = pc$x
+cat = unname(category_for_go[rownames(pcx)])
 pc_plot(pc, main = 'GO terms by their mean codon usage',
         pch = ifelse(is.na(cat), 19, category_symbol[cat]),
         col = ifelse(is.na(cat), '#00000040', category_color[cat]),
