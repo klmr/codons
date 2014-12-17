@@ -122,7 +122,7 @@ codon_usage = function (sequence) {
 
 Now create a table with the codon usage for every CDS.
 
-```{r}
+```{r cache=TRUE}
 ncores = detectCores()
 ccds_codon_usage = all_ccds %>%
     mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
@@ -146,7 +146,7 @@ for (i in 1 : nrow(ccds_codon_freq)) {
 
 And, from that, a table with the codon usage for every gene.
 
-```{r}
+```{r cache=TRUE}
 gene_codon_usage = ccds_codon_usage %>%
     group_by(Gene) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
@@ -162,7 +162,7 @@ gene_codon_freq = ccds_codon_freq %>%
 
 Using that, we can generate the mean per-GO codon usage.
 
-```{r}
+```{r cache=TRUE}
 go_cu = inner_join(gene_codon_freq, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
@@ -239,13 +239,15 @@ pc_plot(pc, main = 'GO terms by their mean codon usage',
 Just for the record, here’s the same but using raw codon counts rather than
 frequencies.
 
-```{r}
+```{r cache=TRUE}
 go_cu_count = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
     select(GO, CU) %>%
     filter(row_number() == 1)
+```
 
+```{r}
 pctable_count = `colnames<-`(do.call(cbind, go_cu_count$CU), go_cu_count$GO)
 pc_count = prcomp(t(pctable_count))
 stopifnot(all.equal(rownames(pc$x), rownames(pc_count$x)))
