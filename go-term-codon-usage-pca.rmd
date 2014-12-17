@@ -277,7 +277,19 @@ pc_plot(pc_aa, main = 'GO terms by their amino acid usage',
         bg = category_color[cat])
 ```
 
-Investigate the gene set size of the GO categories.
+These seem to be obviously related, just with inverted first PCs. Let’s see how
+well the individual PCs correlate.
+
+```{r}
+contrasts = list(`First PCs` = list(pc$x[, 1], pc_aa$x[, 1]),
+                 `Strongest in AA` = list(pc$x[, 2], pc_aa$x[, 1]),
+                 `Strongest in codons` = list(pc$x[, 1], pc_aa$x[, 2]))
+
+cat('R-squared of Pearson correlation between PCs:')
+sapply(contrasts, . %>% {do.call(cor, .)}) ** 2
+```
+
+Investigate the gene set sizes of the GO categories.
 
 ```{r}
 go_sizes = go_genes %>%
@@ -296,7 +308,7 @@ plot(pcx[, 1], sapply(go_sizes[rownames(pcx)], min, 500),
 The following looks at the the GC content of the GO terms, and how it correlates
 with codon usage.
 
-```{r}
+```{r cache=TRUE}
 gc_content = function (str)
     nchar(gsub('[AT]', '', str)) / nchar(str)
 
@@ -307,7 +319,9 @@ gene_gc = ccds_gc %>%
 go_gc = inner_join(go_genes, gene_gc, by = 'Gene') %>%
     group_by(GO) %>%
     summarize(GC = mean(GC))
+```
 
+```{r echo=FALSE}
 #### DOUBLE-CHECKING THIS:
 
 #smallest_go_genes = which.min(go_sizes) %>% names
@@ -318,7 +332,9 @@ go_gc = inner_join(go_genes, gene_gc, by = 'Gene') %>%
 #gene_gc_new_heart  = gene_new_heart$Seq %>% gc_content
 
 ######
+```
 
+```{r}
 go_gc = setNames(go_gc$GC, go_gc$GO)
 
 plot(pcx[, 1], go_gc[rownames(pcx)])
