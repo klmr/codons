@@ -334,7 +334,7 @@ usage.
 
 Investigate the gene set sizes of the GO categories.
 
-```{r}
+```{r cache=TRUE}
 go_sizes = go_genes %>%
     group_by(GO) %>%
     summarize(Size = n())
@@ -364,21 +364,9 @@ go_gc = inner_join(go_genes, gene_gc, by = 'Gene') %>%
     summarize(GC = mean(GC))
 
 go_gc = setNames(go_gc$GC, go_gc$GO)
-```
-
-```{r echo=FALSE}
-#### DOUBLE-CHECKING THIS:
-
-#smallest_go_genes = which.min(go_sizes) %>% names
-#heart_genes = go_genes %>% filter(GO == smallest_go_genes) %>% .$Gene
-#
-#gene_new_heart = ccds_gc %>% filter(Gene %in% heart_genes)
-#
-#gene_gc_new_heart  = gene_new_heart$Seq %>% gc_content
-
-######
+go_gc = go_gc[rownames(pcx)]
 ```
 
 ```{r}
-plot(pcx[, 1], go_gc[rownames(pcx)])
+plot(pcx[, 1], go_gc)
 ```
