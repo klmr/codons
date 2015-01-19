@@ -367,5 +367,20 @@ go_gc = go_gc[rownames(pc$x)]
 ```
 
 ```{r}
-plot(pc$x[, 1], go_gc)
+plot(pc$x[, 1], go_gc, xlab = 'PC1 of codon usage', ylab = 'GC bias',
+     main = 'Correlation of codon usage and GC bias per GO term')
+```
+
+More importantly, is the GC bias also correlated with the codon usage bias?
+
+```{r}
+plot(pc_cu_by_aa$x[, 1], go_gc, xlab = 'PC1 of codon bias', ylab = 'GC bias',
+     main = 'Correlation of codon bias and GC bias per GO term')
+```
+
+The correlation even exists with pure amino acid usage, to some extent:
+
+```{r}
+plot(pc_aa$x[, 2], go_gc, xlab = 'PC2 of amino acid usage', ylab = 'GC bias',
+     main = 'Correlation of amino acid usage and GC bias per GO term')
 ```
