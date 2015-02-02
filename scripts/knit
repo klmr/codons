@@ -10,6 +10,7 @@ sys$run({
     message('Using output file ', output)
 
     library(knitr)
+    modules::set_script_path(normalizePath(input))
     processor = if (grepl('\\.html$', output)) 'knit2html' else 'knit'
     message('Using processor ', processor)
     result = try(match.fun(processor)(input, output))
