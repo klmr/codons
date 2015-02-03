@@ -5,7 +5,7 @@ library(knitr)
 library(modules)
 
 options(stringsAsFactors = FALSE,
-        import.path = file.path(Sys.getenv('HOME'), 'Projects/R'))
+        import.path = c('scripts', file.path(Sys.getenv('HOME'), 'Projects/R')))
 
 #opts_chunk$set(cache = TRUE)
 
@@ -51,3 +51,9 @@ pander.trunc_mat = function (x, ...) {
 
 # Disable code re-formatting.
 opts_chunk$set(tidy = FALSE)
+
+# Load standard helpers
+
+local({base = import('ebits/base')}, globalenv())
+local({io = import('ebits/io')}, globalenv())
+local({fs = import('fs')}, globalenv())
