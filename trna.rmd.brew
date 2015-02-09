@@ -7,19 +7,22 @@ library(dplyr)
 Configuration. Which are the files we want to load?
 
 ```{r}
-config = list(
-    counts = './data/trna-counts-mm10.tsv',
-    annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
-    design = './data/libraries-mm10.tsv',
-    norm_counts = './results/trna-norm-counts-mm10.tsv'
-)
-
-config = list(
-    counts = './data/trna-counts-HS_GRCh38.tsv',
-    annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
-    design = './data/libraries-HS_GRCh38.tsv',
-    norm_counts = './results/trna-norm-counts-HS_GRCh38.tsv'
-)
+<%
+configurations = list(
+    mouse = list(
+        counts = './data/trna-counts-mm10.tsv',
+        annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
+        design = './data/libraries-mm10.tsv',
+        norm_counts = './results/trna-norm-counts-mm10.tsv'
+    ),
+    human = list(
+        counts = './data/trna-counts-HS_GRCh38.tsv',
+        annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
+        design = './data/libraries-HS_GRCh38.tsv',
+        norm_counts = './results/trna-norm-counts-HS_GRCh38.tsv'
+    ))
+-%>
+config = <%= capture.output(dput(configurations[[species]])) %>
 
 fs$mkdir(dirname(config$norm_counts))
 ```
