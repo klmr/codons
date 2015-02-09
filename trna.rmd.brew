@@ -39,11 +39,20 @@ counts
 
 Load the annotation.
 
+The data contains mitochondrial and sex chromosomal genes. We discard these. The
+mitochondrial genes because mitochondria have a different genetic code. The sex
+chromosomes because we don’t want to care about sex specific differences. So we
+only keep autosomal chromosomes.
+
+We also throw out selenocysteine tRNAs and any other stop codons present.
+
 ```{r}
 annotation = io$read_table(config$annotation, header = FALSE) %>%
     select(1, 2, 5, 6) %>%
-    `colnames<-`(c('Chr', 'Num', 'AA', 'Codon')) %>%
-    transmute(Gene = paste(Chr, Num, sep = '.'), AA, Codon) %>%
+    `colnames<-`(c('Chr', 'Num', 'AA', 'Anticodon')) %>%
+    filter(grepl('(chr)?\\d+', Chr)) %>%
+    filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
+    transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
     as_data_frame()
 
 (counts = inner_join(annotation, counts, by = 'Gene'))
