@@ -115,6 +115,37 @@ expressed = filter_unexpressed(sf_counts)
 boxplot(expressed %>% select(starts_with('do')))
 ```
 
+Cluster the samples.
+
+```{r fig.width=9}
+cor = cor(select(expressed, starts_with('do')), method = 'spearman')
+
+divergent_colors = colorRampPalette(c('#603D71', 'white', '#A4B962'))(30)
+sorted_conditions = levels(relevel(factor(unique(design$Condition)), 'liver'))
+celltype_colors = setNames(c('chartreuse4', 'dodgerblue3', 'deepskyblue3'),
+                           sorted_conditions)
+
+colside_type = design[match(colnames(cor), design$DO), ]$Condition
+
+library(gplots)
+heatmap.2(cor, trace = 'none', density.info = 'none', col = divergent_colors,
+          ColSideColors = celltype_colors[colside_type],
+          lmat = cbind(c(5, 0, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
+```
+
+Perform a PCA as well.
+
+```{r}
+pcs = prcomp(t(select(expressed, starts_with('do'))), scale. = TRUE)
+plot(PC2 ~ PC1, pcs$x, pch = 16, col = celltype_colors[colside_type])
+```
+
+Export the filtered and normalised expression counts.
+
 ```{r}
 io$write_table(expressed, config$norm_counts)
 ```
