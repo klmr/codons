@@ -1,0 +1,13 @@
+#!/usr/bin/env Rscript
+
+sys = modules::import('sys')
+
+sys$run({
+    input = sys$args[1]
+    output = sys$args[2]
+
+    library(brew)
+    brew(input, output)
+})
+
+# vim: ft=r

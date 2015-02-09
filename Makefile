@@ -5,3 +5,6 @@ BIN := ./scripts
 
 %.html: %.rmd
 	${BIN}/knit $< $@
+
+%.rmd: %.brew
+	%{BIN}/brew %< $@
