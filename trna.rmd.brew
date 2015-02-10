@@ -26,6 +26,7 @@ configurations = list(
         contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'))
     ))
 -%>
+species = '<%= species %>'
 config = <%= deparse(configurations[[species]]) %>
 
 fs$mkdir(dirname(config$norm_counts))
@@ -179,5 +180,9 @@ for (contrast in config$contrasts) {
     cds$Condition = relevel(cds$Condition, contrast[1])
     cds = DESeq(cds, quiet = TRUE)
     results = results(cds)
+
+    title = paste(species, contrast, collapse = '–')
+    plotMA(cds, main = title)
+    plotDispEsts(cds, main = title)
 }
 ```
