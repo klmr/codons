@@ -15,16 +15,18 @@ configurations = list(
         counts = './data/trna-counts-mm10.tsv',
         annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
         design = './data/libraries-mm10.tsv',
-        norm_counts = './results/trna-norm-counts-mm10.tsv'
+        norm_counts = './results/trna-norm-counts-mm10.tsv',
+        contrasts = list(c('liver', 'Hepa1-6'), c('liver', 'Hepa1c1c7'))
     ),
     human = list(
         counts = './data/trna-counts-HS_GRCh38.tsv',
         annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
         design = './data/libraries-HS_GRCh38.tsv',
-        norm_counts = './results/trna-norm-counts-HS_GRCh38.tsv'
+        norm_counts = './results/trna-norm-counts-HS_GRCh38.tsv',
+        contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'))
     ))
 -%>
-config = <%= capture.output(dput(configurations[[species]])) %>
+config = <%= deparse(configurations[[species]]) %>
 
 fs$mkdir(dirname(config$norm_counts))
 ```
@@ -139,7 +141,7 @@ legend('right', bty = 'n', legend = names(celltype_colors),
        fill = celltype_colors)
 ```
 
-Perform a PCA as well.
+Perform principal components analysis as well.
 
 ```{r}
 pcs = prcomp(t(select(expressed, starts_with('do'))), scale. = TRUE)
@@ -150,4 +152,23 @@ Export the filtered and normalised expression counts.
 
 ```{r}
 io$write_table(expressed, config$norm_counts)
+```
+
+Perform differential expression analysis between both cancer samples and the
+healthy tissue.
+
+```{r}
+for (contrast in config$contrasts) {
+    col_data = design %>%
+        filter(AB == 'PolIII' & Condition %in% contrast) %>%
+        as.data.frame() %>% # tbl_df doesn’t allow rownames
+        `rownames<-`(.$DO)
+    count_data = counts %>%
+        filter(Gene %in% expressed$Gene) %>%
+        select(one_of(col_data$DO))
+    cds = DESeqDataSetFromMatrix(count_data, col_data, ~Condition)
+    cds$Condition = relevel(cds$Condition, contrast[1])
+    cds = DESeq(cds, quiet = TRUE)
+    results = results(cds)
+}
 ```
