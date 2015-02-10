@@ -3,6 +3,7 @@ assign('library', library, globalenv())
 
 library(knitr)
 library(modules)
+library(ggplot2)
 
 options(stringsAsFactors = FALSE,
         import.path = c('scripts', file.path(Sys.getenv('HOME'), 'Projects/R')))
@@ -51,6 +52,10 @@ pander.trunc_mat = function (x, ...) {
 
 # Disable code re-formatting.
 opts_chunk$set(tidy = FALSE)
+
+# Configure ggplot
+
+theme_set(theme_bw())
 
 # Load standard helpers
 
