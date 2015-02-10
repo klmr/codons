@@ -1,5 +1,7 @@
 ```{r}
 modules::import('./scripts/knit')
+opts_chunk$set(fig.path = 'figure/trna-<%= species %>-',
+               cache.path = 'cache/trna-<%= species %>-')
 
 library(dplyr)
 ```
