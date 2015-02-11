@@ -187,5 +187,10 @@ de = sapply(config$contrasts, contrast -> {
     title = paste(species, contrast, collapse = '–')
     plotMA(cds, main = title)
     plotDispEsts(cds, main = title)
-}
+
+    results %>% as.data.frame() %>%
+        add_rownames('Gene') %>%
+        tbl_df() %>%
+        arrange(pvalue)
+}, simplify = FALSE)
 ```
