@@ -168,14 +168,17 @@ Perform differential expression analysis between both cancer samples and the
 healthy tissue.
 
 ```{r}
-for (contrast in config$contrasts) {
+de = sapply(config$contrasts, contrast -> {
     col_data = design %>%
         filter(AB == 'PolIII' & Condition %in% contrast) %>%
         as.data.frame() %>% # tbl_df doesn’t allow rownames
         `rownames<-`(.$DO)
     count_data = counts %>%
         filter(Gene %in% expressed$Gene) %>%
-        select(one_of(col_data$DO))
+        select(Gene, one_of(col_data$DO)) %>%
+        as.data.frame()
+    rownames(count_data) = count_data$Gene
+    count_data = count_data[, -1]
     cds = DESeqDataSetFromMatrix(count_data, col_data, ~Condition)
     cds$Condition = relevel(cds$Condition, contrast[1])
     cds = DESeq(cds, quiet = TRUE)
