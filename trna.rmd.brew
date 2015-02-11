@@ -1,0 +1,196 @@
+```{r}
+modules::import('./scripts/knit')
+opts_chunk$set(fig.path = 'figure/trna-<%= species %>-',
+               cache.path = 'cache/trna-<%= species %>-')
+
+library(dplyr)
+```
+
+Configuration. Which are the files we want to load?
+
+```{r}
+<%
+configurations = list(
+    mouse = list(
+        counts = './data/trna-counts-mm10.tsv',
+        annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
+        design = './data/libraries-trna-chip-mm10.tsv',
+        norm_counts = './results/trna-norm-counts-mm10.tsv',
+        contrasts = list(c('liver', 'Hepa1-6'), c('liver', 'Hepa1c1c7'))
+    ),
+    human = list(
+        counts = './data/trna-counts-HS_GRCh38.tsv',
+        annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
+        design = './data/libraries-trna-chip-hs38.tsv',
+        norm_counts = './results/trna-norm-counts-hs38.tsv',
+        contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'))
+    ))
+-%>
+species = '<%= species %>'
+config = <%= deparse(configurations[[species]]) %>
+
+fs$mkdir(dirname(config$norm_counts))
+```
+
+Load the tRNA count data.
+
+```{r}
+counts = io$read_table(config$counts, header = TRUE) %>%
+    rename(Gene = X) %>%
+    as_data_frame()
+
+counts
+```
+
+Load the annotation.
+
+The data contains mitochondrial and sex chromosomal genes. We discard these. The
+mitochondrial genes because mitochondria have a different genetic code. The sex
+chromosomes because we don’t want to care about sex specific differences. So we
+only keep autosomal chromosomes.
+
+We also throw out selenocysteine tRNAs and any other stop codons present.
+
+```{r}
+annotation = io$read_table(config$annotation, header = FALSE) %>%
+    select(1, 2, 5, 6) %>%
+    `colnames<-`(c('Chr', 'Num', 'AA', 'Anticodon')) %>%
+    filter(grepl('(chr)?\\d+', Chr)) %>%
+    filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
+    transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
+    as_data_frame()
+
+(counts = inner_join(annotation, counts, by = 'Gene'))
+```
+
+Load experimental design.
+
+```{r}
+design = io$read_table(config$design, col.names = c('DO', 'AB', 'Condition')) %>%
+    as_data_frame()
+design
+```
+
+Examine input libraries for anomalies which may need to be taken care of.
+
+```{r}
+input_libs = design %>% filter(AB == 'Input') %>% .$DO
+inputs = counts %>% select(one_of(input_libs))
+
+boxplot(inputs)
+```
+
+Looks fine. Throw them away.
+
+```{r}
+(counts = counts %>% select(-one_of(input_libs)))
+```
+Next, we perform library size normalisation and filtering.
+
+```{r}
+library(DESeq2)
+
+size_factors = counts %>% select(starts_with('do')) %>%
+    estimateSizeFactorsForMatrix() %>% t() %>%
+    as.data.frame()
+
+sf_counts = counts %>% mutate_each(funs(. / size_factors$.), starts_with('do'))
+
+boxplot(sf_counts %>% select(starts_with('do')))
+```
+
+Filter unexpressed tRNAs.
+
+```{r}
+library(tidyr)
+
+filter_unexpressed = function (counts) {
+    threshold = 10
+    expressed = counts %>% gather(DO, Count, starts_with('do')) %>%
+        inner_join(design, by = 'DO') %>%
+        group_by(Gene, Condition) %>%
+        summarize(Expressed = all(Count > threshold)) %>%
+        summarize(Expressed = any(Expressed)) %>%
+        filter(Expressed) %>% .$Gene
+
+    filter(counts, Gene %in% expressed)
+}
+
+expressed = filter_unexpressed(sf_counts)
+boxplot(expressed %>% select(starts_with('do')))
+```
+
+Cluster the samples.
+
+```{r fig.width=9}
+cor = cor(select(expressed, starts_with('do')), method = 'spearman')
+
+divergent_colors = colorRampPalette(c('#603D71', 'white', '#A4B962'))(30)
+sorted_conditions = levels(relevel(factor(unique(design$Condition)), 'liver'))
+celltype_colors = setNames(c('chartreuse4', 'dodgerblue3', 'deepskyblue3'),
+                           sorted_conditions)
+
+colside_type = design[match(colnames(cor), design$DO), ]$Condition
+
+library(gplots)
+heatmap.2(cor, trace = 'none', density.info = 'none', col = divergent_colors,
+          ColSideColors = celltype_colors[colside_type],
+          lmat = cbind(c(5, 0, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
+```
+
+Perform principal components analysis as well.
+
+```{r}
+pcs = prcomp(t(select(expressed, starts_with('do'))), scale. = TRUE)
+v = summary(pcs)$importance[2, ] * 100
+pcs = pcs$x %>% as.data.frame() %>%
+    add_rownames('DO') %>%
+    tbl_df() %>%
+    inner_join(design, by = 'DO')
+ggplot(pcs, aes(x = PC1, y = PC2)) +
+    geom_point(aes(color = Condition), size = 3) +
+    scale_x_continuous(sprintf('PC1 (%0.1f%% variance explained)', v[1])) +
+    scale_y_continuous(sprintf('PC2 (%0.1f%% variance explained)', v[2])) +
+    scale_color_manual(values = celltype_colors)
+```
+
+Export the filtered and normalised expression counts.
+
+```{r}
+io$write_table(expressed, config$norm_counts)
+```
+
+Perform differential expression analysis between both cancer samples and the
+healthy tissue.
+
+```{r}
+de = sapply(config$contrasts, contrast -> {
+    col_data = design %>%
+        filter(AB == 'PolIII' & Condition %in% contrast) %>%
+        as.data.frame() %>% # tbl_df doesn’t allow rownames
+        `rownames<-`(.$DO)
+    count_data = counts %>%
+        filter(Gene %in% expressed$Gene) %>%
+        select(Gene, one_of(col_data$DO)) %>%
+        as.data.frame()
+    rownames(count_data) = count_data$Gene
+    count_data = count_data[, -1]
+    cds = DESeqDataSetFromMatrix(count_data, col_data, ~Condition)
+    cds$Condition = relevel(cds$Condition, contrast[1])
+    cds = DESeq(cds, quiet = TRUE)
+    results = results(cds)
+
+    title = paste(species, contrast, collapse = '–')
+    plotMA(cds, main = title)
+    plotDispEsts(cds, main = title)
+
+    results %>% as.data.frame() %>%
+        add_rownames('Gene') %>%
+        tbl_df() %>%
+        arrange(pvalue)
+}, simplify = FALSE)
+```

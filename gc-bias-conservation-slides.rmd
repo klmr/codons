@@ -1,0 +1,79 @@
+---
+title: "GC bias and CUB conservation"
+author: "klmr"
+date: "15 January 2015"
+output: beamer_presentation
+---
+
+```{r echo=FALSE}
+load('slides.rdata')
+```
+
+## Summary
+
+We observe that GC bias is highly correlated with PC1 of the codon usage per GO
+term PCA.
+
+```{r, echo=FALSE}
+plot(pc_cu_by_aa$x[, 1], go_gc, xlab = 'PC1 of per-amino acid codon usage bias',
+     ylab = 'GC bias',
+     main = 'Correlation of codon usage bias and GC bias per GO term')
+```
+
+---
+
+We want to compare whether GC bias is, in fact, subject to stronger
+evolutionary conservation than codon usage across GO terms.
+
+In other words, compare conservation (across species) of codon usage bias and GC
+bias for each GO term; and determine whether GC bias conservation is
+significantly different:
+
+---
+
+### Species $n$ ($S_n$)
+
+ &nbsp;   | Gene 1   | Gene 2   | $\dots$  | Gene $k$
+--------- | -------- | -------- | -------- | --------
+Codon 1   | $c_{11}$ | $c_{12}$ | $\dots$  | $c_{1k}$
+Codon 2   | $c_{21}$ | $c_{22}$ | $\dots$  | $c_{1k}$
+$\vdots$  | $\vdots$ | $\vdots$ | $\ddots$ | $\vdots$
+Codon $m$ | $c_{m1}$ | $c_{m2}$ | $\dots$  | $c_{mk}$
+GC bias   | $gc_1$   | $gc_2$   | $\dots$  | $gc_k$
+
+---
+
+### Correlations
+
+We can now calculate correlations
+
+$$\{Cor_{c_{1.}}(S_1, S_2), Cor_{c_{2.}}(S_1, S_2), \dots, Cor_{GC}(S_1, S_2)\}$$
+
+That way, we can calculate an empirical $p$-value for the null hypothesis
+
+> **$H_0$**: the correlation across species of the GC bias is not higher than
+> the correlation across species of individual codons.
+
+We can do this for each GO term, and test for an enrichment of significant $p$s.
+
+## Potential issues
+
+* For each gene, the GC bias is correlated with the codon distribution
+* For each gene, codon usage biases are correlated amongst each other
+
+As a consequence, we don’t know whether changing codon usage between species has
+implications for the conservation of the GC bias.
+
+---
+
+To solve this, we can simulate different species by mutating the codon usage of
+genes
+
+1. freely (but neutrally, i.e. preserving amino acid identity)
+2. under the constraint that the GC bias remains the same
+
+And assess how this impacts the cross-species correlation of codon usage and GC
+bias.
+
+Finally, we will be able to see whether GC bias conservation between species is
+systematically larger than between simulated ones.
