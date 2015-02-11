@@ -1,0 +1,39 @@
+```{r}
+modules::import('./scripts/knit')
+opts_chunk$set(fig.path = 'figure/rna-seq-',
+               cache.path = 'cache/rna-seq-')
+
+library(dplyr)
+```
+
+Load the RNA-seq count data. We are using gene-level counts from
+<code>htseq-count</code>.
+
+```{r}
+counts = io$read_table('./data/rnaseq-counts-mm10.tsv', header = TRUE) %>%
+    as_data_frame()
+
+counts
+```
+
+Load the library design matrix.
+
+```{r}
+celltype_colors = c(liver = 'chartreuse4',
+                    `Hepa1-6` = 'dodgerblue3',
+                    Hepa1c1c7 = 'deepskyblue3')
+design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
+    as_data_frame() %>%
+    select(DO = 1, Celltype = 2) %>%
+    mutate(Color = celltype_colors[Celltype])
+
+design
+```
+
+```{r}
+bxpcounts = select(counts, one_of(design$DO))
+bxpcounts = asinh(bxpcounts)
+
+boxplot(bxpcounts, border = design$Color,
+        outcol = design$Color, whiskcol = design$Color)
+```
