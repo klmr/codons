@@ -15,7 +15,7 @@ species := mouse human
 	${BIN}/knit $< $@
 
 %.rmd: %.rmd.brew
-	${BIN}/brew %< $@
+	${BIN}/brew $< $@
 
 # FIRST generate a list of temporary md files, *then* of temporary rmd files
 .PHONY: clean
