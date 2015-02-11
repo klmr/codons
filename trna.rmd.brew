@@ -53,8 +53,7 @@ We also throw out selenocysteine tRNAs and any other stop codons present.
 
 ```{r}
 annotation = io$read_table(config$annotation, header = FALSE) %>%
-    select(1, 2, 5, 6) %>%
-    `colnames<-`(c('Chr', 'Num', 'AA', 'Anticodon')) %>%
+    select(Chr = 1, Num = 2, AA = 5, Anticodon = 6) %>%
     filter(grepl('(chr)?\\d+', Chr)) %>%
     filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
     transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
