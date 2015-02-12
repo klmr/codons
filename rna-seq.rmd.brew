@@ -34,8 +34,8 @@ annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
     as_data_frame() %>%
     filter(source == 'protein_coding') %>%
     mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
-           Start = base$grep('^\\d+:(\\d+)', locus),
-           End = base$grep('\\.\\.(\\d+)', locus)) %>%
+           Start = as.integer(base$grep(':(\\d+)', locus)),
+           End = as.integer(base$grep('\\.\\.(\\d+)', locus))) %>%
     filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
     select(Gene = ID, Name, Chr, Start, End, GO)
 
@@ -79,12 +79,21 @@ q_counts = cbind(select(counts, -starts_with('do')),
 gg_boxplot(select(q_counts, starts_with('do')), design, celltype_colors)
 ```
 
+Find the canonical coding sequences of all genes.
+
 ```{r}
 library(Biostrings)
 ccds = readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
 names(ccds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(ccds))
 
 ccds = data.frame(Gene = names(ccds), Sequence = ccds)
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+ccds = ccds %>% filter(is_valid_cds(Sequence))
 
 longest = function (data) {
     i = which.max(sapply(data, nchar))
@@ -94,4 +103,38 @@ longest = function (data) {
 canonical_cds = ccds %>%
     group_by(Gene) %>%
     summarize(Sequence = longest(Sequence))
+```
+
+For each gene in each library, calculate the codon usage.
+
+```{r}
+raw_codon_hist = base$let(cds = DNAStringSet(canonical_cds$Sequence),
+                          as.data.frame(trinucleotideFrequency(cds, 3)))
+
+raw_codon_hist = cbind(Gene = canonical_cds$Gene, raw_codon_hist)
+
+codon_hist = mclapply(design$DO, lib -> {
+    code = names(GENETIC_CODE)
+    data = q_counts %>% select_('Gene', lib) %>%
+        inner_join(raw_codon_hist, by = 'Gene')
+    cbind(Gene = data$Gene, data %>% do({select(., one_of(code)) * .[[lib]]}))
+}, mc.cores = detectCores()) %>% setNames(design$DO)
+```
+
+Calculate the average codon usage over all genes for each library.
+
+```{r}
+mean_codon_hist = do.call(rbind,
+                          lapply(codon_hist,
+                                 lib -> select(lib, -Gene) %>% colMeans))
+
+plot_data = melt(mean_codon_hist, id.vars = NULL) %>%
+    `colnames<-`(c('DO', 'Codon', 'Count')) %>%
+    inner_join(design, by = 'DO')
+
+ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
+    geom_box() + geom_outliers(size = 1) +
+    xlab('Library') +
+    scale_color_manual(values = celltype_colors) +
+    theme_bw()
 ```
