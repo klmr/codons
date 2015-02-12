@@ -2,8 +2,6 @@
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/rna-seq-',
                cache.path = 'cache/rna-seq-')
-
-library(dplyr)
 ```
 
 Load the RNA-seq count data. We are using gene-level counts from
