@@ -2,6 +2,10 @@ BIN := ./scripts
 
 species := mouse human
 
+.PHONY: all
+all:
+	@echo No default rule. Please run `make rule`
+
 %-mouse.rmd: %.rmd.brew
 	${BIN}/brew $< $@ 'species="mouse"'
 
