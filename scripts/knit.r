@@ -95,15 +95,15 @@ geom_outliers = function (...) {
 
 # A boxplot with nice defaults
 
-gg_boxplot = function (data, col_data) {
-    data = melt(data, id.vars = 'Gene', variable.name = 'DO',
+gg_boxplot = function (data, col_data, colors) {
+    data = melt(data, id.vars = NULL, variable.name = 'DO',
                 value.name = 'Count') %>%
         inner_join(col_data, by = 'DO')
     ggplot(data, aes(factor(DO), Count, color = Celltype)) +
         geom_box() + geom_outliers(size = 1) +
         xlab('Library') +
         scale_y_asinh() +
-        scale_fill_manual(values = celltype_colors) +
+        scale_color_manual(values = colors) +
         theme_bw()
 }
 
