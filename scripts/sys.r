@@ -6,6 +6,8 @@ library = function (...)
 args = commandArgs(trailingOnly = TRUE)
 
 #' The name of the script
+#'
+#' @note If the script was invoked interactively, this is the empty string.
 script_name = local({
     file = grep('^--file=', commandArgs(trailingOnly = FALSE), value = TRUE)
     sub('--file=', '', file)
