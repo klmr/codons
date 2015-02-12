@@ -17,9 +17,6 @@ counts
 Load the library design matrix.
 
 ```{r}
-celltype_colors = c(liver = 'chartreuse4',
-                    `Hepa1-6` = 'dodgerblue3',
-                    Hepa1c1c7 = 'deepskyblue3')
 design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
     as_data_frame() %>%
     select(DO = 1, Celltype = 2)
@@ -27,6 +24,74 @@ design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
 design
 ```
 
+Load annotation. We are only interested in protein-coding genes, and filter
+mitochondrial genes, since these use a different genetic code. We also filter
+out any additional unplaced scaffolds present in the annotation.
+
 ```{r}
-gg_boxplot(counts, design)
+annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
+                           header = TRUE) %>%
+    as_data_frame() %>%
+    filter(source == 'protein_coding') %>%
+    mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
+           Start = base$grep('^\\d+:(\\d+)', locus),
+           End = base$grep('\\.\\.(\\d+)', locus)) %>%
+    filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
+    select(Gene = ID, Name, Chr, Start, End, GO)
+
+counts = inner_join(annotation, counts, by = 'Gene')
+```
+
+```{r}
+celltype_colors = c(liver = 'chartreuse4',
+                    `Hepa1-6` = 'dodgerblue3',
+                    Hepa1c1c7 = 'deepskyblue3')
+gg_boxplot(select(counts, starts_with('do')), design, celltype_colors)
+```
+
+Normalise data by library size.
+
+```{r}
+library(DESeq2)
+
+size_factors = estimateSizeFactorsForMatrix(counts %>% select(starts_with('do'))) %>%
+    t() %>% as.data.frame()
+
+sf_counts = counts %>% mutate_each(funs(. / size_factors$.), starts_with('do'))
+gg_boxplot(select(sf_counts, starts_with('do')), design, celltype_colors)
+```
+
+Notice the numerous remaining outliers for the “liver” samples. These shouldn’t
+exist, and there is no reason to believe that this is a biological rather than
+technical signal. So we use quantile normalisation instead.
+
+```{r}
+quantile_normalize = function (data) {
+    ordered_indices = apply(data, 2, x -> rank(x, ties = 'min'))
+    row_means = rowMeans(apply(data, 2, sort))
+    apply(ordered_indices, 2, x -> row_means[x]) %>% as.data.frame()
+}
+
+q_counts = select(counts, starts_with('do'))
+q_counts = cbind(select(counts, -starts_with('do')),
+                 quantile_normalize(q_counts)) %>% tbl_df()
+
+gg_boxplot(select(q_counts, starts_with('do')), design, celltype_colors)
+```
+
+```{r}
+library(Biostrings)
+ccds = readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
+names(ccds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(ccds))
+
+ccds = data.frame(Gene = names(ccds), Sequence = ccds)
+
+longest = function (data) {
+    i = which.max(sapply(data, nchar))
+    data[i]
+}
+
+canonical_cds = ccds %>%
+    group_by(Gene) %>%
+    summarize(Sequence = longest(Sequence))
 ```
