@@ -1,9 +1,10 @@
-library = function (...) suppressMessages(base::library(...))
-assign('library', library, globalenv())
+library = function (...) suppressMessages(base::library(..., quietly = TRUE))
 
 library(knitr)
 library(modules)
 library(ggplot2)
+library(reshape2)
+library(dplyr)
 
 options(stringsAsFactors = FALSE,
         import.path = c('scripts', file.path(Sys.getenv('HOME'), 'Projects/R')))
@@ -53,9 +54,58 @@ pander.trunc_mat = function (x, ...) {
 # Disable code re-formatting.
 opts_chunk$set(tidy = FALSE)
 
-# Configure ggplot
+# Configure ggplot2
 
 theme_set(theme_bw())
+
+# Add more functionality to ggplot2
+
+# Inverse hyperbolic sine gives a nice y scale, similar to log but which is also
+# defined for zero values (and negative values).
+
+asinh_trans = function ()
+    scales::trans_new('asinh', asinh, sinh, domain = c(-Inf, Inf))
+
+scale_y_asinh = function (...)
+    scale_y_continuous(..., trans = asinh_trans())
+
+# Manual boxplot, since ggplot2’s doesn’t support coloured outliers.
+# <http://stackoverflow.com/q/8499378/1968>
+
+geom_box = function (...) {
+    fullbox = function (x) {
+        box = setNames(quantile(x, c(0.25, 0.5, 0.75)),
+                       c('lower', 'middle', 'upper'))
+        iqr = box[3] - box[1]
+        ymin = min(x[x >= box[1] - 1.5 * iqr])
+        ymax = max(x[x <= box[3] + 1.5 * iqr])
+        c(ymin = ymin, box, ymax = ymax)
+    }
+    stat_summary(fun.data = fullbox, geom = 'boxplot', ...)
+}
+
+geom_outliers = function (...) {
+    outliers = function (x) {
+        box = quantile(x, c(0.25, 0.75))
+        iqr = box[2] - box[1]
+        x[(x < box[1] - 1.5 * iqr) | (x > box[2] + 1.5 * iqr)]
+    }
+    stat_summary(fun.y = outliers, geom = 'point', ...)
+}
+
+# A boxplot with nice defaults
+
+gg_boxplot = function (data, col_data) {
+    data = melt(data, id.vars = 'Gene', variable.name = 'DO',
+                value.name = 'Count') %>%
+        inner_join(col_data, by = 'DO')
+    ggplot(data, aes(factor(DO), Count, color = Celltype)) +
+        geom_box() + geom_outliers(size = 1) +
+        xlab('Library') +
+        scale_y_asinh() +
+        scale_fill_manual(values = celltype_colors) +
+        theme_bw()
+}
 
 # Load standard helpers
 
