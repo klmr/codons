@@ -1,5 +1,5 @@
-```{r}
-modules::import('./scripts/knit')
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/rna-seq-',
                cache.path = 'cache/rna-seq-')
 
@@ -24,16 +24,11 @@ celltype_colors = c(liver = 'chartreuse4',
                     Hepa1c1c7 = 'deepskyblue3')
 design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
     as_data_frame() %>%
-    select(DO = 1, Celltype = 2) %>%
-    mutate(Color = celltype_colors[Celltype])
+    select(DO = 1, Celltype = 2)
 
 design
 ```
 
 ```{r}
-bxpcounts = select(counts, one_of(design$DO))
-bxpcounts = asinh(bxpcounts)
-
-boxplot(bxpcounts, border = design$Color,
-        outcol = design$Color, whiskcol = design$Color)
+gg_boxplot(counts, design)
 ```
