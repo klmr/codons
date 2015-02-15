@@ -9,7 +9,7 @@ library(dplyr)
 options(stringsAsFactors = FALSE,
         import.path = c('scripts', file.path(Sys.getenv('HOME'), 'Projects/R')))
 
-#opts_chunk$set(cache = TRUE)
+opts_chunk$set(cache = TRUE)
 
 # Pretty-print tables
 
