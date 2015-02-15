@@ -95,10 +95,8 @@ is_valid_cds = function (seq)
 
 ccds = ccds %>% filter(is_valid_cds(Sequence))
 
-longest = function (data) {
-    i = which.max(sapply(data, nchar))
-    data[i]
-}
+longest = function (data)
+    data[which.max(sapply(data, nchar))]
 
 canonical_cds = ccds %>%
     group_by(Gene) %>%
