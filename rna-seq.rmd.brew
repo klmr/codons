@@ -34,6 +34,8 @@ Load annotation. We are only interested in protein-coding genes, and filter
 mitochondrial genes, since these use a different genetic code. We also filter
 out any additional unplaced scaffolds present in the annotation.
 
+Finally, the annotation is merged with the count data for ease of use.
+
 ```{r}
 annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
                            header = TRUE) %>%
@@ -45,7 +47,7 @@ annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
     filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
     select(Gene = ID, Name, Chr, Start, End, GO)
 
-counts = inner_join(annotation, counts, by = 'Gene')
+(counts = inner_join(annotation, counts, by = 'Gene'))
 ```
 
 ```{r}
@@ -53,10 +55,9 @@ celltype_colors = c(liver = 'chartreuse4',
                     `Hepa1-6` = 'dodgerblue3',
                     Hepa1c1c7 = 'deepskyblue3')
 gg_boxplot(select(counts, starts_with('do')), design, celltype_colors)
-
 ```
 
-Plot PCA of raw counts.
+PCA of raw counts.
 
 ```{r fig.width=10, fig.height=4}
 pcplot_by_do = function (pcs) {
@@ -78,25 +79,28 @@ count_prcomp = function (data)
 pcplot_by_do(count_prcomp(counts))
 ```
 
-Normalise data by library size.
+Normalise data by library size using DESeq(2).
 
 ```{r}
 library(DESeq2)
 
-size_factors = estimateSizeFactorsForMatrix(counts %>% select(starts_with('do'))) %>%
+size_factors = counts %>% select(starts_with('do')) %>%
+    estimateSizeFactorsForMatrix() %>%
     t() %>% as.data.frame()
 
 sf_counts = counts %>% mutate_each(funs(. / size_factors$.), starts_with('do'))
 gg_boxplot(select(sf_counts, starts_with('do')), design, celltype_colors)
 ```
 
+PCA of library size normalised counts.
+
 ```{r fig.width=10, fig.height=4}
 pcplot_by_do(count_prcomp(sf_counts))
 ```
 
-Notice the numerous remaining outliers for the “liver” samples. These shouldn’t
+Notice the much longer tail for the “liver” samples. This shouldn’t necessarily
 exist, and there is no reason to believe that this is a biological rather than
-technical signal. So we use quantile normalisation instead.
+technical signal. So we try quantile normalisation instead.
 
 ```{r}
 quantile_normalize = function (data) {
@@ -112,11 +116,14 @@ q_counts = cbind(select(counts, -starts_with('do')),
 gg_boxplot(select(q_counts, starts_with('do')), design, celltype_colors)
 ```
 
+Again, here’s the PCA of the quantile normalised data.
+
 ```{r fig.width=10, fig.height=4}
 pcplot_by_do(count_prcomp(q_counts))
 ```
 
-Find the canonical coding sequences of all genes.
+Next, we will calculate the actual codon usage. For this, we need to find the
+canonical coding sequences of all genes.
 
 ```{r}
 library(Biostrings)
@@ -140,7 +147,12 @@ canonical_cds = ccds %>%
     summarize(Sequence = longest(Sequence))
 ```
 
-For each gene in each library, calculate the codon usage.
+For each gene in each library, calculate the codon usage. First, we calculate
+the “raw” codon usage, i.e. unweighted by gene expression. Afterwards, we
+multiply these values with the gene expression values for each library.
+
+We get a list of the libraries. Each list item is a codon frequency table with
+one row per gene, the codon frequencies weighted by gene expression.
 
 ```{r}
 raw_codon_hist = base$let(cds = DNAStringSet(canonical_cds$Sequence),
@@ -157,7 +169,8 @@ codon_hist = mclapply(design$DO, lib -> {
 }, mc.cores = detectCores()) %>% setNames(design$DO)
 ```
 
-Calculate the average codon usage over all genes for each library.
+Calculate the average codon usage over all genes for each library.  After that,
+we plot the distribution of codon usage as  a box plot.
 
 ```{r}
 mean_codon_hist = do.call(rbind,
@@ -175,7 +188,8 @@ ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
     theme_bw()
 ```
 
-Perform PCA on the codon usage bias.
+Perform PCA on the codon usage bias, i.e. the relative codon usage as a
+fraction of its amino acid.
 
 ```{r fig.width=10, fig.height=4}
 genetic_code = io$read_table('./data/genetic_code.tsv', header = FALSE,
@@ -216,7 +230,7 @@ ggplot(skew_data, aes(x = factor(Codon, levels = unique(Codon[order(AA)])), y = 
     scale_fill_manual(values = pal)
 ```
 
-Let’s have a look at the clustering of codons.
+Nothing. Let’s have a look at the hierarchical clustering of codons.
 
 ```{r fig.width=9}
 library(gplots)
