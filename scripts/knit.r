@@ -1,4 +1,5 @@
-library = function (...) suppressMessages(base::library(..., quietly = TRUE))
+library = function (...)
+    suppressMessages(base::library(..., warn.conflicts = FALSE, quietly = TRUE))
 
 library(knitr)
 library(modules)
