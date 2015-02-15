@@ -142,7 +142,7 @@ ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
 Perform PCA on the codon usage bias.
 
 
-```{r}
+```{r fig.width=10, fig.height=4}
 genetic_code = io$read_table('./data/genetic_code.tsv', header = FALSE,
                              col.names = c('Codon', 'AA')) %>%
     filter(! Codon %in% c('TAA', 'TGA', 'TAG'))
@@ -156,7 +156,7 @@ cub = melt(mean_codon_hist, id.vars = NULL) %>%
     dcast(DO ~ Codon, value.var = 'CUB') %>%
     tbl_df()
 
-pc_data = select(cub, -DO) %>% `rownames<-`(cub$DO)
+pc_data = select(cub, -DO) %>% as.data.frame() %>% `rownames<-`(cub$DO)
 cub_pc = prcomp(pc_data)
 v = summary(cub_pc)$importance[2, ] * 100
 cub_pc = cub_pc$x %>%
@@ -168,4 +168,34 @@ ggplot(cub_pc, aes(x = PC1, y = PC2)) +
     scale_x_continuous(sprintf('PC1 (%0.1f%% variance explained)', v[1])) +
     scale_y_continuous(sprintf('PC2 (%0.1f%% variance explained)', v[2])) +
     scale_color_manual(values = celltype_colors)
+```
+
+`r v[1]` of the total variance is explained by just one rotation. This suggests
+that there is a systematic bias in the data. Let’s see whether certain amino
+acids are systematically skewed.
+
+```{r fig.width=12}
+skew_data = pc_data %>% add_rownames('DO') %>%
+    melt(, variable.name = 'Codon', value.name = 'CUB') %>%
+    inner_join(genetic_code, by = 'Codon')
+
+# Alternating colours for the amino acids.
+pal = setNames(rep(c('#8080FF', '#AAAAAA'), times = 10), sort(unique(genetic_code$AA)))
+ggplot(skew_data, aes(x = factor(Codon, levels = unique(Codon[order(AA)])), y = CUB)) +
+    geom_bar(aes(fill = AA, group = DO), stat = 'identity', position = 'dodge') +
+    scale_fill_manual(values = pal)
+```
+
+Let’s have a look at the clustering of codons.
+
+```{r fig.width=9}
+library(gplots)
+colside_type = design[match(rownames(pc_data), design$DO), ]$Celltype
+heatmap.2(as.matrix(t(pc_data)), trace = 'none', density.info = 'none',
+          ColSideColors = celltype_colors[colside_type],
+          lmat = cbind(c(5, 0, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
 ```
