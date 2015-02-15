@@ -10,8 +10,14 @@ Load the RNA-seq count data. We are using gene-level counts from
 ```{r}
 counts = io$read_table('./data/rnaseq-counts-mm10.tsv', header = TRUE) %>%
     as_data_frame()
+```
 
-counts
+Throw out zero rows.
+
+```{r}
+zero_rows = rowSums(select(counts, -Gene)) == 0
+table(zero_rows)
+(counts = counts[! zero_rows, ])
 ```
 
 Load the library design matrix.
@@ -111,6 +117,7 @@ raw_codon_hist = base$let(cds = DNAStringSet(canonical_cds$Sequence),
 
 raw_codon_hist = cbind(Gene = canonical_cds$Gene, raw_codon_hist)
 
+# FIXME use FPKM instead of quantile normalised counts.
 codon_hist = mclapply(design$DO, lib -> {
     code = names(GENETIC_CODE)
     data = q_counts %>% select_('Gene', lib) %>%
