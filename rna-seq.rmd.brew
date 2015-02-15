@@ -164,8 +164,8 @@ mean_codon_hist = do.call(rbind,
                           lapply(codon_hist,
                                  lib -> select(lib, -Gene) %>% colMeans))
 
-plot_data = melt(mean_codon_hist, id.vars = NULL) %>%
-    `colnames<-`(c('DO', 'Codon', 'Count')) %>%
+plot_data = mean_codon_hist %>%
+    melt(varnames = c('DO', 'Codon'), value.name = 'Count') %>%
     inner_join(design, by = 'DO')
 
 ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
@@ -177,14 +177,13 @@ ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
 
 Perform PCA on the codon usage bias.
 
-
 ```{r fig.width=10, fig.height=4}
 genetic_code = io$read_table('./data/genetic_code.tsv', header = FALSE,
                              col.names = c('Codon', 'AA')) %>%
     filter(! Codon %in% c('TAA', 'TGA', 'TAG'))
 
-cub = melt(mean_codon_hist, id.vars = NULL) %>%
-    `colnames<-`(c('DO', 'Codon', 'Count')) %>%
+cub = mean_codon_hist %>%
+    melt(varnames = c('DO', 'Codon'), value.name = 'Count') %>%
     inner_join(genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
     mutate(CUB = Count / sum(Count)) %>%
@@ -207,7 +206,7 @@ amino acids are systematically skewed.
 
 ```{r fig.width=12}
 skew_data = pc_data %>% add_rownames('DO') %>%
-    melt(, variable.name = 'Codon', value.name = 'CUB') %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'CUB') %>%
     inner_join(genetic_code, by = 'Codon')
 
 # Alternating colours for the amino acids.
