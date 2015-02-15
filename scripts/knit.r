@@ -108,6 +108,21 @@ gg_boxplot = function (data, col_data, colors) {
         theme_bw()
 }
 
+melt = function (...) {
+    args = list(...)
+    result = reshape2::melt(...)
+    varnames = if ('varnames' %in% names(args))
+        args$varnames
+    else if ('variable.name' %in% names(args))
+        args$variable.name
+    else
+        'variable'
+
+    result[, varnames] = sapply(result[, varnames], as.character)
+    result
+}
+assign('melt', melt, globalenv())
+
 # Load standard helpers
 
 local({base = import('ebits/base')}, globalenv())
