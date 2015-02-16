@@ -12,6 +12,12 @@ counts = io$read_table('./data/rnaseq-counts-mm10.tsv', header = TRUE) %>%
     as_data_frame()
 ```
 
+We also load developmental data for P29.
+
+```{r}
+p29_counts = io$read_table('../')
+```
+
 Throw out zero rows.
 
 ```{r}
@@ -139,12 +145,10 @@ is_valid_cds = function (seq)
 
 ccds = ccds %>% filter(is_valid_cds(Sequence))
 
-longest = function (data)
-    data[which.max(sapply(data, nchar))]
-
 canonical_cds = ccds %>%
     group_by(Gene) %>%
-    summarize(Sequence = longest(Sequence))
+    arrange(desc(nchar(Sequence))) %>%
+    slice(1)
 ```
 
 For each gene in each library, calculate the codon usage. First, we calculate
