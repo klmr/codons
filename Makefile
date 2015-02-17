@@ -27,8 +27,10 @@ clean:
 	${RM} $(patsubst %.rmd,%.md,$(wildcard *.rmd))
 	${RM} $(patsubst %.brew,%,$(wildcard *.brew))
 	${RM} $(foreach s,${species},$(patsubst %.rmd.brew,%-$s.rmd,$(wildcard *.brew)))
+	${RM} cache/*
 
 .PHONY: cleanall
 cleanall: clean
 	${RM} *.html
 	${RM} *.pdf
+	${RM} figure/*
