@@ -276,15 +276,28 @@ highly expressed genes. We therefore look at the gene lengths of highly
 expressed genes. We use the top 1000 genes in each condition for that.
 
 ```{r}
-top_1000_gene_lengths = inner_join(q_counts, canonical_cds, by = 'Gene') %>%
+sorted_gene_lengths = inner_join(q_counts, canonical_cds, by = 'Gene') %>%
     mutate(Length = nchar(Sequence)) %>%
     select(Gene, Length, starts_with('do')) %>%
     melt(id.vars = c('Gene', 'Length'), variable.name = 'DO', value.name = 'Count') %>%
+    inner_join(design, by = 'DO') %>%
     group_by(DO) %>%
-    arrange(desc(Count)) %>%
+    mutate(Rank = rank(Count)) %>%
+    arrange(desc(Count))
+
+top_1000_gene_lengths = sorted_gene_lengths %>%
     slice(1 : 1000) %>%
     summarize(Length = sum(Length))
 
 dcast(top_1000_gene_lengths, . ~ DO, value.var = 'Length') %>%
     select(-.)
+```
+
+Plot the codon length versus gene expression.
+
+```{r fig.width=12}
+ggplot(sorted_gene_lengths, aes(x = Rank, y = Length)) +
+    geom_point(aes(color = Celltype)) +
+    scale_y_log10() +
+    scale_color_manual(values = celltype_colors)
 ```
