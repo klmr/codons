@@ -12,12 +12,6 @@ counts = io$read_table('./data/rnaseq-counts-mm10.tsv', header = TRUE) %>%
     as_data_frame()
 ```
 
-We also load developmental data for P29.
-
-```{r}
-p29_counts = io$read_table('../')
-```
-
 Throw out zero rows.
 
 ```{r}
@@ -145,6 +139,10 @@ is_valid_cds = function (seq)
 
 ccds = ccds %>% filter(is_valid_cds(Sequence))
 
+# Re-enable S3 method lookup (see https://github.com/hadley/dplyr/issues/972)
+detach('package:dplyr')
+library(dplyr)
+
 canonical_cds = ccds %>%
     group_by(Gene) %>%
     arrange(desc(nchar(Sequence))) %>%
@@ -164,10 +162,15 @@ raw_codon_hist = base$let(cds = DNAStringSet(canonical_cds$Sequence),
 
 raw_codon_hist = cbind(Gene = canonical_cds$Gene, raw_codon_hist)
 
-# FIXME use FPKM instead of quantile normalised counts.
+tpm_counts = inner_join(counts, canonical_cds, by = 'Gene') %>%
+    mutate(Length = nchar(Sequence)) %>%
+    mutate_each(funs(. / Length), starts_with('do')) %>%
+    mutate_each(funs(1000000 * . / sum(.)), starts_with('do')) %>%
+    select(Gene, starts_with('do'))
+
 codon_hist = mclapply(design$DO, lib -> {
     code = names(GENETIC_CODE)
-    data = q_counts %>% select_('Gene', lib) %>%
+    data = tpm_counts %>% select_('Gene', lib) %>%
         inner_join(raw_codon_hist, by = 'Gene')
     cbind(Gene = data$Gene, data %>% do({select(., one_of(code)) * .[[lib]]}))
 }, mc.cores = detectCores()) %>% setNames(design$DO)
@@ -246,4 +249,22 @@ heatmap.2(as.matrix(t(pc_data)), trace = 'none', density.info = 'none',
           lhei = c(1.5, 0.25, 4))
 legend('right', bty = 'n', legend = names(celltype_colors),
        fill = celltype_colors)
+```
+
+The bias may be due to the fact that there is a strong skew in gene length in
+highly expressed genes. We therefore look at the gene lengths of highly
+expressed genes. We use the top 1000 genes in each condition for that.
+
+```{r}
+top_1000_gene_lengths = inner_join(q_counts, canonical_cds, by = 'Gene') %>%
+    mutate(Length = nchar(Sequence)) %>%
+    select(Gene, Length, starts_with('do')) %>%
+    melt(id.vars = c('Gene', 'Length'), variable.name = 'DO', value.name = 'Count') %>%
+    group_by(DO) %>%
+    arrange(desc(Count)) %>%
+    slice(1 : 1000) %>%
+    summarize(Length = sum(Length))
+
+dcast(top_1000_gene_lengths, . ~ DO, value.var = 'Length') %>%
+    select(-.)
 ```
