@@ -25,6 +25,7 @@ panderOptions('table.alignment.rownames', 'left')
 opts_chunk$set(render = function (object, ...) {
     if (is.data.frame(object) ||
         is.matrix(object) ||
+        is.table(object) ||
         is.tbl_df(object))
         pander(object, style = 'rmarkdown')
     else if (isS4(object))
@@ -32,6 +33,9 @@ opts_chunk$set(render = function (object, ...) {
     else
         print(object)
 })
+
+pander.table = function (x, ...)
+    pander(`rownames<-`(rbind(x), NULL), ...)
 
 # Helpers for dplyr tables
 
