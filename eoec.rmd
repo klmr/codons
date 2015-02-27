@@ -1,0 +1,48 @@
+# EOEC: enrichment over expected count
+
+The EOEC is the count over the *expected* count. Intuitively, one can think of
+it as the ratio
+
+$$
+r_i = \frac{x_i}{E(x_i)},
+$$
+
+for each gene $i$ and its count $x_i$. The expected count is given by
+
+$$
+E(x_i) = N \cdot \frac{l_i}{\sum_{j} l_j},
+$$
+
+with $l_i$ being the effective length of gene $i$, and $N = \sum{x}$ is the
+total number of mapped fragments. In code:
+
+```{r}
+log_expected_counts = function (log_lengths, log_library_size, log_ref_length)
+    log_library_size + log_lengths - log_ref_length
+
+expected_counts = function (counts, lengths)
+    exp(log_expected_counts(log(lengths), log(sum(counts)), log(sum(lengths))))
+```
+
+And thus:
+
+```{r}
+eoec = function (counts, lengths)
+    exp(log(counts) -
+        log_expected_counts(log(lengths), log(sum(counts)), log(sum(lengths))))
+```
+
+Here’s a test:
+
+```{r}
+library(dplyr, quietly = TRUE, warn.conflicts = FALSE)
+counts = data.frame(Gene = c('A', 'B', 'C', 'D'),
+                    Length = 1:4,
+                    do1 = c(10, 20, 30, 40),
+                    do2 = c(20, 40, 60, 80),
+                    do3 = c(20, 20, 30, 40))
+
+(expected = mutate_each(counts, funs(expected_counts(., Length)), starts_with('do')))
+
+(eoec = mutate_each(counts, funs(eoec(., Length)), starts_with('do')))
+```
