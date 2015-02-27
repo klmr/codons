@@ -14,14 +14,14 @@ configurations = list(
         annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
         design = './data/libraries-trna-chip-mm10.tsv',
         norm_counts = './results/trna-norm-counts-mm10.tsv',
-        contrasts = list(c('liver', 'Hepa1-6'), c('liver', 'Hepa1c1c7'))
+        contrasts = list(c('liver', 'Hepa1-6'), c('liver', 'Hepa1c1c7'), c('Hepa1-6', 'Hepa1c1c7'))
     ),
     human = list(
         counts = './data/trna-counts-hs38.tsv',
         annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
         design = './data/libraries-trna-chip-hs38.tsv',
         norm_counts = './results/trna-norm-counts-hs38.tsv',
-        contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'))
+        contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'), c('Huh7', 'HepG2'))
     ))
 -%>
 species = '<%= species %>'
@@ -182,7 +182,7 @@ de = sapply(config$contrasts, contrast -> {
     results = results(cds)
 
     title = paste(species, contrast, collapse = '–')
-    plotMA(cds, main = title)
+    plotMA(cds, main = title, alpha = 0.01)
     plotDispEsts(cds, main = title)
 
     results %>% as.data.frame() %>%
@@ -191,3 +191,58 @@ de = sapply(config$contrasts, contrast -> {
         arrange(pvalue)
 }, simplify = FALSE)
 ```
+
+Group genes into anticodon isoacceptor families.
+
+```{r}
+isoacceptors = expressed %>%
+    group_by(Anticodon) %>%
+    summarise_each(funs(mean), starts_with('do'))
+```
+
+Attempt differential expression analysis between anticodons. This requires us to
+use different counts, though: we use the sum of unnormalised counts:
+
+```{r}
+iso_de_counts = counts %>%
+    filter(Gene %in% expressed$Gene) %>%
+    group_by(Anticodon) %>%
+    summarise_each(funs(sum), starts_with('do'))
+
+iso_de = sapply(config$contrasts, contrast -> {
+    col_data = design %>%
+        filter(AB == 'PolIII' & Condition %in% contrast) %>%
+        as.data.frame() %>% # tbl_df doesn’t allow rownames
+        `rownames<-`(.$DO)
+    count_data = iso_de_counts %>%
+        select(Anticodon, one_of(col_data$DO)) %>%
+        as.data.frame()
+    rownames(count_data) = count_data$Anticodon
+    count_data = count_data[, -1]
+    cds = DESeqDataSetFromMatrix(count_data, col_data, ~Condition)
+    cds$Condition = relevel(cds$Condition, contrast[1])
+    cds = DESeq(cds, quiet = TRUE)
+    results = results(cds)
+
+    title = paste(species, contrast, collapse = '–')
+    plotMA(cds, main = title)
+    plotDispEsts(cds, main = title)
+
+    results %>% as.data.frame() %>%
+        add_rownames('Anticodon') %>%
+        tbl_df() %>%
+        arrange(pvalue)
+}, simplify = FALSE)
+
+threshold = 0.01
+
+iso_sig = lapply(iso_de, result -> result %>%
+    filter(! is.na(pvalue) & pvalue < threshold) %>%
+        arrange(desc(pvalue)))
+```
+
+* Contrast `r config$contrast[[1]]`: `r nrow(iso_sig[[1]])` significant
+results
+* Contrast `r config$contrast[[2]]`: `r nrow(iso_sig[[2]])` significant
+results
+* Contrast `r config$contrast[[3]]`: `r nrow(iso_sig[[3]])` significant result
