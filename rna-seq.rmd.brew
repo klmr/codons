@@ -282,7 +282,7 @@ sorted_gene_lengths = inner_join(q_counts, canonical_cds, by = 'Gene') %>%
     melt(id.vars = c('Gene', 'Length'), variable.name = 'DO', value.name = 'Count') %>%
     inner_join(design, by = 'DO') %>%
     group_by(DO) %>%
-    mutate(Rank = rank(Count)) %>%
+    mutate(Rank = rank(Count, ties.method = 'min')) %>%
     arrange(desc(Count))
 
 top_1000_gene_lengths = sorted_gene_lengths %>%
@@ -297,7 +297,7 @@ Plot the codon length versus gene expression.
 
 ```{r fig.width=12}
 ggplot(sorted_gene_lengths, aes(x = Rank, y = Length)) +
-    geom_point(aes(color = Celltype)) +
+    geom_point(aes(color = Celltype), size = 0.5) +
     scale_y_log10() +
     scale_color_manual(values = celltype_colors)
 ```
