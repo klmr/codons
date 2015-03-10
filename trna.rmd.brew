@@ -2,31 +2,13 @@
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/trna-<%= species %>-',
                cache.path = 'cache/trna-<%= species %>-')
+
+config = modules::import('config_<%= species %>')
 ```
 
-Configuration. Which are the files we want to load?
+# `r config$species` tRNA count data
 
 ```{r}
-<%
-configurations = list(
-    mouse = list(
-        counts = './data/trna-counts-mm10.tsv',
-        annotation = './data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
-        design = './data/libraries-trna-chip-mm10.tsv',
-        norm_counts = './results/trna-norm-counts-mm10.tsv',
-        contrasts = list(c('liver', 'Hepa1-6'), c('liver', 'Hepa1c1c7'), c('Hepa1-6', 'Hepa1c1c7'))
-    ),
-    human = list(
-        counts = './data/trna-counts-hs38.tsv',
-        annotation = './data/Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
-        design = './data/libraries-trna-chip-hs38.tsv',
-        norm_counts = './results/trna-norm-counts-hs38.tsv',
-        contrasts = list(c('liver', 'Huh7'), c('liver', 'HepG2'), c('Huh7', 'HepG2'))
-    ))
--%>
-species = '<%= species %>'
-config = <%= deparse(configurations[[species]]) %>
-
 fs$mkdir(dirname(config$norm_counts))
 ```
 
@@ -181,7 +163,7 @@ de = sapply(config$contrasts, contrast -> {
     cds = DESeq(cds, quiet = TRUE)
     results = results(cds)
 
-    title = paste(species, contrast, collapse = '–')
+    title = paste(config$species, contrast, collapse = '–')
     plotMA(cds, main = title, alpha = 0.01)
     plotDispEsts(cds, main = title)
 
@@ -224,7 +206,7 @@ iso_de = sapply(config$contrasts, contrast -> {
     cds = DESeq(cds, quiet = TRUE)
     results = results(cds)
 
-    title = paste(species, contrast, collapse = '–')
+    title = paste(config$species, contrast, collapse = '–')
     plotMA(cds, main = title)
     plotDispEsts(cds, main = title)
 
