@@ -67,7 +67,8 @@ annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
 We have `r nrow(counts)` properly annotated genes.
 
 ```{r}
-celltype_colors = c(`Liver-Adult` = 'chartreuse4',
+celltype_colors = c(`Liver-Adult` = '#A04040',
+                    #`Liver-Adult` = 'chartreuse4',
                     `Liver-P29` = 'chartreuse3',
                     `Liver-E15.5` = 'chartreuse2',
                     `Hepa1-6` = 'dodgerblue3',
@@ -276,7 +277,7 @@ highly expressed genes. We therefore look at the gene lengths of highly
 expressed genes. We use the top 1000 genes in each condition for that.
 
 ```{r}
-sorted_gene_lengths = inner_join(q_counts, canonical_cds, by = 'Gene') %>%
+sorted_gene_lengths = inner_join(tpm_counts, canonical_cds, by = 'Gene') %>%
     mutate(Length = nchar(Sequence)) %>%
     select(Gene, Length, starts_with('do')) %>%
     melt(id.vars = c('Gene', 'Length'), variable.name = 'DO', value.name = 'Count') %>%
@@ -296,8 +297,14 @@ dcast(top_1000_gene_lengths, . ~ DO, value.var = 'Length') %>%
 Plot the codon length versus gene expression.
 
 ```{r fig.width=12}
+transparent = function (colors, alpha = 0.5) {
+    c = col2rgb(colors)
+    setNames(rgb(c['red', ], c['green', ], c['blue', ],
+                 alpha * 255, maxColorValue = 255), names(colors))
+}
+
 ggplot(sorted_gene_lengths, aes(x = Rank, y = Length)) +
-    geom_point(aes(color = Celltype), size = 0.5) +
+    geom_point(aes(color = Celltype), size = 1) +
     scale_y_log10() +
-    scale_color_manual(values = celltype_colors)
+    scale_color_manual(values = transparent(celltype_colors))
 ```
