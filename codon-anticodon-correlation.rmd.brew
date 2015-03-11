@@ -1,0 +1,16 @@
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
+               cache.path = 'cache/codon-anticodon-<%= species %>-')
+
+config = modules::import('config_<%= species %>')
+```
+
+The aim of this analysis is to test whether the anticodon isoacceptor tRNA pool
+is optimised to efficiently decode a condition specific set of codons, or
+whether it is largely unchanging, and optimised to the overall codon usage.
+
+First, we load the relevant data.
+
+```{r}
+```
