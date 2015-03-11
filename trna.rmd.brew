@@ -15,7 +15,7 @@ fs$mkdir(dirname(config$norm_counts))
 Load the tRNA count data.
 
 ```{r}
-counts = io$read_table(config$counts, header = TRUE) %>%
+counts = io$read_table(config$trna_counts, header = TRUE) %>%
     rename(Gene = X) %>%
     as_data_frame()
 
@@ -32,7 +32,7 @@ only keep autosomal chromosomes.
 We also throw out selenocysteine tRNAs and any other stop codons present.
 
 ```{r}
-annotation = io$read_table(config$annotation, header = FALSE) %>%
+annotation = io$read_table(config$trna_annotation, header = FALSE) %>%
     select(Chr = 1, Num = 2, AA = 5, Anticodon = 6) %>%
     filter(grepl('(chr)?\\d+', Chr)) %>%
     filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
@@ -45,7 +45,8 @@ annotation = io$read_table(config$annotation, header = FALSE) %>%
 Load experimental design.
 
 ```{r}
-design = io$read_table(config$design, col.names = c('DO', 'AB', 'Condition')) %>%
+design = io$read_table(config$trna_design,
+                       col.names = c('DO', 'AB', 'Condition')) %>%
     as_data_frame()
 design
 ```
