@@ -94,3 +94,10 @@ filter_unexpressed = function (counts, design) {
 trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
 (trna_counts = filter(trna_counts, Gene %in% trna_counts_sf$Gene))
 ```
+
+```{r}
+library(Biostrings)
+
+trna_counts_sf = trna_counts_sf %>%
+    mutate(Codon = as.character(reverseComplement(DNAStringSet(Anticodon))))
+```
