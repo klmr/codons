@@ -172,5 +172,5 @@ cub = sample_codon_usage %>%
 
 ```{r}
 trna_counts_sf = trna_counts_sf %>%
-    mutate(Codon = as.character(reverseComplement(DNAStringSet(Anticodon))))
+    mutate(Codon = as.character(bios$reverseComplement(bios$DNAStringSet(Anticodon))))
 ```
