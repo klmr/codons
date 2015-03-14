@@ -122,6 +122,27 @@ canonical_cds = cds %>%
     slice(1)
 ```
 
+```{r codon_usage}
+gene_wise_raw_codon_usage = canonical_cds$Sequence %>%
+    bios$DNAStringSet() %>%
+    bios$trinucleotideFrequency(3) %>%
+    as.data.frame() %>%
+    {cbind(Gene = canonical_cds$Gene, .)}
+
+mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
+mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
+                                       starts_with('do'))
+
+gene_wise_codon_usage = mclapply(mrna_design$DO, lib -> {
+    code = names(bios$GENETIC_CODE)
+    data = mrna_counts_sf %>% select_('Gene', lib) %>%
+        inner_join(gene_wise_raw_codon_usage, by = 'Gene') %>%
+        inner_join(canonical_cds, by = 'Gene')
+    cbind(Gene = data$Gene,
+          data %>% do({select(., one_of(code)) * .[[lib]] / nchar(.$Sequence)}))
+}, mc.cores = detectCores()) %>% setNames(mrna_design$DO)
+```
+
 ```{r}
 trna_counts_sf = trna_counts_sf %>%
     mutate(Codon = as.character(reverseComplement(DNAStringSet(Anticodon))))
