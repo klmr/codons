@@ -102,10 +102,9 @@ gene. These counts are multiplied with the gene’s normalised expression, and
 then summed over the transcriptome. Finally, each codon usage is divided by the
 sum of the codon usage of its amino acid.
 
-Since this requires normalising by gene length, the first step is to retrieve
-the canonical coding sequence (CDS) of each gene.
+The first step is to retrieve the canonical coding sequence (CDS) of each gene.
 
-```{r}
+```{r cds}
 cds = Biostrings::readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
 names(cds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(cds))
 cds = data.frame(Gene = names(cds), Sequence = cds)
