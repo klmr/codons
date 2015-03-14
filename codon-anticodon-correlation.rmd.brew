@@ -95,9 +95,34 @@ trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
 (trna_counts = filter(trna_counts, Gene %in% trna_counts_sf$Gene))
 ```
 
-```{r}
-library(Biostrings)
+Calculate codon usage bias (CUB) and tRNA anticodon abundance. The CUB is the
+proportion each codon contributes to the amino acid it codes for. To calculate
+the CUB, we first calculate the codon usage (i.e. the count of each codon) per
+gene. These counts are multiplied with the gene’s normalised expression, and
+then summed over the transcriptome. Finally, each codon usage is divided by the
+sum of the codon usage of its amino acid.
 
+Since this requires normalising by gene length, the first step is to retrieve
+the canonical coding sequence (CDS) of each gene.
+
+```{r}
+cds = Biostrings::readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
+names(cds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(cds))
+cds = data.frame(Gene = names(cds), Sequence = cds)
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+cds = cds %>% filter(is_valid_cds(Sequence))
+canonical_cds = cds %>%
+    group_by(Gene) %>%
+    arrange(desc(nchar(Sequence))) %>%
+    slice(1)
+```
+
+```{r}
 trna_counts_sf = trna_counts_sf %>%
     mutate(Codon = as.character(reverseComplement(DNAStringSet(Anticodon))))
 ```
