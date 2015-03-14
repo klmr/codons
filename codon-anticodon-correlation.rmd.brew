@@ -122,6 +122,8 @@ canonical_cds = cds %>%
     slice(1)
 ```
 
+Calculate codon usage.
+
 ```{r codon_usage}
 gene_wise_raw_codon_usage = canonical_cds$Sequence %>%
     bios$DNAStringSet() %>%
@@ -141,6 +143,31 @@ gene_wise_codon_usage = mclapply(mrna_design$DO, lib -> {
     cbind(Gene = data$Gene,
           data %>% do({select(., one_of(code)) * .[[lib]] / nchar(.$Sequence)}))
 }, mc.cores = detectCores()) %>% setNames(mrna_design$DO)
+
+sample_codon_usage = lapply(gene_wise_codon_usage,
+                            lib -> colSums(select(lib, -Gene))) %>%
+    {do.call(rbind, .)} %>%
+    as.data.frame() %>%
+    add_rownames('DO')
+```
+
+Make genetic code available as tidy data.
+
+```{r genetic_code}
+genetic_code = data.frame(AA = bios$GENETIC_CODE) %>% add_rownames('Codon')
+```
+
+Calculate codon usage bias.
+
+```{r cub}
+cub = sample_codon_usage %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(DO, AA) %>%
+    mutate(CUB = Count / sum(Count)) %>%
+    select(DO, Codon, CUB) %>%
+    dcast(DO ~ Codon, value.var = 'CUB') %>%
+    tbl_df()
 ```
 
 ```{r}
