@@ -170,6 +170,21 @@ cub = sample_codon_usage %>%
     tbl_df()
 ```
 
+Verify correctness: for each amino acid in each sample, the CUBs must sum to 1.
+
+```{r verify_cub}
+cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(DO, AA) %>%
+    summarize(Sum = sum(Count)) %>%
+    ungroup() %T>% {
+        {setNames(.$Sum, .$AA)} %>%
+        print()
+    } %>%
+    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
+    .$Correct
+```
+
 ```{r}
 trna_counts_sf = trna_counts_sf %>%
     mutate(Codon = as.character(bios$reverseComplement(bios$DNAStringSet(Anticodon))))
