@@ -6,6 +6,8 @@ opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
 config = modules::import('config_<%= species %>')
 ```
 
+## Load data
+
 The aim of this analysis is to test whether the anticodon isoacceptor tRNA pool
 is optimised to efficiently decode a condition specific set of codons, or
 whether it is largely unchanging, and optimised to the overall codon usage.
@@ -58,6 +60,8 @@ mrna_design
 mrna_counts
 ```
 
+## Filtering
+
 Filter out never expressed genes. For protein-coding genes this is
 straightforward, we retain all whose count is $>0$.
 
@@ -93,6 +97,8 @@ filter_unexpressed = function (counts, design) {
 
 trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
 ```
+
+## Codon usage and anticodon abundance
 
 Calculate codon usage bias (CUB) and tRNA anticodon abundance. The CUB is the
 proportion each codon contributes to the amino acid it codes for. To calculate
@@ -221,3 +227,5 @@ aab %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
     summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
     .$Correct
 ```
+
+## Correlation of usage and abundance
