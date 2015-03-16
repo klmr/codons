@@ -229,3 +229,14 @@ aab %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
 ```
 
 ## Correlation of usage and abundance
+
+Correlate codon usage and anticodon abundance in samples of (a) matching, and
+(b) mismatching conditions. Compare the range of these correlations between (a)
+and (b) to test whether they are significantly different. This being the case
+would reject the hypothesis of no adaptation of the tRNA abundance to the
+transcriptome.
+
+### Ignoring wobble base pairing
+
+The simplest correlation we can calculate ignores wobble base pairing and
+filters out all codons without corresponding anticodon.
