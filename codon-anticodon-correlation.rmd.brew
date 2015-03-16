@@ -92,7 +92,6 @@ filter_unexpressed = function (counts, design) {
 }
 
 trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
-(trna_counts = filter(trna_counts, Gene %in% trna_counts_sf$Gene))
 ```
 
 Calculate codon usage bias (CUB) and tRNA anticodon abundance. The CUB is the
@@ -185,7 +184,40 @@ cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     .$Correct
 ```
 
-```{r}
-trna_counts_sf = trna_counts_sf %>%
-    mutate(Codon = as.character(bios$reverseComplement(bios$DNAStringSet(Anticodon))))
+Calculate the anticodon abundance bias (AAB), the tRNA equivalent of the CUB,
+i.e. the proportional contribution of each anticodon isoacceptor to its isotype.
+
+```{r aab}
+aab = trna_counts_sf %>%
+    melt(id.vars = c('Gene', 'AA', 'Anticodon'),
+         variable.name = 'DO', value.name = 'Count') %>%
+    group_by(DO, AA, Anticodon) %>%
+    summarize(Count = sum(Count)) %>%
+    mutate(Prop = Count / sum(Count)) %>%
+    select(DO, Anticodon, Prop) %>%
+    dcast(DO ~ Anticodon, value.var = 'Prop') %>%
+    tbl_df()
+```
+
+Helper function for comparing CUB and AAB.
+
+```{r revcomp}
+revcomp = function (seq)
+    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
+```
+
+Verify correctness in the same way as for the CUB above.
+
+```{r verify_aab}
+aab %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
+    mutate(Codon = revcomp(Anti)) %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(DO, AA) %>%
+    summarize(Sum = sum(Count)) %>%
+    ungroup() %T>% {
+        {setNames(.$Sum, .$AA)} %>%
+        print()
+    } %>%
+    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
+    .$Correct
 ```
