@@ -41,15 +41,17 @@ mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
 
 mrna_counts = inner_join(mrna_annotation, mrna_counts, by = 'Gene')
 
-trna_design = io$read_table(config$trna_design,
-                            col.names = c('DO', 'AB', 'Condition')) %>%
-    tbl_df()
+trna_design = io$read_table(config$trna_design) %>%
+    tbl_df() %>%
+    select(DO = 1, AB = 2, Celltype = 3) %>%
+    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
 
 trna_inputs = filter(trna_design, AB == 'Input')$DO
 trna_design = filter(trna_design, ! DO %in% trna_inputs)
 trna_counts = select(trna_counts, -one_of(trna_inputs))
+trna_design = select(trna_design, -AB)
 
-mrna_design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
+mrna_design = io$read_table(config$mrna_design) %>%
     tbl_df() %>%
     select(DO = 1, Celltype = 2) %>%
     mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
@@ -87,7 +89,7 @@ filter_unexpressed = function (counts, design) {
     threshold = 10 # This works well.
     expressed = counts %>% tidyr::gather(DO, Count, starts_with('do')) %>%
         inner_join(design, by = 'DO') %>%
-        group_by(Gene, Condition) %>%
+        group_by(Gene, Celltype) %>%
         summarize(Expressed = all(Count > threshold)) %>%
         summarize(Expressed = any(Expressed)) %>%
         filter(Expressed) %>% .$Gene
@@ -251,6 +253,6 @@ aab_long = aab %>%
     melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'Count') %>%
     inner_join(trna_design, by = 'DO') %>%
     mutate(Codon = revcomp(Anticodon)) %>%
-    select(DO, Celltype = Condition, Codon, Count) %>%
+    select(DO, Celltype, Codon, Count) %>%
     tbl_df()
 ```
