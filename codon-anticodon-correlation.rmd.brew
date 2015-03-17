@@ -285,4 +285,20 @@ correlate_contrast = function (contrast, f) {
         f(contrast_data)
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
+
+do_contrasts = contrasts ~ f ~ x -> unlist(lapply(as.data.frame(t(contrasts)), f, x))
+cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
+matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf)
+mismatching_correlations = do_contrasts(mismatching_contrasts, correlate_contrast, cf)
+
+all_correlations = rbind(data.frame(Correlation = matching_correlations,
+                                    Type = 'Matching'),
+                         data.frame(Correlation = mismatching_correlations,
+                                    Type = 'Mismatching'))
+
+ggplot(all_correlations, aes(factor(Type), Correlation)) +
+    geom_boxplot() +
+    scale_x_discrete(name = 'Sample types compared') +
+    scale_y_continuous(limits = c(0, 1)) +
+    ggtitle('Codon–anticodon correlations between different conditions')
 ```
