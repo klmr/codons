@@ -240,3 +240,17 @@ transcriptome.
 
 The simplest correlation we can calculate ignores wobble base pairing and
 filters out all codons without corresponding anticodon.
+
+```{r}
+cub_long = cub %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(mrna_design, by = 'DO') %>%
+    select(DO, Celltype, Codon, Count) %>%
+    tbl_df()
+aab_long = aab %>%
+    melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'Count') %>%
+    inner_join(trna_design, by = 'DO') %>%
+    mutate(Codon = revcomp(Anticodon)) %>%
+    select(DO, Celltype = Condition, Codon, Count) %>%
+    tbl_df()
+```
