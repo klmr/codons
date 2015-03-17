@@ -257,14 +257,32 @@ aab_long = aab %>%
 Define the contrasts we are looking at.
 
 ```{r define_contrasts}
-all_contrasts = expand.grid(A = unique(cub_long$Celltype),
-                            B = unique(aab_long$Celltype),
+all_contrasts = expand.grid(Codon = unique(cub_long$Celltype),
+                            Anti = unique(aab_long$Celltype),
                             stringsAsFactors = FALSE)
-matching_contrasts = filter(all_contrasts, A == B)
-mismatching_contrasts = filter(all_contrasts, A != B)
+matching_contrasts = filter(all_contrasts, Codon == Anti)
+mismatching_contrasts = filter(all_contrasts, Codon != Anti)
 ```
 
 ### Ignoring wobble base pairing
 
 The simplest correlation we can calculate ignores wobble base pairing and
 filters out all codons without corresponding anticodon.
+
+```{r correlate}
+correlate_contrast = function (contrast, f) {
+    codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
+    anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
+    contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
+
+    parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
+        codon_do = contrast[1]
+        anti_do = contrast[2]
+        contrast_data = inner_join(filter(cub_long, DO == codon_do),
+                                   filter(aab_long, DO == anti_do),
+                                   by = 'Codon') %>%
+            select(Label = Codon, Codon = Count.x, Anti = Count.y)
+        f(contrast_data)
+    }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
+}
+```
