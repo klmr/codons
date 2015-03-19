@@ -286,7 +286,8 @@ correlate_contrast = function (contrast, f) {
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
-do_contrasts = contrasts ~ f ~ x -> unlist(lapply(as.data.frame(t(contrasts)), f, x))
+do_contrasts = function(contrasts, f, x)
+    unname(unlist(lapply(as.data.frame(t(contrasts)), f, x)))
 cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf)
 mismatching_correlations = do_contrasts(mismatching_contrasts, correlate_contrast, cf)
@@ -296,9 +297,16 @@ all_correlations = rbind(data.frame(Correlation = matching_correlations,
                          data.frame(Correlation = mismatching_correlations,
                                     Type = 'Mismatching'))
 
+significance = wilcox.test(matching_correlations,
+                           mismatching_correlations,
+                           alternative = 'greater', conf.int = TRUE)
+
+p = format.pval(significance$p.value)
+
 ggplot(all_correlations, aes(factor(Type), Correlation)) +
     geom_boxplot() +
-    scale_x_discrete(name = 'Sample types compared') +
-    scale_y_continuous(limits = c(0, 1)) +
+    geom_point(position = position_jitter(height = 0, width = 0.3)) +
+    scale_x_discrete(name = bquote(paste('Sample types compared ',
+                                         (p == .(p))))) +
     ggtitle('Codon–anticodon correlations between different conditions')
 ```
