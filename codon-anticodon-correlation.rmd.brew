@@ -256,12 +256,17 @@ aab_long = aab %>%
 
 Define the contrasts we are looking at.
 
+Since the tumour cell lines are relatively similar we explicitly exclude them
+from the list of mismatching conditions.
+
 ```{r define_contrasts}
 all_contrasts = expand.grid(Codon = unique(cub_long$Celltype),
                             Anti = unique(aab_long$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
+mismatching_contrasts = filter(mismatching_contrasts,
+                               Codon == 'Liver-Adult' | Anti == 'Liver-Adult')
 ```
 
 ### Ignoring wobble base pairing
