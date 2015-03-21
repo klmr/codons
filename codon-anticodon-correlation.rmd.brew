@@ -310,7 +310,8 @@ p = format.pval(significance$p.value)
 
 ggplot(all_correlations, aes(factor(Type), Correlation)) +
     geom_boxplot() +
-    geom_point(position = position_jitter(height = 0, width = 0.3)) +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
     scale_x_discrete(name = bquote(paste('Sample types compared ',
                                          (p == .(p))))) +
     ggtitle('Codon–anticodon correlations between different conditions')
