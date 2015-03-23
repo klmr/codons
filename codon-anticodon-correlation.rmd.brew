@@ -391,8 +391,6 @@ cubs_for_contrast = function (de_genes, contrast) {
 }
 
 de_cub = base$map(cubs_for_contrast, de_genes, contrasts)
-duplicated_dos = intersect(colnames(de_cub[[1]]), colnames(de_cub[[2]]))
-de_cub = cbind(de_cub[[1]], select(de_cub[[2]], -one_of(duplicated_dos)))
 ```
 
 Finally, calculate the correlation between every sample’s DE gene CUB and the
@@ -401,12 +399,17 @@ that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de_codon_correlation}
-de_cub_long = de_cub %>%
+de_cub_long = lapply(de_cub, dc -> dc %>%
     melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
-    tbl_df()
+    tbl_df())
 
-de_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     de_cub_long, aab_long)
+de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
+
+de_correlations = base$map(
+    contrast ~ cub -> do_contrasts(contrast, correlate_contrast, cf,
+                                   cub, aab_long),
+    de_contrasts, de_cub_long) %>%
+    unlist()
 
 all_correlations = rbind(all_correlations,
                          data.frame(Correlation = de_correlations, Type = 'DE'))
