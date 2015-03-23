@@ -13,7 +13,10 @@ sys$run({
     modules::set_script_path(normalizePath(input))
     processor = if (grepl('\\.html$', output)) 'knit2html' else 'knit'
     message('Using processor ', processor)
-    result = try(match.fun(processor)(input, output))
+    # Work around a bug in knitr, see
+    # <https://github.com/yihui/knitr/issues/172>.
+    pdf.options(encoding = "CP1250")
+    result = try(match.fun(processor)(input, output, encoding = 'UTF-8'))
     if (inherits(result, 'try-error'))
         1
 })
