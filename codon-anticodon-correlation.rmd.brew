@@ -319,3 +319,113 @@ ggplot(all_correlations, aes(factor(Type), Correlation)) +
                                          (p == .(p))))) +
     ggtitle('Codon–anticodon correlations between different conditions')
 ```
+
+Next, perform a similar analysis for differentially expressed genes only. First,
+compute the sets of differentially expressed genes between healthy tissues and
+cancer cell lines.
+
+```{r de}
+deseq = loadNamespace('DESeq2')
+untidy = function (tidy_data, rownames = 1)
+    `rownames<-`(as.data.frame(tidy_data[-rownames]), tidy_data[[rownames]])
+
+deseq_test = function (data, col_data, contrast) {
+    cols = col_data[[1]] %in% contrast
+    col_data = col_data[cols, , drop = FALSE]
+    data = data[, cols]
+    design = eval(bquote(~ .(as.name(colnames(col_data)[1]))))
+    dds = deseq$DESeqDataSetFromMatrix(data, col_data, design)
+    deseq$DESeq(dds, quiet = TRUE)
+}
+
+dds_data = untidy(select(mrna_counts, Gene, starts_with('do')))
+dds_col_data = untidy(mrna_design)
+dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
+# Ensure Liver-Adult is condition A in the contrast
+dds_col_data$Celltype = factor(dds_col_data$Celltype)
+dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
+contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
+dds = lapply(contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
+threshold = 0.001
+de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
+                                     ! is.na(padj) & padj < threshold))
+sapply(de_genes, nrow)
+```
+
+Secondly, re-calculate codon usage bias, but using only a subset of genes in
+each condition. So instead of summing over all genes, we sum over the codon
+usage of genes significantly upregulated in the respective condition, and we do
+this separately for each contrast.
+
+```{r de_cub}
+cub_for_gene_set = function (gene_set, sample)
+    gene_wise_codon_usage[[sample]] %>%
+    filter(Gene %in% gene_set) %>%
+    select(-Gene) %>%
+    colSums() %>%
+    as.data.frame() %>%
+    add_rownames('Codon') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(AA) %>%
+    mutate(CUB = . / sum(.)) %>%
+    ungroup() %>%
+    select(Codon, CUB)
+
+cubs_for_contrast = function (de_genes, contrast) {
+    up = list(rownames(subset(de_genes, log2FoldChange < 0)),
+              rownames(subset(de_genes, log2FoldChange > 0))) %>%
+        setNames(contrast)
+
+    sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
+                        simplify = FALSE)
+
+    cubs_for_condition = function (sample_ids, up)
+        sapply(sample_ids, cub_for_gene_set, gene_set = up,
+                      simplify = FALSE) %>%
+            {base$reduce(a ~ b -> inner_join(a, b, by = 'Codon'),
+                         .[-1], .[[1]])} %>%
+            `colnames<-`(c('Codon', sample_ids))
+
+    do.call(inner_join, c(unname(base$map(cubs_for_condition, sample_ids, up)),
+                          by = 'Codon'))
+}
+
+de_cub = base$map(cubs_for_contrast, de_genes, contrasts)
+duplicated_dos = intersect(colnames(de_cub[[1]]), colnames(de_cub[[2]]))
+de_cub = cbind(de_cub[[1]], select(de_cub[[2]], -one_of(duplicated_dos)))
+```
+
+Finally, calculate the correlation between every sample’s DE gene CUB and the
+sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
+that these are significantly higher than mismatching codon–anticodon pool
+correlations.
+
+```{r de_codon_correlation}
+de_cub_long = de_cub %>%
+    melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
+    tbl_df()
+
+de_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
+                                     de_cub_long, aab_long)
+
+all_correlations = rbind(all_correlations,
+                         data.frame(Correlation = de_correlations, Type = 'DE'))
+all_correlations$Type = factor(all_correlations$Type,
+                               c('Matching', 'Mismatching', 'DE'))
+
+de_significance = wilcox.test(matching_correlations,
+                              de_correlations, conf.int = TRUE)
+
+de_p = format.pval(de_significance$p.value)
+
+ggplot(all_correlations, aes(Type, Correlation)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    scale_x_discrete(name = 'Sample types compared') +
+    ggtitle('Codon–anticodon correlations between different conditions')
+```
+
+Testing for significant difference between the distribution of matching codon
+supply and demand, and between the codon supply and demand just for DE genes
+yields $p(\text{observation | DE = Matching}) = `r de_p`$.
