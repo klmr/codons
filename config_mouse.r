@@ -6,6 +6,6 @@ mrna_annotation = './data/Mus_musculus.GRCm38.75.gene_annot.tsv'
 trna_design = './data/libraries-trna-chip-mm10.tsv'
 mrna_design = './data/libraries-rna-seq-mm10.tsv'
 norm_counts = './results/trna-norm-counts-mm10.tsv'
-contrasts = list(c('liver', 'Hepa1-6'),
-                 c('liver', 'Hepa1c1c7'),
+contrasts = list(c('Liver-Adult', 'Hepa1-6'),
+                 c('Liver-Adult', 'Hepa1c1c7'),
                  c('Hepa1-6', 'Hepa1c1c7'))
