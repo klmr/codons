@@ -275,7 +275,7 @@ The simplest correlation we can calculate ignores wobble base pairing and
 filters out all codons without corresponding anticodon.
 
 ```{r correlate}
-correlate_contrast = function (contrast, f) {
+correlate_contrast = function (contrast, f, cub, aab) {
     codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
     anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
     contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
@@ -283,19 +283,22 @@ correlate_contrast = function (contrast, f) {
     parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
         codon_do = contrast[1]
         anti_do = contrast[2]
-        contrast_data = inner_join(filter(cub_long, DO == codon_do),
-                                   filter(aab_long, DO == anti_do),
+        contrast_data = inner_join(filter(cub, DO == codon_do),
+                                   filter(aab, DO == anti_do),
                                    by = 'Codon') %>%
             select(Label = Codon, Codon = Count.x, Anti = Count.y)
         f(contrast_data)
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
-do_contrasts = function(contrasts, f, x)
-    unname(unlist(lapply(as.data.frame(t(contrasts)), f, x)))
+do_contrasts = function(contrasts, f, ...)
+    unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
 cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
-matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf)
-mismatching_correlations = do_contrasts(mismatching_contrasts, correlate_contrast, cf)
+matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
+                                     cub_long, aab_long)
+mismatching_correlations = do_contrasts(mismatching_contrasts,
+                                        correlate_contrast, cf,
+                                        cub_long, aab_long)
 
 all_correlations = rbind(data.frame(Correlation = matching_correlations,
                                     Type = 'Matching'),
