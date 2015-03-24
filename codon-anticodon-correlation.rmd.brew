@@ -372,9 +372,14 @@ cub_for_gene_set = function (gene_set, sample)
     select(Codon, CUB)
 
 cubs_for_contrast = function (de_genes, contrast) {
-    up = list(rownames(subset(de_genes, log2FoldChange < 0)),
-              rownames(subset(de_genes, log2FoldChange > 0))) %>%
+    de_genes = add_rownames(de_genes, 'Gene')
+    top_n = 200
+    up = list(filter(de_genes, log2FoldChange < 0),
+              filter(de_genes, log2FoldChange > 0)) %>%
         setNames(contrast)
+
+    up = base$map(x -> x %>% arrange(desc(baseMean)) %>%
+                    head(top_n) %>% .$Gene, up)
 
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
