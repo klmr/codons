@@ -259,12 +259,41 @@ pc_plot(pc_count, main = 'GO terms by their mean codon counts',
         bg = category_color[cat], las = 1)
 ```
 
-Do a PCA by amino acid usage rather than codon usage.
+Using this data, we can also plot figure 2A from the Gingold paper, plotting the
+codon usage bias of M phase mitotic cell cycle genes against pattern
+specification process genes.
 
 ```{r}
 genetic_code = read.delim('./data/genetic_code.tsv', header = FALSE,
                           col.names = c('Codon', 'AA'))
 
+cub = as.data.frame(pctable_count) %>%
+    add_rownames('Codon') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    filter(AA != 'Stop') %>%
+    group_by(AA) %>%
+    mutate_each(funs(. / sum(.)), starts_with('GO:'))
+
+descriptions = c('M phase of mitotic cell cycle',
+                 'pattern specification process')
+
+m_psp_go_genes = sapply(descriptions,
+                        . %>% {filter(go_genes, Description == .)},
+                        simplify = FALSE)
+
+go_ids = sapply(m_psp_go_genes, . %>% dplyr::slice(1) %>% .$GO)
+go_lengths = sapply(m_psp_go_genes, nrow)
+
+plot(cub[, go_ids], pch = '.',
+     xlab = sprintf('%s (%d genes)', descriptions[1], go_lengths[1]),
+     ylab = sprintf('%s (%d genes)', descriptions[2], go_lengths[2]),
+     las = 1)
+text(cub[[go_ids[1]]], cub[[go_ids[2]]], labels = cub$AA, pos = 4)
+```
+
+Now do a PCA by amino acid usage rather than codon usage.
+
+```{r}
 aa_indices = match(genetic_code$Codon, rownames(pctable))
 pctable_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices], colSums))
 pc_aa = prcomp(t(pctable_aa), scale. = TRUE)
