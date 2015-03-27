@@ -202,14 +202,14 @@ categories = list(`Multi-cellular` = c(Development = 24,
                                        Differentiation = 21,
                                        `Cell adhesion` = 22,
                                        `Pattern specification` = 23,
-                                       `Multicellular organism growth` = 11,
-                                       Angiogenesis = 8),
+                                       `Multicellular organism growth` = 5,
+                                       Angiogenesis = 6),
                   `Cell autonomous` = c(`Mitotic cell cycle` = 24,
                                         `Nucleosome assembly` = 21,
                                         `Chromatin remodeling` = 22,
                                         `Chromatin modification` = 22,
                                         Translation = 23,
-                                        `mRNA metabolic process` = 11,
+                                        `mRNA metabolic process` = 5,
                                         `Negative regulation of cell cycle` = 6))
 
 category_names = unlist(lapply(categories, names))
