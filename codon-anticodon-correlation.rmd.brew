@@ -463,10 +463,33 @@ go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
 go_terms = sapply(names(go_ids),
                   id -> readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
-# 1. Determine healthy & cancer replicates
-# 2. Match sample replicates to matching GO ID/GO terms
-# 3. Find ENSEMBL IDs for gene names (in mouse: homologs)
-# 4. Call `cub_for_gene_set`, rbind results.
+cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
+go_cancer_cubs = cubs_for_condition(cancer_mrna_samples, go_terms$GO0000087)
 
-sapply(go_terms, cub_for_gene_set, ...)
+healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
+go_healthy_cubs = cubs_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+
+go_cub = inner_join(go_cancer_cubs, go_healthy_cubs, by = 'Codon')
+go_cub_long = go_cub %>%
+    melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
+    tbl_df()
+
+go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
+                                     go_cub_long, aab_long)
+
+all_correlations = rbind(all_correlations,
+                         data.frame(Correlation = go_correlations, Type = 'GO'))
+
+go_significance = wilcox.test(matching_correlations,
+                              go_correlations, conf.int = TRUE,
+                              alternative = 'less')
+
+go_p = format.pval(go_significance$p.value)
+
+ggplot(all_correlations, aes(Type, Correlation)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    scale_x_discrete(name = 'Sample types compared') +
+    ggtitle('Codon–anticodon correlations between different conditions')
 ```
