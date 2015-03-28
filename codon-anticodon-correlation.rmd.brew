@@ -295,6 +295,7 @@ correlate_contrast = function (contrast, f, cub, aab) {
 
 do_contrasts = function(contrasts, f, ...)
     unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
+
 cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
                                      cub_long, aab_long)
@@ -375,6 +376,13 @@ cub_for_gene_set = function (gene_set, sample)
     ungroup() %>%
     select(Codon, CUB)
 
+cubs_for_condition = function (sample_ids, gene_set)
+    sapply(sample_ids, cub_for_gene_set, gene_set = gene_set,
+           simplify = FALSE) %>%
+        {base$reduce(a ~ b -> inner_join(a, b, by = 'Codon'),
+                     .[-1], .[[1]])} %>%
+        `colnames<-`(c('Codon', sample_ids))
+
 cubs_for_contrast = function (de_genes, contrast) {
     de_genes = add_rownames(de_genes, 'Gene')
     top_n = 200
@@ -395,13 +403,6 @@ cubs_for_contrast = function (de_genes, contrast) {
 
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
-
-    cubs_for_condition = function (sample_ids, up)
-        sapply(sample_ids, cub_for_gene_set, gene_set = up,
-                      simplify = FALSE) %>%
-            {base$reduce(a ~ b -> inner_join(a, b, by = 'Codon'),
-                         .[-1], .[[1]])} %>%
-            `colnames<-`(c('Codon', sample_ids))
 
     do.call(inner_join, c(unname(base$map(cubs_for_condition, sample_ids, up)),
                           by = 'Codon'))
