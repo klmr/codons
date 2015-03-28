@@ -274,6 +274,8 @@ mismatching_contrasts = filter(mismatching_contrasts,
 The simplest correlation we can calculate ignores wobble base pairing and
 filters out all codons without corresponding anticodon.
 
+#### Matching and mismatching codon–anticodon pools
+
 ```{r correlate}
 correlate_contrast = function (contrast, f, cub, aab) {
     codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
@@ -319,6 +321,8 @@ ggplot(all_correlations, aes(factor(Type), Correlation)) +
                                          (p == .(p))))) +
     ggtitle('Codon–anticodon correlations between different conditions')
 ```
+
+#### Codon–anticodon match in DE genes
 
 Next, perform a similar analysis for differentially expressed genes only. First,
 compute the sets of differentially expressed genes between healthy tissues and
@@ -445,3 +449,29 @@ ggplot(all_correlations, aes(Type, Correlation)) +
 Testing for significant difference between the distribution of matching codon
 supply and demand, and between the codon supply and demand just for DE genes
 yields $p(\text{observation | DE = Matching}) = `r de_p`$.
+
+#### Codon–anticodon match in genes of specific GO terms
+
+We will also have a look at cell condition specific GO terms, as highlighted by
+Gingold & al. First, load the GO term associations.
+
+```{r go_associations}
+go_associations = io$read_table('./data/gene_association.goa_human', sep = '\t',
+                                comment = '!', quote = '', header = FALSE) %>%
+    select(Gene = V3, GO = V5) %>%
+    tbl_df()
+
+go_ids = c(`GO:0000087` = 'M phase of mitotic cell cycle',
+           `GO:0007389` = 'Pattern specification process')
+
+go_terms = sapply(names(go_ids),
+                  id -> filter(go_associations, GO == id) %>%
+                    filter(! duplicated(Gene)), simplify = FALSE)
+
+# 1. Determine healthy & cancer replicates
+# 2. Match sample replicates to matching GO ID/GO terms
+# 3. Find ENSEMBL IDs for gene names (in mouse: homologs)
+# 4. Call `cub_for_gene_set`, rbind results.
+
+sapply(go_terms, cub_for_gene_set, ...)
+```
