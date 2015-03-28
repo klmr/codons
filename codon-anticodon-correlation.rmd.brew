@@ -378,8 +378,16 @@ cubs_for_contrast = function (de_genes, contrast) {
               filter(de_genes, log2FoldChange > 0)) %>%
         setNames(contrast)
 
-    up = base$map(x -> x %>% arrange(desc(baseMean)) %>%
-                    head(top_n) %>% .$Gene, up)
+    get_top_n = function (x) {
+        inner_join(x, canonical_cds, by = 'Gene') %>%
+            mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
+            filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
+            arrange(padj) %>%
+            head(top_n) %>%
+            .$Gene
+    }
+
+    up = base$map(get_top_n, up)
 
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
