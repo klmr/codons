@@ -456,17 +456,11 @@ We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
 ```{r go_associations}
-go_associations = io$read_table('./data/gene_association.goa_human', sep = '\t',
-                                comment = '!', quote = '', header = FALSE) %>%
-    select(Gene = V3, GO = V5) %>%
-    tbl_df()
-
-go_ids = c(`GO:0000087` = 'M phase of mitotic cell cycle',
-           `GO:0007389` = 'Pattern specification process')
+go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
+           GO0007389 = 'Pattern specification process')
 
 go_terms = sapply(names(go_ids),
-                  id -> filter(go_associations, GO == id) %>%
-                    filter(! duplicated(Gene)), simplify = FALSE)
+                  id -> readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
 # 1. Determine healthy & cancer replicates
 # 2. Match sample replicates to matching GO ID/GO terms
