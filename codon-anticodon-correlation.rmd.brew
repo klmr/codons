@@ -436,7 +436,8 @@ all_correlations$Type = factor(all_correlations$Type,
                                c('Matching', 'Mismatching', 'DE'))
 
 de_significance = wilcox.test(matching_correlations,
-                              de_correlations, conf.int = TRUE)
+                              de_correlations, conf.int = TRUE,
+                              alternative = 'less')
 
 de_p = format.pval(de_significance$p.value)
 
