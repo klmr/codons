@@ -395,7 +395,7 @@ cubs_for_contrast = function (de_genes, contrast) {
         inner_join(x, canonical_cds, by = 'Gene') %>%
             mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
             filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
-            arrange(padj) %>%
+            arrange(desc(abs(log2FoldChange))) %>%
             head(top_n) %>%
             .$Gene
     }
