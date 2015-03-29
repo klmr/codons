@@ -463,7 +463,7 @@ go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
 go_terms = sapply(names(go_ids),
-                  id -> readLines(sprintf('data/%s-%s.txt', id, config$species)))
+                  function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
 cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
 go_cancer_cubs = cubs_for_condition(cancer_mrna_samples, go_terms$GO0000087)
