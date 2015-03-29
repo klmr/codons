@@ -5,6 +5,7 @@ library(Biostrings)
 library(parallel)
 
 options(stringsAsFactors = FALSE)
+opts_chunk$set(cache = TRUE, dev = c('png', 'pdf'))
 ```
 
 ## GO term gene set data
@@ -122,7 +123,7 @@ codon_usage = function (sequence) {
 
 Now create a table with the codon usage for every CDS.
 
-```{r cache=TRUE}
+```{r}
 ncores = detectCores()
 ccds_codon_usage = all_ccds %>%
     mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
@@ -146,7 +147,7 @@ for (i in 1 : nrow(ccds_codon_freq)) {
 
 And, from that, a table with the codon usage for every gene.
 
-```{r cache=TRUE}
+```{r}
 gene_codon_usage = ccds_codon_usage %>%
     group_by(Gene) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
@@ -162,7 +163,7 @@ gene_codon_freq = ccds_codon_freq %>%
 
 Using that, we can generate the mean per-GO codon usage.
 
-```{r cache=TRUE}
+```{r}
 go_cu = inner_join(gene_codon_freq, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
@@ -172,7 +173,7 @@ go_cu = inner_join(gene_codon_freq, go_genes, by = 'Gene') %>%
 
 We now compute the principal components for the codon usage and plot them.
 
-```{r}
+```{r go_cub_pca_nocat}
 pctable = `colnames<-`(do.call(cbind, go_cu$CU), go_cu$GO)
 pc = prcomp(t(pctable), scale. = TRUE)
 
@@ -196,7 +197,7 @@ pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
 Add colours according to the GO categories, as done in the paper by Gingold
 *&al.*.
 
-```{r}
+```{r go_cub_pca}
 # Numbers are category `pch`s used in plotting.
 categories = list(`Multi-cellular` = c(Development = 24,
                                        Differentiation = 21,
@@ -241,7 +242,7 @@ pc_plot(pc, main = 'GO terms by their mean codon usage',
 Just for the record, here’s the same but using raw codon counts rather than
 frequencies.
 
-```{r cache=TRUE}
+```{r}
 go_cu_count = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
     group_by(GO) %>%
     mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
@@ -249,7 +250,7 @@ go_cu_count = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
     filter(row_number() == 1)
 ```
 
-```{r}
+```{r go_cu_raw_pca}
 pctable_count = `colnames<-`(do.call(cbind, go_cu_count$CU), go_cu_count$GO)
 pc_count = prcomp(t(pctable_count))
 stopifnot(all.equal(rownames(pc$x), rownames(pc_count$x)))
@@ -263,7 +264,7 @@ Using this data, we can also plot figure 2A from the Gingold paper, plotting the
 codon usage bias of M phase mitotic cell cycle genes against pattern
 specification process genes.
 
-```{r}
+```{r go_term_codon_usage}
 genetic_code = read.delim('./data/genetic_code.tsv', header = FALSE,
                           col.names = c('Codon', 'AA'))
 
@@ -293,7 +294,7 @@ text(cub[[go_ids[1]]], cub[[go_ids[2]]], labels = cub$AA, pos = 4)
 
 Now do a PCA by amino acid usage rather than codon usage.
 
-```{r}
+```{r go_aa_pca}
 aa_indices = match(genetic_code$Codon, rownames(pctable))
 pctable_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices], colSums))
 pc_aa = prcomp(t(pctable_aa), scale. = TRUE)
@@ -324,7 +325,7 @@ It seems clear that the first PC of the codon usage is highly related to the
 second PC of the amino acid usage. We therefore investigate whether there is an
 effect of codon usage *beyond* mere amino acid deployment.
 
-```{r cache=TRUE}
+```{r}
 pctable_cu_by_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices],
                                      function (x) sweep(x, 2, colSums(x), `/`)))
 ```
@@ -332,7 +333,7 @@ pctable_cu_by_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices],
 This reorders codons by amino acid. Undo the reordering to be on the safe
 side, just in case we later refer to it.
 
-```{r cache=TRUE}
+```{r go_cub_norm_pca}
 rownames(pctable_cu_by_aa) = local({
     x = rownames(pctable_cu_by_aa)
     x = sub('\\w+\\.', '', x)
@@ -362,7 +363,7 @@ usage.
 
 Investigate the gene set sizes of the GO categories.
 
-```{r cache=TRUE}
+```{r go_size_effect}
 go_sizes = go_genes %>%
     group_by(GO) %>%
     summarize(Size = n())
@@ -379,7 +380,7 @@ plot(pc$x[, 1], sapply(go_sizes[rownames(pc$x)], min, 500),
 The following looks at the the GC content of the GO terms, and how it correlates
 with codon usage.
 
-```{r cache=TRUE}
+```{r}
 gc_content = function (str)
     nchar(gsub('[AT]', '', str)) / nchar(str)
 
@@ -395,7 +396,7 @@ go_gc = setNames(go_gc$GC, go_gc$GO)
 go_gc = go_gc[rownames(pc$x)]
 ```
 
-```{r}
+```{r go_cu_pc1_gc_cor}
 plot(pc$x[, 1], go_gc, xlab = 'PC1 of codon usage', ylab = 'GC bias',
      pch = 16, col = '#00000080', las = 1,
      main = 'Correlation of codon usage and GC bias per GO term')
@@ -403,7 +404,7 @@ plot(pc$x[, 1], go_gc, xlab = 'PC1 of codon usage', ylab = 'GC bias',
 
 More importantly, is the GC bias also correlated with the codon usage bias?
 
-```{r}
+```{r go_cub_by_aa_pc1_gc_cor}
 plot(pc_cu_by_aa$x[, 1], go_gc, xlab = 'PC1 of codon bias', ylab = 'GC bias',
      pch = 16, col = '#00000080', las = 1,
      main = 'Correlation of codon bias and GC bias per GO term')
@@ -411,7 +412,7 @@ plot(pc_cu_by_aa$x[, 1], go_gc, xlab = 'PC1 of codon bias', ylab = 'GC bias',
 
 The correlation even exists with pure amino acid usage, to some extent:
 
-```{r}
+```{r go_aa_gc_cor}
 plot(pc_aa$x[, 2], go_gc, xlab = 'PC2 of amino acid usage', ylab = 'GC bias',
      pch = 16, col = '#00000080', las = 1,
      main = 'Correlation of amino acid usage and GC bias per GO term')
