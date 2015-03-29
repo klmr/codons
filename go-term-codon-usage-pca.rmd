@@ -285,11 +285,19 @@ m_psp_go_genes = sapply(descriptions,
 go_ids = sapply(m_psp_go_genes, . %>% dplyr::slice(1) %>% .$GO)
 go_lengths = sapply(m_psp_go_genes, nrow)
 
-plot(cub[, go_ids], pch = '.',
-     xlab = sprintf('%s (%d genes)', descriptions[1], go_lengths[1]),
-     ylab = sprintf('%s (%d genes)', descriptions[2], go_lengths[2]),
-     las = 1)
-text(cub[[go_ids[1]]], cub[[go_ids[2]]], labels = cub$AA, pos = 4)
+library(ggplot2)
+theme_set(theme_bw())
+
+aes_args = c(lapply(go_ids, . %>% {sprintf('`%s`', .)}), 'AA') %>%
+    setNames(c('x', 'y', 'color'))
+ggplot(cub, do.call(aes_string, aes_args)) +
+    geom_point() +
+    geom_text(aes(label = AA), hjust = -0.5) +
+    scale_color_discrete(guide = FALSE) +
+    scale_x_continuous(name = sprintf('%s (%d genes)',
+                                      descriptions[1], go_lengths[1])) +
+    scale_y_continuous(name = sprintf('%s (%d genes)',
+                                      descriptions[2], go_lengths[2]))
 ```
 
 Now do a PCA by amino acid usage rather than codon usage.
