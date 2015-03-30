@@ -458,7 +458,7 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go_associations}
+```{r go_associations, fig.width=5}
 go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
@@ -492,8 +492,8 @@ ggplot(all_correlations, aes(Type, Correlation)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = 'Sample types compared') +
-    ggtitle('Codon–anticodon correlations between different conditions')
+    scale_x_discrete(name = '') +
+    scale_y_continuous(limits = c(0.75, 0.88))
 ```
 
 Testing for significant difference between the distribution of matching codon
