@@ -114,8 +114,8 @@ The first step is to retrieve the canonical coding sequence (CDS) of each gene.
 
 ```{r cds}
 bios = loadNamespace('Biostrings')
-cds = bios$readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
-names(cds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(cds))
+cds = bios$readDNAStringSet(config$cds)
+names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
 cds = data.frame(Gene = names(cds), Sequence = cds)
 
 # Filter CCDS, only preserve valid coding frames
