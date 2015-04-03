@@ -1,0 +1,135 @@
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/sample-size-effect-',
+               cache.path = 'cache/sample-size-effect-',
+               dev = c('png', 'pdf'))
+
+config = modules::import('./config_human')
+```
+
+# The effect of sample size on properties of genes
+
+Here we want to test how a certain feature of gene sets (in fact, the mean
+relative codon usage, RCU) is affected by random sampling. To test this, we
+sample random sets of genes of different sizes and observe the effect this has
+on the codon usage
+
+To make these results comparable with relevant data, we draw samples with
+sizes equal to those of all GO categories (over some minimal size threshold).
+Consequently, the first step is to load the GO terms.
+
+```{r go_terms}
+go_terms = io$read_table('./data/gene_association.goa_human', sep = '\t',
+                         quote = '', comment.char = '!', header = FALSE) %>%
+    select(GeneName = 3, GO = 5) %>%
+    tbl_df()
+
+mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
+    filter(source == 'protein_coding') %>%
+    select(Gene = ID, Name) %>%
+    tbl_df()
+
+go_terms = inner_join(go_terms, mrna_annotation, by = c('GeneName' = 'Name'))
+
+# Ignore GO terms of size < 40
+distinct_go_sizes = go_terms %>%
+    group_by(GO) %>%
+    summarize(n = n()) %>%
+    filter(n >= 40) %>%
+    arrange() %>%
+    group_by(n) %>%
+    dplyr::slice(1) %>%
+    .$n
+```
+
+For these sizes, we sample random genes to calculate the RCU for. This
+requires us to load the coding sequences of those genes.
+
+```{r cds}
+bios = loadNamespace('Biostrings')
+cds = bios$readDNAStringSet(config$cds)
+names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
+cds = data.frame(Gene = names(cds), Sequence = cds)
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+cds = cds %>% filter(is_valid_cds(Sequence))
+canonical_cds = cds %>%
+    group_by(Gene) %>%
+    arrange(desc(nchar(Sequence))) %>%
+    dplyr::slice(1)
+```
+
+The next steps require the genetic code, without stop codons.
+
+```{r genetic_code}
+full_genetic_code = cbind(AA = bios$GENETIC_CODE,
+                          Codon = names(bios$GENETIC_CODE)) %>% as.data.frame()
+genetic_code = filter(full_genetic_code, AA != '*')
+```
+
+Now we calculate the codon usage for each gene.
+
+```{r codon_usage}
+codon_usage = canonical_cds$Sequence %>%
+    bios$DNAStringSet() %>%
+    bios$trinucleotideFrequency(3) %>%
+    as.data.frame() %>%
+    {cbind(Gene = canonical_cds$Gene, .)} %>%
+    melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    tbl_df()
+```
+
+… and then the genomic background RCU, which we’ll subsequently use as a point
+of comparison, to assess variability of RCU for different sample sizes.
+
+```{r background_rcu}
+background_rcu = codon_usage %>%
+    group_by(AA, Codon) %>%
+    summarize(Count = sum(Count)) %>%
+    mutate(Prop = Count / sum(Count)) %>%
+    ungroup() %>%
+    arrange(Codon)
+```
+
+The `arrange` statement above serves to make the order of the RCU guaranteed so
+that we can directly correlate it with the sampled RCUs, calculated next. This
+is probably unnecessary (and time-consuming) but I cannot find anything in the
+dplyr documentation guaranteeing the order, and better safe than sorry.
+
+Now we sample repeatedly for each set size, and calculate the mean relative
+codon usage (mean RCU).
+
+```{r sampled_rcu_fit}
+set.seed(1428079834)
+
+sample_rcu_fit = function (size) {
+    genes = sample(canonical_cds$Gene, size)
+    rcu = filter(codon_usage, Gene %in% genes) %>%
+        group_by(AA, Codon) %>%
+        summarize(Count = sum(Count)) %>%
+        mutate(Prop = Count / sum(Count)) %>%
+        ungroup() %>%
+        arrange(Codon)
+    cor(rcu$Prop, background_rcu$Prop)
+}
+
+sample_rcu_fit_rep = function (size, repetitions = 10)
+    replicate(repetitions, sample_rcu_fit(size))
+
+cores = parallel::detectCores()
+sampled_rcu_fit = parallel::mclapply(distinct_go_sizes, sample_rcu_fit_rep,
+                                     mc.cores = cores) %>%
+    setNames(distinct_go_sizes) %>%
+    {do.call(rbind, .)} %>%
+    as.data.frame() %>%
+    add_rownames('Size')
+```
+
+```{r save_sampled_data, echo=FALSE}
+saveRDS(sampled_rcu_fit, file = './results/sampled-rcu-fit.rds')
+```
