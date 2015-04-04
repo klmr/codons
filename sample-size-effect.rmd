@@ -102,21 +102,25 @@ is probably unnecessary (and time-consuming) but I cannot find anything in the
 dplyr documentation guaranteeing the order, and better safe than sorry.
 
 Now we sample repeatedly for each set size, and calculate the mean relative
-codon usage (mean RCU).
+codon usage (mean RCU), which we then correlate with the background RCU to
+assess codon usage variability.
 
-```{r sampled_rcu_fit}
-rng_seed = 1428079834
-
-sample_rcu_fit = function (size) {
-    genes = sample(canonical_cds$Gene, size)
-    rcu = filter(codon_usage, Gene %in% genes) %>%
+```{r rcu_fit_function}
+rcu_fit = function (gene_set)
+    filter(codon_usage, Gene %in% gene_set) %>%
         group_by(AA, Codon) %>%
         summarize(Count = sum(Count)) %>%
         mutate(Prop = Count / sum(Count)) %>%
         ungroup() %>%
-        arrange(Codon)
-    cor(rcu$Prop, background_rcu$Prop)
-}
+        arrange(Codon) %>%
+        {cor(.$Prop, background_rcu$Prop)}
+```
+
+```{r sampled_rcu_fit, eval=FALSE}
+rng_seed = 1428079834
+
+sample_rcu_fit = function (size)
+    rcu_fit(sample(canonical_cds$Gene, size))
 
 sample_rcu_fit_rep = function (size, repetitions = 2) {
     # Ensure that all simulations are using different seed, as otherwise the
