@@ -49,7 +49,7 @@ requires us to load the coding sequences of those genes.
 bios = loadNamespace('Biostrings')
 cds = bios$readDNAStringSet(config$cds)
 names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
-cds = data.frame(Gene = names(cds), Sequence = cds)
+cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
 
 # Filter CCDS, only preserve valid coding frames
 
