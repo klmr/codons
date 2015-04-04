@@ -8,7 +8,7 @@ library(reshape2)
 library(dplyr)
 
 options(stringsAsFactors = FALSE,
-        import.path = c('scripts', file.path(Sys.getenv('HOME'), 'Projects/R')))
+        import.path = c('scripts', getOption('import.path')))
 
 opts_chunk$set(cache = TRUE)
 
