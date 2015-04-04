@@ -179,16 +179,27 @@ pc = prcomp(t(pctable), scale. = TRUE)
 
 pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc)),
                     pch, col, ...) {
+    library(ggplot2)
     if (missing(pch))
         pch = 19
     if (missing(col))
         col = '#00000040'
     v1 = summary(pc)$importance[2, pc1] * 100
     v2 = summary(pc)$importance[2, pc2] * 100
-    plot(pc$x[, pc1], pc$x[, pc2], main = main,
-         xlab = sprintf('PC%d (%.0f%% variance explained)', pc1, v1),
-         ylab = sprintf('PC%d (%.0f%% variance explained)', pc2, v2),
-         pch = pch, col = col, ...)
+    labtext = 'PC%d (%.0f%% variance explained)'
+    ggdata = data.frame(PC1 = pc$x[, pc1], PC2 = pc$x[, pc2],
+                        Pch = pch, Col = col)
+    ggplot(ggdata, aes(x = PC1, y = PC2,
+                       color = Col, fill = Col, shape = factor(Pch))) +
+        geom_point() +
+        scale_color_manual(values = setNames(col, col)) +
+        scale_fill_manual(values = setNames(col, col)) +
+        scale_shape_manual(values = setNames(pch, pch)) +
+        guides(color = FALSE, fill = FALSE, shape = FALSE) +
+        scale_x_continuous(name = sprintf(labtext, pc1, v1)) +
+        scale_y_continuous(name = sprintf(labtext, pc2, v2)) +
+        ggtitle(main) +
+        theme_bw()
 }
 
 pc_plot(pc, main = 'GO terms by their mean codon usage (using CCDS)')
@@ -405,9 +416,11 @@ go_gc = go_gc[rownames(pc$x)]
 ```
 
 ```{r go_cu_pc1_gc_cor}
-plot(pc$x[, 1], go_gc, xlab = 'PC1 of codon usage', ylab = 'GC bias',
-     pch = 16, col = '#00000080', las = 1,
-     main = 'Correlation of codon usage and GC bias per GO term')
+ggdata = data.frame(x = pc$x[, 1], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC1 of codon usage') +
+    scale_y_continuous(name = 'GC bias')
 ```
 
 Pearson correlation: `r cor(pc$x[, 1], go_gc)`.
@@ -415,9 +428,11 @@ Pearson correlation: `r cor(pc$x[, 1], go_gc)`.
 More importantly, is the GC bias also correlated with the codon usage bias?
 
 ```{r go_cub_by_aa_pc1_gc_cor}
-plot(pc_cu_by_aa$x[, 1], go_gc, xlab = 'PC1 of codon bias', ylab = 'GC bias',
-     pch = 16, col = '#00000080', las = 1,
-     main = 'Correlation of codon bias and GC bias per GO term')
+ggdata = data.frame(x = pc_cu_by_aa$x[, 1], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC1 of relative codon usage') +
+    scale_y_continuous(name = 'GC bias')
 ```
 
 Pearson correlation: `r cor(pc_cu_by_aa$x[, 1], go_gc)`.
@@ -425,7 +440,11 @@ Pearson correlation: `r cor(pc_cu_by_aa$x[, 1], go_gc)`.
 The correlation even exists with pure amino acid usage, to some extent:
 
 ```{r go_aa_gc_cor}
-plot(pc_aa$x[, 2], go_gc, xlab = 'PC2 of amino acid usage', ylab = 'GC bias',
-     pch = 16, col = '#00000080', las = 1,
-     main = 'Correlation of amino acid usage and GC bias per GO term')
+ggdata = data.frame(x = pc_aa$x[, 2], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC2 of amino acid usage') +
+    scale_y_continuous(name = 'GC bias')
 ```
+
+Pearson correlation: `r cor(pc_aa$x[, 2], go_gc)`.
