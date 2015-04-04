@@ -10,9 +10,9 @@ config = modules::import('./config_human')
 # The effect of sample size on properties of genes
 
 Here we want to test how a certain feature of gene sets (in fact, the mean
-relative codon usage, RCU) is affected by random sampling. To test this, we
-sample random sets of genes of different sizes and observe the effect this has
-on the codon usage
+codon usage, CU) is affected by random sampling. To test this, we sample
+random sets of genes of different sizes and observe the effect this has on the
+codon usage.
 
 To make these results comparable with relevant data, we draw samples with
 sizes equal to those of all GO categories (over some minimal size threshold).
@@ -42,8 +42,8 @@ distinct_go_sizes = go_terms %>%
     .$n
 ```
 
-For these sizes, we sample random genes to calculate the RCU for. This
-requires us to load the coding sequences of those genes.
+For these sizes, we sample random genes to calculate the CU for. This requires
+us to load the coding sequences of those genes.
 
 ```{r cds}
 bios = loadNamespace('Biostrings')
@@ -71,7 +71,7 @@ full_genetic_code = cbind(AA = bios$GENETIC_CODE,
 genetic_code = filter(full_genetic_code, AA != '*')
 ```
 
-Now we calculate the codon usage for each gene.
+Now we calculate the individual codon usage for each gene.
 
 ```{r codon_usage}
 codon_usage = canonical_cds$Sequence %>%
@@ -84,28 +84,39 @@ codon_usage = canonical_cds$Sequence %>%
     tbl_df()
 ```
 
-… and then the genomic background RCU, which we’ll subsequently use as a point
-of comparison, to assess variability of RCU for different sample sizes.
+… and then the genomic background CU, which we’ll subsequently use as a point
+of comparison, to assess variability of CU for different sample sizes.
 
-```{r background_rcu}
-background_rcu = codon_usage %>%
+**Caveat** In the following, we will use the codon usage, normalised by the
+overall codon count (such that the values for all codons sum to 1). This is
+done to make CU between different gene sets of different size comparable.
+Initially I calculated the *relative* codon usage (RCU), which normalises each
+codon frequency by the sum of the codon frequency of its synonymous codons. This
+removes the amino acid usage bias as a confounder. However, it turns out that
+this makes all RCUs of different gene sets highly correlated, since, across all
+amino acids, codons with many synonymous codons will have lower values compared
+to codons with few synonymous codons (simply because usage of synonymous codons
+sums to 1).
+
+```{r background_cu}
+background_cu = codon_usage %>%
     group_by(AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
-    mutate(Prop = Count / sum(Count)) %>%
     ungroup() %>%
+    mutate(Prop = Count / sum(Count)) %>%
     arrange(Codon)
 ```
 
-The `arrange` statement above serves to make the order of the RCU guaranteed so
-that we can directly correlate it with the sampled RCUs, calculated next. This
+The `arrange` statement above serves to make the order of the CU guaranteed so
+that we can directly correlate it with the sampled CU, calculated next. This
 is probably unnecessary (and time-consuming) but I cannot find anything in the
 dplyr documentation guaranteeing the order, and better safe than sorry.
 
 Now we sample repeatedly for each set size, and calculate the mean relative
-codon usage (mean RCU), which we then correlate with the background RCU to
+codon usage (mean CU), which we then correlate with the background CU to
 assess codon usage variability.
 
-```{r rcu_fit_function}
+```{r cu_fit_function}
 # Optimised to allow indexed access for gene names, since selection by gene name
 # turned out to be a major bottleneck.
 # This change provides a > 1000% speedup.
@@ -113,34 +124,34 @@ stride = length(unique(codon_usage$Gene))
 stopifnot(stride * 61 == nrow(codon_usage))
 stopifnot(all(codon_usage[1 : stride, ]$Codon == codon_usage$Codon[1]))
 
-rcu_fit = function (gene_index_set) {
+cu_fit = function (gene_index_set) {
     translated_index = unlist(lapply(gene_index_set, i -> 0 : 60 * stride + i))
     codon_usage[translated_index, ] %>%
         group_by(AA, Codon) %>%
         summarize(Count = sum(Count)) %>%
-        mutate(Prop = Count / sum(Count)) %>%
         ungroup() %>%
+        mutate(Prop = Count / sum(Count)) %>%
         arrange(Codon) %>%
-        {cor(.$Prop, background_rcu$Prop)}
+        {cor(.$Prop, background_cu$Prop)}
 }
 ```
 
-```{r sampled_rcu_fit, eval=FALSE}
+```{r sampled_cu_fit, eval=FALSE}
 rng_seed = 1428079834
 
-sample_rcu_fit = function (size)
-    rcu_fit(sample.int(nrow(canonical_cds), size))
+sample_cu_fit = function (size)
+    cu_fit(sample.int(nrow(canonical_cds), size))
 
-sample_rcu_fit_rep = function (size, repetitions = 2) {
+sample_cu_fit_rep = function (size, repetitions = 2) {
     # Ensure that all simulations are using different seed, as otherwise the
     # parallel jobs will start off with the same sequence of random samples.
     set.seed(rng_seed + size)
-    replicate(repetitions, sample_rcu_fit(size))
+    replicate(repetitions, sample_cu_fit(size))
 }
 
 cores = parallel::detectCores()
-sampled_rcu_fit = parallel::mclapply(distinct_go_sizes, sample_rcu_fit_rep,
-                                     mc.cores = cores, mc.set.seed = FALSE) %>%
+sampled_cu_fit = parallel::mclapply(distinct_go_sizes, sample_cu_fit_rep,
+                                    mc.cores = cores, mc.set.seed = FALSE) %>%
     setNames(distinct_go_sizes) %>%
     {do.call(rbind, .)} %>%
     as.data.frame() %>%
@@ -148,20 +159,20 @@ sampled_rcu_fit = parallel::mclapply(distinct_go_sizes, sample_rcu_fit_rep,
 ```
 
 ```{r save_sampled_data, echo=FALSE, eval=FALSE}
-saveRDS(sampled_rcu_fit, file = './results/sampled-rcu-fit.rds')
+saveRDS(sampled_cu_fit, file = './results/sampled-cu-fit.rds')
 ```
 
 ```{r load_sampled_data, echo=FALSE}
 # The above calculation is *hellishly* slow – it took 230 CPU hours to complete.
 # Consequently, we ran it on a cluster and load the results here, instead of
 # actually computing them.
-sampled_rcu_fit = readRDS('./results/sampled-rcu-fit.rds')
+sampled_cu_fit = readRDS('./results/sampled-cu-fit.rds')
 ```
 
 Bring the data into a more convenient format.
 
 ```{r melt_sampled_data}
-sampled_rcu_fit = sampled_rcu_fit %>%
+sampled_cu_fit = sampled_cu_fit %>%
     melt(id.vars = 'Size', value.name = 'Correlation') %>%
     mutate(Size = as.numeric(Size)) %>%
     select(-2) %>%
@@ -171,15 +182,15 @@ sampled_rcu_fit = sampled_rcu_fit %>%
 Plot histograms for the distribution.
 
 ```{r sampled_data_plot}
-sampled_data_plot = ggplot(sampled_rcu_fit,
+sampled_data_plot = ggplot(sampled_cu_fit,
                            aes(x = factor(Size, Size, ordered = TRUE),
                                y = Correlation)) +
     geom_boxplot(outlier.shape = NA)
 ```
 
-Now calculate the GO term RCU and its correlation with the genomic RCU.
+Now calculate the GO term CU and its correlation with the genomic CU.
 
-```{r go_rcu_fit}
+```{r go_cu_fit}
 # Index gene name => `codon_usage` row index, necessary for lookup.
 gene_index = data.frame(Gene = codon_usage[seq_len(stride), ]$Gene,
                         Index = seq_len(stride))
@@ -194,10 +205,10 @@ big_go_terms = go_terms %>%
 # `filter` here instead.
 go_term_ids = unique(big_go_terms$GO)
 
-go_rcu_fit = function (go_id)
-    rcu_fit(filter(big_go_terms, GO == go_id)$Index)
+go_cu_fit = function (go_id)
+    cu_fit(filter(big_go_terms, GO == go_id)$Index)
 
-go_rcu = parallel::mclapply(go_term_ids, go_rcu_fit, mc.cores = cores) %>%
+go_cu = parallel::mclapply(go_term_ids, go_cu_fit, mc.cores = cores) %>%
     setNames(go_term_ids) %>%
     unlist()
 
@@ -205,15 +216,14 @@ go_sizes = big_go_terms %>%
     group_by(GO) %>%
     summarize(Size = n())
 
-go_rcu_by_size = data.frame(GO = names(go_rcu), Correlation = go_rcu) %>%
+go_cu_by_size = data.frame(GO = names(go_cu), Correlation = go_cu) %>%
     inner_join(go_sizes, by = 'GO') %>%
     tbl_df()
 ```
 
-```{r go_rcu_fit_plot}
-#ggplot(go_rcu_by_size, aes(x = factor(GO, GO[order(Size)], ordered = TRUE),
-ggplot(go_rcu_by_size, aes(x = Size,
-                           y = Correlation)) +
+```{r go_cu_fit_plot}
+#ggplot(go_cu_by_size, aes(x = factor(GO, GO[order(Size)], ordered = TRUE),
+ggplot(go_cu_by_size, aes(x = Size, y = Correlation)) +
     geom_point() +
     scale_x_log10()
 ```
