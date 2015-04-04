@@ -105,7 +105,7 @@ Now we sample repeatedly for each set size, and calculate the mean relative
 codon usage (mean RCU).
 
 ```{r sampled_rcu_fit}
-set.seed(1428079834)
+rng_seed = 1428079834
 
 sample_rcu_fit = function (size) {
     genes = sample(canonical_cds$Gene, size)
@@ -118,12 +118,16 @@ sample_rcu_fit = function (size) {
     cor(rcu$Prop, background_rcu$Prop)
 }
 
-sample_rcu_fit_rep = function (size, repetitions = 10)
+sample_rcu_fit_rep = function (size, repetitions = 2) {
+    # Ensure that all simulations are using different seed, as otherwise the
+    # parallel jobs will start off with the same sequence of random samples.
+    set.seed(rng_seed + size)
     replicate(repetitions, sample_rcu_fit(size))
+}
 
 cores = parallel::detectCores()
 sampled_rcu_fit = parallel::mclapply(distinct_go_sizes, sample_rcu_fit_rep,
-                                     mc.cores = cores) %>%
+                                     mc.cores = cores, mc.set.seed = FALSE) %>%
     setNames(distinct_go_sizes) %>%
     {do.call(rbind, .)} %>%
     as.data.frame() %>%
