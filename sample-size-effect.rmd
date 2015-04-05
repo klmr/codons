@@ -18,13 +18,17 @@ To make these results comparable with relevant data, we draw samples with
 sizes equal to those of all GO categories (over some minimal size threshold).
 Consequently, the first step is to load the GO terms.
 
-We ignore very small GO term sizes (less than 40) as well as very large GO term
-sizes (greater than 10000).
+We ignore very small GO term sizes (less than 40).
 
 ```{r go_terms}
 go_terms = io$read_table('./data/gene_association.goa_human', sep = '\t',
                          quote = '', comment.char = '!', header = FALSE) %>%
     select(GeneName = 3, GO = 5) %>%
+    group_by(GO) %>%
+    distinct(GeneName) %>%
+    mutate(Size = n()) %>%
+    filter(Size >= 40) %>%
+    ungroup() %>%
     tbl_df()
 
 mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
@@ -34,12 +38,7 @@ mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
 
 go_terms = inner_join(go_terms, mrna_annotation, by = c('GeneName' = 'Name'))
 
-distinct_go_sizes = go_terms %>% group_by(GO) %>%
-    summarize(Size = n()) %>%
-    filter(Size >= 40 & Size <= 10000) %>%
-    .$Size %>%
-    unique() %>%
-    sort()
+distinct_go_sizes = go_terms$Size %>% unique() %>% sort()
 ```
 
 For these sizes, we sample random genes to calculate the CU for. This requires
