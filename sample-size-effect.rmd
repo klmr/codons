@@ -156,7 +156,8 @@ sampled_cu_fit = parallel::mclapply(distinct_go_sizes, sample_cu_fit_rep,
     setNames(distinct_go_sizes) %>%
     {do.call(rbind, .)} %>%
     as.data.frame() %>%
-    add_rownames('Size')
+    add_rownames('Size') %>%
+    mutate(Size = as.integer(Size))
 
 cat('\n', file = stderr())
 ```
@@ -177,7 +178,6 @@ Bring the data into a more convenient format.
 ```{r melt_sampled_data}
 sampled_cu_fit = sampled_cu_fit %>%
     melt(id.vars = 'Size', value.name = 'Correlation') %>%
-    mutate(Size = as.numeric(Size)) %>%
     select(-2) %>%
     tbl_df()
 ```
