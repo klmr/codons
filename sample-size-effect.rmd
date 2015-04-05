@@ -18,17 +18,10 @@ To make these results comparable with relevant data, we draw samples with
 sizes equal to those of all GO categories (over some minimal size threshold).
 Consequently, the first step is to load the GO terms.
 
-We ignore very small GO term sizes (less than 40).
-
-```{r go_terms}
-go_terms = io$read_table('./data/gene_association.goa_human', sep = '\t',
+```{r go_genes}
+go_genes = io$read_table('./data/gene_association.goa_human', sep = '\t',
                          quote = '', comment.char = '!', header = FALSE) %>%
-    select(GeneName = 3, GO = 5) %>%
-    group_by(GO) %>%
-    distinct(GeneName) %>%
-    mutate(Size = n()) %>%
-    filter(Size >= 40) %>%
-    ungroup() %>%
+    select(GO = 5, Name = 3) %>%
     tbl_df()
 
 mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
@@ -36,9 +29,7 @@ mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
     select(Gene = ID, Name) %>%
     tbl_df()
 
-go_terms = inner_join(go_terms, mrna_annotation, by = c('GeneName' = 'Name'))
-
-distinct_go_sizes = go_terms$Size %>% unique() %>% sort()
+go_genes = inner_join(go_genes, mrna_annotation, by = 'Name')
 ```
 
 For these sizes, we sample random genes to calculate the CU for. This requires
@@ -62,7 +53,23 @@ canonical_cds = cds %>%
     dplyr::slice(1)
 ```
 
-The next steps require the genetic code, without stop codons.
+Since we do not have CDS for all genes in `go_genes`, we filter the latter by
+availability of the former. We then filter out very small GO term sizes (less
+than 40).
+
+```{r}
+go_genes = go_genes %>%
+    filter(Gene %in% canonical_cds$Gene) %>%
+    group_by(GO) %>%
+    distinct(Gene) %>%
+    mutate(Size = n()) %>%
+    filter(Size >= 40) %>%
+    ungroup()
+
+distinct_go_sizes = go_genes$Size %>% unique() %>% sort()
+```
+
+The next steps require the genetic code without stop codons.
 
 ```{r genetic_code}
 full_genetic_code = cbind(AA = bios$GENETIC_CODE,
@@ -187,11 +194,10 @@ are useless and skew everything.
 ```{r sampled_data_plot}
 sampled_summary = sampled_cu_fit %>%
     group_by(Size) %>%
-    do(.$Correlation %>% quantile(c(0, 0.02, 0.25, 0.5, 0.75, 0.98, 1)) %>%
+    do(.$Correlation %>% quantile(c(0, 0.02, 0.05, 0.25, 0.5, 0.75, 0.98, 1)) %>%
        unclass() %>% as.data.frame() %>% add_rownames('Point')) %>%
     dcast(Size ~ Point, value.var = '.') %>%
-    tbl_df() %>%
-    filter(Size < 10000)
+    tbl_df()
 
 # We extent whiskers outside by 1.5 IQR from the IQR. This is a simplification
 # which is aceptable here since the data is expected to be dense around that
@@ -211,40 +217,38 @@ ggplot(sampled_summary) +
 
 Now calculate the GO term CU and its correlation with the genomic CU.
 
-```{r go_cu_fit}
+```{r go_cu_cor}
 # Index gene name => `codon_usage` row index, necessary for lookup.
 gene_index = data.frame(Gene = codon_usage[seq_len(stride), ]$Gene,
                         Index = seq_len(stride))
 
-# We are only interested in bigger GO term gene sets.
-big_go_terms = go_terms %>%
-    group_by(GO) %>%
-    filter(n() >= 40) %>%
-    inner_join(gene_index, by = 'Gene')
+go_gene_index = inner_join(go_genes, gene_index, by = 'Gene')
 
 # Since a join over > 1M rows becomes prohibitively slow, we use a loop +
 # `filter` here instead.
-go_term_ids = unique(big_go_terms$GO)
+go_gene_ids = unique(go_gene_index$GO)
 
 go_cu_fit = function (go_id)
-    cu_fit(filter(big_go_terms, GO == go_id)$Index)
+    cu_fit(filter(go_gene_index, GO == go_id)$Index)
 
-go_cu = parallel::mclapply(go_term_ids, go_cu_fit, mc.cores = cores) %>%
-    setNames(go_term_ids) %>%
-    unlist()
-
-go_sizes = big_go_terms %>%
+go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
+    setNames(go_gene_ids) %>%
+    {data.frame(GO = go_gene_ids, Correlation = unlist(go_cu_cor))} %>%
+    inner_join(go_genes, by = 'GO') %>%
+    inner_join(sampled_cu_fit, by = 'Size') %>%
     group_by(GO) %>%
-    summarize(Size = n())
-
-go_cu_by_size = data.frame(GO = names(go_cu), Correlation = go_cu) %>%
-    inner_join(go_sizes, by = 'GO') %>%
+    summarize(Correlation = first(Correlation.x), Size = first(Size),
+              p = sum(Correlation.y < Correlation.x) / (n() + 1)) %>%
+    mutate(padj = p.adjust(p, method = 'fdr'),
+           Significant = padj < 0.05) %>%
     tbl_df()
 ```
 
 ```{r go_cu_fit_plot}
-#ggplot(go_cu_by_size, aes(x = factor(GO, GO[order(Size)], ordered = TRUE),
-ggplot(go_cu_by_size, aes(x = Size, y = Correlation)) +
-    geom_point() +
-    scale_x_log10()
+ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
+    geom_point(aes(color = Significant), size = 1) +
+    scale_x_log10(name = 'GO term gene set size',
+                  breaks = c(50, 100, 500, 1000, 5000, 10000)) +
+    scale_y_continuous(breaks = seq(0.3, 1, 0.1), limits = c(0.3, 1)) +
+    scale_color_manual(values = c(`FALSE` = 'black', `TRUE` = 'brown1'))
 ```
