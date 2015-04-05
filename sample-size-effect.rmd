@@ -146,6 +146,7 @@ sample_cu_fit_rep = function (size, repetitions = 2) {
     # Ensure that all simulations are using different seed, as otherwise the
     # parallel jobs will start off with the same sequence of random samples.
     set.seed(rng_seed + size)
+    on.exit(cat('.', file = stderr()))
     replicate(repetitions, sample_cu_fit(size))
 }
 
@@ -156,6 +157,8 @@ sampled_cu_fit = parallel::mclapply(distinct_go_sizes, sample_cu_fit_rep,
     {do.call(rbind, .)} %>%
     as.data.frame() %>%
     add_rownames('Size')
+
+cat('\n', file = stderr())
 ```
 
 ```{r save_sampled_data, echo=FALSE, eval=FALSE}
