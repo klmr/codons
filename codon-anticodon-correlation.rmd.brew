@@ -485,6 +485,9 @@ all_correlations = rbind(all_correlations,
 go_significance = wilcox.test(matching_correlations,
                               go_correlations, conf.int = TRUE,
                               alternative = 'less')
+go_inverse_test = wilcox.test(matching_correlations,
+                              go_correlations, conf.int = TRUE,
+                              alternative = 'greater')
 
 go_p = format.pval(go_significance$p.value)
 
@@ -498,7 +501,7 @@ ggplot(all_correlations, aes(Type, Correlation)) +
 
 Testing for significant difference between the distribution of matching codon
 supply and demand, and between the codon supply and demand just for gene sets
-from condition-specific GO terms yields
-$p(\text{observation | GO = Matching}) = `r go_p`$, where $H_1$: “specific GO
-term gene set CUB correlates *better* with matching AAB than whole-transcriptome
-codon usage”.
+from condition-specific GO terms yields $p(\text{observation | GO = Matching})
+= `r go_p`$, where $H_1$: “specific GO term gene set CUB correlates *better*
+with matching AAB than whole-transcriptome codon usage”. For the inverted
+hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.
