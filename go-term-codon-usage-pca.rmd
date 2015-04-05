@@ -363,31 +363,22 @@ It seems clear that the first PC of the codon usage is highly related to the
 second PC of the amino acid usage. We therefore investigate whether there is an
 effect of codon usage *beyond* mere amino acid deployment.
 
-```{r}
-pctable_cu_by_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices],
-                                     function (x) sweep(x, 2, colSums(x), `/`)))
-```
-
-This reorders codons by amino acid. Undo the reordering to be on the safe
-side, just in case we later refer to it.
-
 ```{r go_cub_norm_pca}
-rownames(pctable_cu_by_aa) = local({
-    x = rownames(pctable_cu_by_aa)
-    x = sub('\\w+\\.', '', x)
-    # M and W only have a single codon each and were thus not suffixed with the
-    # codon name.
-    x[x == 'M'] = filter(genetic_code, AA == 'M')$Codon
-    x[x == 'W'] = filter(genetic_code, AA == 'W')$Codon
-    x
-})
+pctable_cu_by_aa = pctable %>%
+    as.data.frame() %>%
+    add_rownames('Codon') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(AA) %>%
+    mutate_each(funs(. / sum(.)), starts_with('GO:')) %>%
+    as.data.frame() %>%
+    `rownames<-`(.$Codon) %>%
+    {.[, colnames(pctable)]}
 
-pctable_cu_by_aa = local({
-    idx = match(rownames(pctable), rownames(pctable_cu_by_aa))
-    pctable_cu_by_aa[idx, ]
-})
+# Remove zero variance rows (all 1 because only one synonymous codon exists).
+singular_rows = apply(pctable_cu_by_aa, 1, function (x) all(x == 1))
+pctable_cu_by_aa = pctable_cu_by_aa[! singular_rows, ]
+pc_cu_by_aa = prcomp(t(pctable_cu_by_aa), scale. = TRUE)
 
-pc_cu_by_aa = prcomp(t(pctable_cu_by_aa))
 stopifnot(all.equal(rownames(pc$x), rownames(pc_cu_by_aa$x)))
 
 pc_plot(pc_cu_by_aa, main = NULL,
