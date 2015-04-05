@@ -330,8 +330,22 @@ pc_plot(pc_aa, main = NULL,
         bg = category_color[cat], las = 1)
 ```
 
-These seem to be obviously related, just with inverted first PCs. Let’s see how
-well the individual PCs correlate.
+These seem to be obviously related, just with inverted first PCs. The sole
+outlier is `r ker = names(which.max(pc_aa$x[, 1])); ker`
+(`r unique(filter(go_genes, GO == ker)$Description)`). Removing this outlier
+from the data yields the following plot:
+
+```{r}
+pctable_no_ker = pctable_aa[, colnames(pctable_aa) != ker]
+pc_no_ker = prcomp(t(pctable_no_ker), scale. = TRUE)
+
+pc_plot(pc_no_ker, main = NULL,
+        pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+        col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+        bg = category_color[cat])
+```
+
+Let’s see how well the individual PCs correlate.
 
 ```{r}
 contrasts = list(`First PCs` = list(pc$x[, 1], pc_aa$x[, 1]),
