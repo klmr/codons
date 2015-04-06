@@ -259,3 +259,8 @@ ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
     scale_color_manual(values = c(`FALSE` = 'black', `TRUE` = 'brown1'),
                        guide = FALSE)
 ```
+
+In total, `r sum(go_cu_cor$Significant)` out of `r nrow(go_cu_cor)` GO terms
+(`r sprintf('%.0f%%', sum(go_cu_cor$Significant) / nrow(go_cu_cor) * 100)`)
+show significantly more codon usage variation than expected by chance, at an
+FDR-corrected significance cut-off of \(p < 0.05\).
