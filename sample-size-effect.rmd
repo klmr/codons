@@ -227,14 +227,19 @@ go_gene_index = inner_join(go_genes, gene_index, by = 'Gene')
 # Since a join over > 1M rows becomes prohibitively slow, we use a loop +
 # `filter` here instead.
 go_gene_ids = unique(go_gene_index$GO)
+go_gene_sizes = go_genes %>%
+    select(GO, Size) %>%
+    distinct(GO)
 
 go_cu_fit = function (go_id)
     cu_fit(filter(go_gene_index, GO == go_id)$Index)
 
+# (Redefine in case chunk above wasn’t run.)
+cores = parallel::detectCores()
+
 go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
-    setNames(go_gene_ids) %>%
-    {data.frame(GO = go_gene_ids, Correlation = unlist(go_cu_cor))} %>%
-    inner_join(go_genes, by = 'GO') %>%
+    {data.frame(GO = go_gene_ids, Correlation = unlist(.))} %>%
+    inner_join(go_gene_sizes, by = 'GO') %>%
     inner_join(sampled_cu_fit, by = 'Size') %>%
     group_by(GO) %>%
     summarize(Correlation = first(Correlation.x), Size = first(Size),
