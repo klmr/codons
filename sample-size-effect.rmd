@@ -251,6 +251,8 @@ go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
 
 ```{r go_cu_fit_plot, fig.width=10, fig.height=6}
 ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
+    geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.1) +
+    geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.1) +
     geom_point(aes(color = Significant), size = 1) +
     scale_x_log10(name = 'GO term gene set size',
                   breaks = c(50, 100, 500, 1000, 5000, 10000)) +
