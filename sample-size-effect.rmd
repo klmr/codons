@@ -1,0 +1,268 @@
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/sample-size-effect-',
+               cache.path = 'cache/sample-size-effect-',
+               dev = c('png', 'pdf'))
+
+config = modules::import('./config_human')
+```
+
+# The effect of sample size on properties of genes
+
+Here we want to test how a certain feature of gene sets (in fact, the mean
+codon usage, CU) is affected by random sampling. To test this, we sample
+random sets of genes of different sizes and observe the effect this has on the
+codon usage.
+
+To make these results comparable with relevant data, we draw samples with
+sizes equal to those of all GO categories (over some minimal size threshold).
+Consequently, the first step is to load the GO terms.
+
+```{r go_genes}
+go_genes = io$read_table('./data/gene_association.goa_human', sep = '\t',
+                         quote = '', comment.char = '!', header = FALSE) %>%
+    select(GO = 5, Name = 3) %>%
+    tbl_df()
+
+mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
+    filter(source == 'protein_coding') %>%
+    select(Gene = ID, Name) %>%
+    tbl_df()
+
+go_genes = inner_join(go_genes, mrna_annotation, by = 'Name')
+```
+
+For these sizes, we sample random genes to calculate the CU for. This requires
+us to load the coding sequences of those genes.
+
+```{r cds}
+bios = loadNamespace('Biostrings')
+cds = bios$readDNAStringSet(config$cds)
+names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
+cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+cds = cds %>% filter(is_valid_cds(Sequence))
+canonical_cds = cds %>%
+    group_by(Gene) %>%
+    arrange(desc(nchar(Sequence))) %>%
+    dplyr::slice(1)
+```
+
+Since we do not have CDS for all genes in `go_genes`, we filter the latter by
+availability of the former. We then filter out very small GO term sizes (less
+than 40).
+
+```{r}
+go_genes = go_genes %>%
+    filter(Gene %in% canonical_cds$Gene) %>%
+    group_by(GO) %>%
+    distinct(Gene) %>%
+    mutate(Size = n()) %>%
+    filter(Size >= 40) %>%
+    ungroup()
+
+distinct_go_sizes = go_genes$Size %>% unique() %>% sort()
+```
+
+The next steps require the genetic code without stop codons.
+
+```{r genetic_code}
+full_genetic_code = cbind(AA = bios$GENETIC_CODE,
+                          Codon = names(bios$GENETIC_CODE)) %>% as.data.frame()
+genetic_code = filter(full_genetic_code, AA != '*')
+```
+
+Now we calculate the individual codon usage for each gene.
+
+```{r codon_usage}
+codon_usage = canonical_cds$Sequence %>%
+    bios$DNAStringSet() %>%
+    bios$trinucleotideFrequency(3) %>%
+    as.data.frame() %>%
+    {cbind(Gene = canonical_cds$Gene, .)} %>%
+    melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    tbl_df()
+```
+
+… and then the genomic background CU, which we’ll subsequently use as a point
+of comparison, to assess variability of CU for different sample sizes.
+
+**Caveat** In the following, we will use the codon usage, normalised by the
+overall codon count (such that the values for all codons sum to 1). This is
+done to make CU between different gene sets of different size comparable.
+Initially I calculated the *relative* codon usage (RCU), which normalises each
+codon frequency by the sum of the codon frequency of its synonymous codons. This
+removes the amino acid usage bias as a confounder. However, it turns out that
+this makes all RCUs of different gene sets highly correlated, since, across all
+amino acids, codons with many synonymous codons will have lower values compared
+to codons with few synonymous codons (simply because usage of synonymous codons
+sums to 1).
+
+```{r background_cu}
+background_cu = codon_usage %>%
+    group_by(AA, Codon) %>%
+    summarize(Count = sum(Count)) %>%
+    ungroup() %>%
+    mutate(Prop = Count / sum(Count)) %>%
+    arrange(Codon)
+```
+
+The `arrange` statement above serves to make the order of the CU guaranteed so
+that we can directly correlate it with the sampled CU, calculated next. This
+is probably unnecessary (and time-consuming) but I cannot find anything in the
+dplyr documentation guaranteeing the order, and better safe than sorry.
+
+Now we sample repeatedly for each set size, and calculate the mean relative
+codon usage (mean CU), which we then correlate with the background CU to
+assess codon usage variability.
+
+```{r cu_fit_function}
+# Optimised to allow indexed access for gene names, since selection by gene name
+# turned out to be a major bottleneck.
+# This change provides a > 1000% speedup.
+stride = length(unique(codon_usage$Gene))
+stopifnot(stride * 61 == nrow(codon_usage))
+stopifnot(all(codon_usage[1 : stride, ]$Codon == codon_usage$Codon[1]))
+
+cu_fit = function (gene_index_set) {
+    translated_index = unlist(lapply(gene_index_set, i -> 0 : 60 * stride + i))
+    codon_usage[translated_index, ] %>%
+        group_by(AA, Codon) %>%
+        summarize(Count = sum(Count)) %>%
+        ungroup() %>%
+        mutate(Prop = Count / sum(Count)) %>%
+        arrange(Codon) %>%
+        {cor(.$Prop, background_cu$Prop)}
+}
+```
+
+```{r sampled_cu_fit, eval=FALSE}
+rng_seed = 1428079834
+
+sample_cu_fit = function (size)
+    cu_fit(sample.int(nrow(canonical_cds), size))
+
+sample_cu_fit_rep = function (size, repetitions = 2) {
+    # Ensure that all simulations are using different seed, as otherwise the
+    # parallel jobs will start off with the same sequence of random samples.
+    set.seed(rng_seed + size)
+    on.exit(cat('.', file = stderr()))
+    replicate(repetitions, sample_cu_fit(size))
+}
+
+cores = parallel::detectCores()
+sampled_cu_fit = parallel::mclapply(distinct_go_sizes, sample_cu_fit_rep,
+                                    mc.cores = cores, mc.set.seed = FALSE) %>%
+    setNames(distinct_go_sizes) %>%
+    {do.call(rbind, .)} %>%
+    as.data.frame() %>%
+    add_rownames('Size') %>%
+    mutate(Size = as.integer(Size))
+
+cat('\n', file = stderr())
+```
+
+```{r save_sampled_data, echo=FALSE, eval=FALSE}
+saveRDS(sampled_cu_fit, file = './results/sampled-cu-fit.rds')
+```
+
+```{r load_sampled_data, echo=FALSE}
+# The above calculation is *hellishly* slow – it took 230 CPU hours to complete.
+# Consequently, we ran it on a cluster and load the results here, instead of
+# actually computing them.
+sampled_cu_fit = readRDS('./results/sampled-cu-fit.rds')
+```
+
+Bring the data into a more convenient format.
+
+```{r melt_sampled_data}
+sampled_cu_fit = sampled_cu_fit %>%
+    melt(id.vars = 'Size', value.name = 'Correlation') %>%
+    select(-2) %>%
+    tbl_df()
+```
+
+Plot histograms for the distribution. Take out highest observations because they
+are useless and skew everything.
+
+```{r sampled_data_plot, fig.width=10, fig.height=6}
+sampled_summary = sampled_cu_fit %>%
+    group_by(Size) %>%
+    do(.$Correlation %>% quantile(c(0, 0.02, 0.05, 0.25, 0.5, 0.75, 0.98, 1)) %>%
+       unclass() %>% as.data.frame() %>% add_rownames('Point')) %>%
+    dcast(Size ~ Point, value.var = '.') %>%
+    tbl_df()
+
+# We extent whiskers outside by 1.5 IQR from the IQR. This is a simplification
+# which is aceptable here since the data is expected to be dense around that
+# point so searching for an infimum/supremum brings little added accuracy.
+ggplot(sampled_summary) +
+    geom_segment(aes(x = Size, y = `25%`,
+                     xend = Size, yend = `75%`),
+                 color = '#808080') +
+    geom_point(aes(x = Size, y = `2%`), size = 0.5)  +
+    geom_point(aes(x = Size, y = `50%`), size = 1) +
+    geom_point(aes(x = Size, y = `98%`), size = 0.5)  +
+    scale_x_log10(name = 'Gene set size',
+                  breaks = c(50, 100, 500, 1000, 5000, 10000)) +
+    scale_y_log10(name = 'Codon usage correlation',
+                  breaks = seq(0.89, 1, by = 0.01), limits = c(0.89, 1))
+```
+
+Now calculate the GO term CU and its correlation with the genomic CU.
+
+```{r go_cu_cor}
+# Index gene name => `codon_usage` row index, necessary for lookup.
+gene_index = data.frame(Gene = codon_usage[seq_len(stride), ]$Gene,
+                        Index = seq_len(stride))
+
+go_gene_index = inner_join(go_genes, gene_index, by = 'Gene')
+
+# Since a join over > 1M rows becomes prohibitively slow, we use a loop +
+# `filter` here instead.
+go_gene_ids = unique(go_gene_index$GO)
+go_gene_sizes = go_genes %>%
+    select(GO, Size) %>%
+    distinct(GO)
+
+go_cu_fit = function (go_id)
+    cu_fit(filter(go_gene_index, GO == go_id)$Index)
+
+# (Redefine in case chunk above wasn’t run.)
+cores = parallel::detectCores()
+
+go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
+    {data.frame(GO = go_gene_ids, Correlation = unlist(.))} %>%
+    inner_join(go_gene_sizes, by = 'GO') %>%
+    inner_join(sampled_cu_fit, by = 'Size') %>%
+    group_by(GO) %>%
+    summarize(Correlation = first(Correlation.x), Size = first(Size),
+              p = sum(Correlation.y < Correlation.x) / (n() + 1)) %>%
+    mutate(padj = p.adjust(p, method = 'fdr'),
+           Significant = padj < 0.05) %>%
+    tbl_df()
+```
+
+```{r go_cu_fit_plot, fig.width=10, fig.height=6}
+ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
+    geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.1) +
+    geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.1) +
+    geom_point(aes(color = Significant), size = 1) +
+    scale_x_log10(name = 'GO term gene set size',
+                  breaks = c(50, 100, 500, 1000, 5000, 10000)) +
+    scale_y_continuous(name = 'Codon usage correlation',
+                       breaks = seq(0.3, 1, 0.1), limits = c(0.3, 1)) +
+    scale_color_manual(values = c(`FALSE` = 'black', `TRUE` = 'brown1'),
+                       guide = FALSE)
+```
+
+In total, `r sum(go_cu_cor$Significant)` out of `r nrow(go_cu_cor)` GO terms
+(`r sprintf('%.0f%%', sum(go_cu_cor$Significant) / nrow(go_cu_cor) * 100)`)
+show significantly more codon usage variation than expected by chance, at an
+FDR-corrected significance cut-off of \(p < 0.05\).
