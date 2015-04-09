@@ -243,7 +243,7 @@ go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
     inner_join(sampled_cu_fit, by = 'Size') %>%
     group_by(GO) %>%
     summarize(Correlation = first(Correlation.x), Size = first(Size),
-              p = sum(Correlation.y < Correlation.x) / (n() + 1)) %>%
+              p = (sum(Correlation.y <= Correlation.x) + 1) / (n() + 1)) %>%
     mutate(padj = p.adjust(p, method = 'fdr'),
            Significant = padj < 0.05) %>%
     tbl_df()
