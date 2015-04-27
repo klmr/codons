@@ -270,6 +270,39 @@ mismatching_contrasts = filter(mismatching_contrasts,
                                Codon == 'Liver-Adult' | Anti == 'Liver-Adult')
 ```
 
+### Simple correlation
+
+As a sanity check, plot the codon–anticodon usage for all three conditions.
+
+```{r}
+plot_ca_correlation = function (condition) {
+    # For each point, calculate mean and min/max.
+    cu = cub_long %>%
+        filter(Celltype == condition) %>%
+        group_by(Codon) %>%
+        summarize(cu = mean(Count), cu_min = min(Count), cu_max = max(Count))
+    aa = aab_long %>%
+        filter(Celltype == condition) %>%
+        group_by(Codon) %>%
+        summarize(aa = mean(Count), aa_min = min(Count), aa_max = max(Count))
+
+    data = inner_join(cu, aa, by = 'Codon')
+    rsq = summary(lm(aa ~ cu, data))$r.squared
+    ggplot(data, aes(x = aa, y = cu)) +
+        geom_point() +
+        geom_errorbar(aes(ymin = cu_min, ymax = cu_max)) +
+        geom_errorbarh(aes(xmin = aa_min, xmax = aa_max)) +
+        stat_smooth(method = lm) +
+        annotate(geom = 'text', label = sprintf('italic(r)**2==%0.2f', rsq),
+                 x = 0.3, y = 0.9, parse = TRUE) +
+        scale_x_continuous(name = 'Relative anticodon isoacceptor abundance') +
+        scale_y_continuous(name = 'Relative codon usage')
+}
+
+conditions = unique(mrna_design$Celltype)
+base$map(plot_ca_correlation, conditions)
+```
+
 ### Ignoring wobble base pairing
 
 The simplest correlation we can calculate ignores wobble base pairing and
