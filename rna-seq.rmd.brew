@@ -1,0 +1,310 @@
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/rna-seq-',
+               cache.path = 'cache/rna-seq-')
+```
+
+Load the RNA-seq count data. We are using gene-level counts from
+<code>htseq-count</code>.
+
+```{r}
+counts = io$read_table('./data/rnaseq-counts-mm10.tsv', header = TRUE) %>%
+    as_data_frame()
+```
+
+```{r}
+dev_counts = io$read_table('../tRNA/alternative-data/fdr-0.001/common/data/genes.raw.htseq2.tsv',
+                           header = TRUE) %>% as_data_frame()
+dev_design = io$read_table('../tRNA/alternative-data/fdr-0.001/common/data/rna-seq-summary.tsv') %>%
+    `colnames<-`(c('Tissue', 'Stage', 'DO')) %>%
+    filter(Tissue == 'liver' & Stage %in% c('e15.5', 'P29')) %>%
+    transmute(DO, Celltype = paste('Liver', toupper(Stage), sep = '-'))
+dev_counts = select(dev_counts, Gene, one_of(dev_design$DO))
+
+counts = inner_join(counts, dev_counts, by = 'Gene')
+```
+
+Throw out zero rows.
+
+```{r}
+zero_rows = rowSums(select(counts, -Gene)) == 0
+table(zero_rows)
+(counts = counts[! zero_rows, ])
+```
+
+Load the library design matrix.
+
+```{r}
+design = io$read_table('./data/libraries-rna-seq-mm10.tsv') %>%
+    as_data_frame() %>%
+    select(DO = 1, Celltype = 2) %>%
+    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype)) %>%
+    rbind(dev_design)
+
+design
+```
+
+Load annotation. We are only interested in protein-coding genes, and filter
+mitochondrial genes, since these use a different genetic code. We also filter
+out any additional unplaced scaffolds present in the annotation.
+
+Finally, the annotation is merged with the count data for ease of use.
+
+```{r}
+annotation = io$read_table('./data/Mus_musculus.GRCm38.75.gene_annot.tsv',
+                           header = TRUE) %>%
+    as_data_frame() %>%
+    filter(source == 'protein_coding') %>%
+    mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
+           Start = as.integer(base$grep(':(\\d+)', locus)),
+           End = as.integer(base$grep('\\.\\.(\\d+)', locus))) %>%
+    filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
+    select(Gene = ID, Name, Chr, Start, End, GO)
+
+(counts = inner_join(annotation, counts, by = 'Gene'))
+```
+
+We have `r nrow(counts)` properly annotated genes.
+
+```{r}
+celltype_colors = c(`Liver-Adult` = '#A04040',
+                    #`Liver-Adult` = 'chartreuse4',
+                    `Liver-P29` = 'chartreuse3',
+                    `Liver-E15.5` = 'chartreuse2',
+                    `Hepa1-6` = 'dodgerblue3',
+                    Hepa1c1c7 = 'deepskyblue3')
+gg_boxplot(select(counts, starts_with('do')), design, celltype_colors)
+```
+
+PCA of raw counts.
+
+```{r fig.width=10, fig.height=4}
+pcplot_by_do = function (pcs) {
+    v = summary(pcs)$importance[2, ] * 100
+    pcs = pcs$x %>%
+        as.data.frame() %>%
+        add_rownames('DO') %>%
+        inner_join(design, by = 'DO')
+    ggplot(pcs, aes(x = PC1, y = PC2)) +
+        geom_point(aes(color = Celltype), size = 3) +
+        scale_x_continuous(sprintf('PC1 (%0.1f%% variance explained)', v[1])) +
+        scale_y_continuous(sprintf('PC2 (%0.1f%% variance explained)', v[2])) +
+        scale_color_manual(values = celltype_colors)
+}
+
+count_prcomp = function (data)
+    prcomp(t(select(data, starts_with('do'))), scale. = TRUE)
+
+pcplot_by_do(count_prcomp(counts))
+```
+
+Normalise data by library size using DESeq(2).
+
+```{r}
+library(DESeq2)
+
+size_factors = counts %>% select(starts_with('do')) %>%
+    estimateSizeFactorsForMatrix() %>%
+    t() %>% as.data.frame()
+
+sf_counts = counts %>% mutate_each(funs(. / size_factors$.), starts_with('do'))
+gg_boxplot(select(sf_counts, starts_with('do')), design, celltype_colors)
+```
+
+PCA of library size normalised counts.
+
+```{r fig.width=10, fig.height=4}
+pcplot_by_do(count_prcomp(sf_counts))
+```
+
+Notice the much longer tail for the “liver” samples. This shouldn’t necessarily
+exist, and there is no reason to believe that this is a biological rather than
+technical signal. So we try quantile normalisation instead.
+
+```{r}
+quantile_normalize = function (data) {
+    ordered_indices = apply(data, 2, x -> rank(x, ties = 'min'))
+    row_means = rowMeans(apply(data, 2, sort))
+    apply(ordered_indices, 2, x -> row_means[x]) %>% as.data.frame()
+}
+
+q_counts = select(counts, starts_with('do'))
+q_counts = cbind(select(counts, -starts_with('do')),
+                 quantile_normalize(q_counts)) %>% tbl_df()
+
+gg_boxplot(select(q_counts, starts_with('do')), design, celltype_colors)
+```
+
+Again, here’s the PCA of the quantile normalised data.
+
+```{r fig.width=10, fig.height=4}
+pcplot_by_do(count_prcomp(q_counts))
+```
+
+Next, we will calculate the actual codon usage. For this, we need to find the
+canonical coding sequences of all genes.
+
+```{r}
+library(Biostrings)
+ccds = readDNAStringSet('./data/Mus_musculus.GRCm38.cds.all.fa.gz')
+names(ccds) = sub('.*gene:(ENSMUSG\\d+).*', '\\1', names(ccds))
+
+ccds = data.frame(Gene = names(ccds), Sequence = ccds)
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+ccds = ccds %>% filter(is_valid_cds(Sequence))
+
+# Re-enable S3 method lookup (see https://github.com/hadley/dplyr/issues/972)
+detach('package:dplyr')
+library(dplyr)
+
+canonical_cds = ccds %>%
+    group_by(Gene) %>%
+    arrange(desc(nchar(Sequence))) %>%
+    slice(1)
+```
+
+There are `r nrow(canonical_cds)` canonical coding sequences.
+
+For each gene in each library, calculate the codon usage. First, we calculate
+the “raw” codon usage, i.e. unweighted by gene expression. Afterwards, we
+multiply these values with the gene expression values for each library.
+
+We get a list of the libraries. Each list item is a codon frequency table with
+one row per gene, the codon frequencies weighted by gene expression.
+
+```{r}
+raw_codon_hist = base$let(cds = DNAStringSet(canonical_cds$Sequence),
+                          as.data.frame(trinucleotideFrequency(cds, 3)))
+
+raw_codon_hist = cbind(Gene = canonical_cds$Gene, raw_codon_hist)
+
+tpm_counts = inner_join(counts, canonical_cds, by = 'Gene') %>%
+    mutate(Length = nchar(Sequence)) %>%
+    mutate_each(funs(. / Length), starts_with('do')) %>%
+    mutate_each(funs(1000000 * . / sum(.)), starts_with('do')) %>%
+    select(Gene, starts_with('do'))
+
+codon_hist = mclapply(design$DO, lib -> {
+    code = names(GENETIC_CODE)
+    data = tpm_counts %>% select_('Gene', lib) %>%
+        inner_join(raw_codon_hist, by = 'Gene')
+    cbind(Gene = data$Gene, data %>% do({select(., one_of(code)) * .[[lib]]}))
+}, mc.cores = detectCores()) %>% setNames(design$DO)
+```
+
+Calculate the average codon usage over all genes for each library.  After that,
+we plot the distribution of codon usage as  a box plot.
+
+```{r}
+mean_codon_hist = do.call(rbind,
+                          lapply(codon_hist,
+                                 lib -> select(lib, -Gene) %>% colMeans))
+
+plot_data = mean_codon_hist %>%
+    melt(varnames = c('DO', 'Codon'), value.name = 'Count') %>%
+    inner_join(design, by = 'DO')
+
+ggplot(plot_data, aes(factor(DO), Count, color = Celltype)) +
+    geom_box() + geom_outliers(size = 1) +
+    xlab('Library') +
+    scale_color_manual(values = celltype_colors) +
+    theme_bw()
+```
+
+Perform PCA on the codon usage bias, i.e. the relative codon usage as a
+fraction of its amino acid.
+
+```{r fig.width=10, fig.height=4}
+genetic_code = io$read_table('./data/genetic_code.tsv', header = FALSE,
+                             col.names = c('Codon', 'AA')) %>%
+    filter(! Codon %in% c('TAA', 'TGA', 'TAG'))
+
+cub = mean_codon_hist %>%
+    melt(varnames = c('DO', 'Codon'), value.name = 'Count') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(DO, AA) %>%
+    mutate(CUB = Count / sum(Count)) %>%
+    select(DO, Codon, CUB) %>%
+    dcast(DO ~ Codon, value.var = 'CUB') %>%
+    tbl_df()
+
+# Make data scalable by removing columns with 0 variance
+pc_data = select(cub, -DO) %>%
+    as.data.frame() %>%
+    `rownames<-`(cub$DO)
+unit_data = sapply(pc_data, x -> base$reduce(`==`, x[-1], x[1]))
+pc_data = pc_data[, ! unit_data]
+pcplot_by_do(prcomp(pc_data, scale. = TRUE))
+```
+
+Almost all of the total variance is explained by just one rotation. This
+suggests that there is a systematic bias in the data. Let’s see whether certain
+amino acids are systematically skewed.
+
+```{r fig.width=12}
+skew_data = pc_data %>% add_rownames('DO') %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'CUB') %>%
+    inner_join(genetic_code, by = 'Codon')
+
+# Alternating colours for the amino acids.
+pal = setNames(rep(c('#8080FF', '#AAAAAA'), times = 10), sort(unique(genetic_code$AA)))
+ggplot(skew_data, aes(x = factor(Codon, levels = unique(Codon[order(AA)])), y = CUB)) +
+    geom_bar(aes(fill = AA, group = DO), stat = 'identity', position = 'dodge') +
+    scale_fill_manual(values = pal)
+```
+
+Nothing. Let’s have a look at the hierarchical clustering of codons.
+
+```{r fig.width=9}
+library(gplots)
+colside_type = design[match(rownames(pc_data), design$DO), ]$Celltype
+heatmap.2(as.matrix(t(pc_data)), trace = 'none', density.info = 'none',
+          ColSideColors = celltype_colors[colside_type],
+          lmat = cbind(c(5, 0, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
+```
+
+The bias may be due to the fact that there is a strong skew in gene length in
+highly expressed genes. We therefore look at the gene lengths of highly
+expressed genes. We use the top 1000 genes in each condition for that.
+
+```{r}
+sorted_gene_lengths = inner_join(tpm_counts, canonical_cds, by = 'Gene') %>%
+    mutate(Length = nchar(Sequence)) %>%
+    select(Gene, Length, starts_with('do')) %>%
+    melt(id.vars = c('Gene', 'Length'), variable.name = 'DO', value.name = 'Count') %>%
+    inner_join(design, by = 'DO') %>%
+    group_by(DO) %>%
+    mutate(Rank = rank(Count, ties.method = 'min')) %>%
+    arrange(desc(Count))
+
+top_1000_gene_lengths = sorted_gene_lengths %>%
+    slice(1 : 1000) %>%
+    summarize(Length = sum(Length))
+
+dcast(top_1000_gene_lengths, . ~ DO, value.var = 'Length') %>%
+    select(-.)
+```
+
+Plot the codon length versus gene expression.
+
+```{r fig.width=12}
+transparent = function (colors, alpha = 0.5) {
+    c = col2rgb(colors)
+    setNames(rgb(c['red', ], c['green', ], c['blue', ],
+                 alpha * 255, maxColorValue = 255), names(colors))
+}
+
+ggplot(sorted_gene_lengths, aes(x = Rank, y = Length)) +
+    geom_point(aes(color = Celltype), size = 1) +
+    scale_y_log10() +
+    scale_color_manual(values = transparent(celltype_colors))
+```

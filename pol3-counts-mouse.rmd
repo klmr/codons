@@ -1,0 +1,255 @@
+```{r echo=FALSE}
+library(dplyr)
+library(magrittr)
+library(reshape2)
+library(ggplot2)
+
+options(stringsAsFactors = FALSE)
+```
+
+## Preface
+
+This analysis merges two data sets: experimental data from our *Schmitt,
+Rudolph & al.* paper, and cancer cell line data. We are investigating
+differences in tRNA abundance between these conditions.
+
+## Analysis
+
+Read pol III tRNA counts.
+
+```{r}
+cancer_counts = read.csv('./data/pol3-chip-trna-counts-cancer.tsv', sep = '\t', row.names = 1)
+
+head(cancer_counts)
+```
+
+Read sample library metadata.
+
+```{r}
+cancer_libraries = read.csv('./data/pol3-chip-cancer-libraries.tsv') %>%
+    select(DO = 1, Type = 2, Condition = 3) %>%
+    filter(DO %in% colnames(cancer_counts))
+
+cancer_libraries
+```
+
+Show sample distributions.
+
+```{r echo=FALSE}
+asinh_trans = function () {
+    # `trans_new` is hidden deep inside ggplot2, even `ggplot2:::` doesn’t work.
+    trans_new = local(trans_new, envir = environment(scale_y_continuous))
+    trans_new('asinh', asinh, sinh, domain = c(-Inf, Inf))
+}
+
+scale_y_asinh = function (...)
+    scale_y_continuous(..., trans = asinh_trans())
+```
+
+```{r}
+# Reorder columns to match `cancer_libraries`
+cancer_counts = cancer_counts[, cancer_libraries$DO]
+
+gg_boxplot = function (data, col_data) {
+    data = melt(data, id.vars = NULL, variable.name = 'DO',
+                value.name = 'Count') %>%
+        inner_join(col_data, by = 'DO')
+    ggplot(data, aes(factor(DO), Count)) +
+        geom_boxplot(aes(fill = Type)) +
+        xlab('Library') +
+        scale_y_asinh() +
+        scale_fill_manual(values = c('ChIP' = 'white', 'input' = 'gray')) +
+        theme_bw()
+}
+
+gg_boxplot(cancer_counts, cancer_libraries)
+```
+
+Normalise by library size.
+
+```{r}
+library(DESeq2)
+
+cancer_libraries %<>% filter(Type == 'ChIP') %>% select(-Type)
+
+cancer_counts_chip = select(cancer_counts, one_of(cancer_libraries$DO))
+cancer_size_factors = estimateSizeFactorsForMatrix(cancer_counts_chip)
+cancer_counts_chip = t(t(cancer_counts_chip) / cancer_size_factors) %>%
+    as.data.frame
+```
+
+Plot normalised counts.
+
+```{r}
+gg_boxplot(cancer_counts_chip, cancer_libraries)
+```
+
+Replicate variability: log-log-plot of counts.
+
+```{r}
+plot_compare_replicates = function (data, cols, main) {
+    do_plot = function (data, cols, main) {
+        if (missing(main))
+            main = sprintf('Replicate variability between %s and %s',
+                           cols[1], cols[2])
+        p = ggplot(data, aes_string(x = cols[1], y = cols[2])) +
+            geom_point() +
+            scale_x_log10() +
+            scale_y_log10() +
+            ggtitle(main) + theme_bw()
+        plot(p)
+
+        cor(data[, cols],  method = 'spearman')[1, 2]
+    }
+
+    cols = if (is.list(cols)) cols else list(cols)
+
+    if (missing(main))
+        mapply(do_plot, list(data), cols)
+    else
+        mapply(do_plot, list(data), cols, main)
+}
+
+cancer_libraries %>%
+    group_by(Condition) %>% do(Replicates = .$DO) %>%
+    {plot_compare_replicates(cancer_counts_chip, .$Replicates,
+                             unique(.$Condition))}
+```
+
+Load the mouse development data.
+
+```{r}
+devo_libraries = read.csv('./data/trna/chip-sample-map.tsv', sep = '\t',
+                          header = FALSE) %>%
+    select(DO = 1, Type = 2, Tissue = 3, Stage = 4) %>%
+    mutate(DO = paste0('do', DO), Stage = toupper(Stage)) %>%
+    filter(Type == 'PolIII', Tissue == 'liver') %>%
+    select(-Type, -Tissue)
+
+devo_counts = read.csv('./data/trna/pol3-trna-counts.tsv', sep = '\t')
+devo_counts = devo_counts[, devo_libraries$DO]
+head(devo_counts)
+```
+
+Build DESeq experiment, comparing cancers against E15.5.
+
+```{r}
+devo_libraries %<>% filter(Stage == 'E15.5') %>%
+    dplyr::rename(Condition = Stage)
+experimental_design = rbind(devo_libraries, cancer_libraries)
+raw_counts_table = cbind(devo_counts, cancer_counts)[, experimental_design$DO]
+size_factors = estimateSizeFactorsForMatrix(raw_counts_table)
+normalized_counts = t(t(raw_counts_table) / size_factors)
+```
+
+Compare the samples
+
+```{r fig.width=9}
+cor = cor(normalized_counts, method = 'spearman')
+
+library(gplots)
+divergent_colors = colorRampPalette(c('#603D71', 'white', '#A4B962'))(30)
+celltype_colors = c(E15.5 = 'chartreuse4',
+                    `Hepa1-6` = 'dodgerblue3',
+                    Hepa1c1c7 = 'deepskyblue3')
+heatmap.2(cor, trace = 'none', density.info = 'none', col = divergent_colors,
+          ColSideColors = celltype_colors[experimental_design$Condition],
+          lmat = cbind(c(5, 0, 3), c(4, 1, 2), c(6, 6, 6)),
+          lwid = c(1.5, 4, 2),
+          lhei = c(1.5, 0.25, 4))
+legend('right', bty = 'n', legend = names(celltype_colors),
+       fill = celltype_colors)
+```
+
+Perform differential expression analysis between all pairwise conditions: in
+particular, we want to know what changes between cancer and developmental
+tissue; however, the between-cancer comparison may yield insight into the
+inherent variability of the different conditions.
+
+```{r}
+de = function (data, col_data, contrast) {
+    col_data %<>% filter(Condition %in% contrast)
+    cds = DESeqDataSetFromMatrix(data[, col_data$DO], col_data, ~Condition)
+    cds$Condition = relevel(cds$Condition, contrast[1])
+    DESeq(cds)
+}
+
+summarize_de = function (cds, ϑ = 0.01) {
+    contrast = levels(cds$Condition)
+    main = function (title)
+        sprintf('%s between %s and %s',
+                title, contrast[1], contrast[2])
+    plotDispEsts(cds, main = main('Dispersion estimates'))
+    plotMA(results(cds), alpha = ϑ, main = main('Differential expression'))
+}
+
+cds_e155_hepa16 = de(raw_counts_table, experimental_design,
+                     c('E15.5', 'Hepa1-6'))
+
+summarize_de(cds_e155_hepa16)
+
+cds_e155_hepa1c1c7 = de(raw_counts_table, experimental_design,
+                        c('E15.5', 'Hepa1c1c7'))
+
+summarize_de(cds_e155_hepa1c1c7)
+
+cds_hepa = de(raw_counts_table, experimental_design,
+              c('Hepa1-6', 'Hepa1c1c7'))
+
+summarize_de(cds_hepa)
+```
+
+Group differentially expressed genes per codon.
+
+First, load the tRNA annotation.
+
+```{r}
+trna_annotation = read.table('./data/tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
+                             sep = '\t', header = FALSE) %>%
+    select(Chr = 1, ID = 2, AA = 5, Codon = 6) %>%
+    mutate(Gene = paste(Chr, ID, sep = '.trna')) %>%
+    select(Gene, AA, Codon)
+```
+
+```{r}
+gather_codons = function (cds, ϑ = 0.01) {
+    de_genes = results(cds) %>%
+        as.data.frame() %>%
+        add_rownames('Gene') %>%
+        filter(! is.na(padj) & padj < ϑ) %>%
+        arrange(padj)
+
+    de_codons = inner_join(de_genes, trna_annotation, by = 'Gene') %>%
+        group_by(Codon) %>%
+        summarize(AA = first(AA),
+                  A = sum(log2FoldChange > 0),
+                  B = sum(log2FoldChange < 0))
+}
+
+codons_e155_hepa16 = gather_codons(cds_e155_hepa16)
+codons_e155_hepa1c1c7 = gather_codons(cds_e155_hepa1c1c7)
+codons_hepa = gather_codons(cds_hepa)
+```
+
+Plot shifts in anticodon abundandance for each of the contrasts.
+
+```{r}
+plot_codon_shifts = function (cds) {
+    contrast = levels(cds$Condition)
+    contrast_colors = setNames(celltype_colors[contrast], c('A', 'B'))
+    codons = gather_codons(cds) %>%
+        mutate(A = -A) %>%
+        melt(id.vars = c('Codon', 'AA'), variable.name = 'Celltype',
+             value.name = 'Value')
+
+    ggplot(codons, aes(x = Codon, xend = Codon, y = 0, yend = Value,
+                       color = Celltype)) +
+        geom_segment(size = 3) +
+        coord_flip() +
+        scale_color_manual(values = contrast_colors) + theme_bw()
+}
+
+plot_codon_shifts(cds_e155_hepa16)
+plot_codon_shifts(cds_e155_hepa1c1c7)
+plot_codon_shifts(cds_hepa)
+```

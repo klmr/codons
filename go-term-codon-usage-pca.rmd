@@ -1,0 +1,460 @@
+```{r echo=FALSE}
+library(dplyr)
+library(xlsx)
+library(Biostrings)
+library(parallel)
+
+options(stringsAsFactors = FALSE)
+opts_chunk$set(cache = TRUE, dev = c('png', 'pdf'))
+```
+
+## GO term gene set data
+
+Load the data for the GO terms. We use the 2012 data here, since we want to
+reproduce the results of Gingold *& al.* exactly.
+
+```{r}
+go_terms_40 = read.xlsx('./data/GO_2012.xlsx', sheetName = 'GOs_40',
+                        header = FALSE)
+colnames(go_terms_40) = c('GO', 'Description')
+```
+
+Load GO–Gene associations.
+
+```{r}
+associations = read.csv('./data/gene_association.goa_human', sep = '\t',
+                        comment = '!', quote = '', header = FALSE) %>%
+    select(Gene = V3, GO = V5)
+```
+
+Join selected GO terms with associations, to retrieve just those GO terms (and
+their associated genes) with > 40 hits, and filter out duplicate genes.
+
+```{r}
+go_genes = inner_join(go_terms_40, associations, by = 'GO') %>%
+    group_by(GO) %>%
+    filter(! duplicated(Gene))
+```
+
+As a sanity check, let’s see whether all GO terms have > 40 genes.
+
+```{r}
+go_genes %>%
+    group_by(GO) %>%
+    summarize(Genes = n()) %>%
+    filter(Genes < 40) %>%
+    nrow == 0
+```
+
+Great. On to the codon usage.
+
+## Consensus CDS
+
+The consensus CDS information is in a complicated to parse format. Luckily, we
+only need the mapping gene name to CCDS ID, and this part is trivial to parse.
+
+```{r}
+ccds_info = read.csv('./data/CCDS.current.txt', sep = '\t') %>%
+    select(Gene = gene, CCDS = ccds_id, Status = ccds_status) %>%
+    filter(Status != 'Withdrawn') %>%
+    select(-Status)
+```
+
+Now load the actual CCDS from (gzipped) Fasta.
+
+```{r}
+ccds = readDNAStringSet('./data/CCDS_nucleotide.current.fna.gz')
+names(ccds) = sub('\\|.*', '', names(ccds))
+```
+
+We are going to use, as a gene’s codon usage, the mean codon usage of all its
+annotated coding sequences.
+
+```{r}
+existing_ccds = ccds_info$CCDS[match(names(ccds), ccds_info$CCDS)]
+```
+
+`ccds_info` now contains duplicate CCDS IDs. We filter these out.
+
+```{r}
+ccds_info = filter(ccds_info, ! duplicated(CCDS))
+```
+
+Next retrieve the CCDS sequences.
+
+```{r}
+all_ccds = ccds_info %>%
+    filter(CCDS %in% existing_ccds) %>%
+    mutate(Seq = as.character(ccds[CCDS]))
+```
+
+Sanity check: every length is divisible by three.
+
+```{r}
+! any(nchar(all_ccds$Seq) %% 3 != 0)
+```
+
+Bummer. Log and remove those. And make sure they *are* removed.
+
+```{r}
+invalid_cds = all_ccds %>% filter(nchar(Seq) %% 3 != 0)
+invalid_cds$CCDS
+
+all_ccds = all_ccds %>% filter(nchar(Seq) %% 3 == 0)
+! any(all_ccds$Length %% 3 != 0)
+```
+
+Good.
+
+## Codon usage
+
+Define a helper function to calculate the codon usage.
+
+```{r}
+codon_usage = function (sequence) {
+    codons = as.character(codons(DNAString(sequence)))
+    freqs = table(codons)
+    all_codons = names(GENETIC_CODE)
+    all_codon_freqs = setNames(rep(0, length(all_codons)), all_codons)
+    all_codon_freqs[names(freqs)] = freqs
+    all_codon_freqs
+}
+```
+
+Now create a table with the codon usage for every CDS.
+
+```{r}
+ncores = detectCores()
+ccds_codon_usage = all_ccds %>%
+    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    select(CCDS, Gene, CU)
+
+# ERROR: not compatible with STRSXP
+#ccds_codon_freq = ccds_codon_usage %>%
+#    mutate(CU = list(list(CU[[1]] / sum(CU[[1]]))))
+# TOO SLOW (VERY!)
+#ccds_codon_freq = ccds_codon_usage %>%
+#    group_by(CCDS) %>%
+#    do(CU = list(.$CU[[1]] / sum(.$CU[[1]]))) %>%
+#    ungroup()
+
+ccds_codon_freq = ccds_codon_usage
+for (i in 1 : nrow(ccds_codon_freq)) {
+    CU = ccds_codon_freq[i, 'CU'][[1]]
+    ccds_codon_freq[i, 'CU'] = list(list(CU / sum(CU)))
+}
+```
+
+And, from that, a table with the codon usage for every gene.
+
+```{r}
+gene_codon_usage = ccds_codon_usage %>%
+    group_by(Gene) %>%
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(Gene, CU) %>%
+    filter(row_number() == 1)
+
+gene_codon_freq = ccds_codon_freq %>%
+    group_by(Gene) %>%
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(Gene, CU) %>%
+    filter(row_number() == 1)
+```
+
+Using that, we can generate the mean per-GO codon usage.
+
+```{r}
+go_cu = inner_join(gene_codon_freq, go_genes, by = 'Gene') %>%
+    group_by(GO) %>%
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(GO, CU) %>%
+    filter(row_number() == 1)
+```
+
+We now compute the principal components for the codon usage and plot them.
+
+```{r go_cub_pca_nocat}
+pctable = `colnames<-`(do.call(cbind, go_cu$CU), go_cu$GO)
+pc = prcomp(t(pctable), scale. = TRUE)
+
+pc_plot = function (pc, pc1 = 1, pc2 = 2, main = deparse(substitute(pc)),
+                    pch, col, ...) {
+    library(ggplot2)
+    if (missing(pch))
+        pch = 19
+    if (missing(col))
+        col = '#00000040'
+    v1 = summary(pc)$importance[2, pc1] * 100
+    v2 = summary(pc)$importance[2, pc2] * 100
+    labtext = 'PC%d (%.0f%% variance explained)'
+    ggdata = data.frame(PC1 = pc$x[, pc1], PC2 = pc$x[, pc2],
+                        Pch = pch, Col = col)
+    ggplot(ggdata, aes(x = PC1, y = PC2,
+                       color = Col, fill = Col, shape = factor(Pch))) +
+        geom_point() +
+        scale_color_manual(values = setNames(col, col)) +
+        scale_fill_manual(values = setNames(col, col)) +
+        scale_shape_manual(values = setNames(pch, pch)) +
+        guides(color = FALSE, fill = FALSE, shape = FALSE) +
+        scale_x_continuous(name = sprintf(labtext, pc1, v1)) +
+        scale_y_continuous(name = sprintf(labtext, pc2, v2)) +
+        ggtitle(main) +
+        theme_bw()
+}
+
+pc_plot(pc, main = NULL)
+```
+
+Add colours according to the GO categories, as done in the paper by Gingold
+*&al.*.
+
+```{r go_cub_pca}
+# Numbers are category `pch`s used in plotting.
+categories = list(`Multi-cellular` = c(Development = 24,
+                                       Differentiation = 21,
+                                       `Cell adhesion` = 22,
+                                       `Pattern specification` = 23,
+                                       `Multicellular organism growth` = 5,
+                                       Angiogenesis = 6),
+                  `Cell autonomous` = c(`Mitotic cell cycle` = 24,
+                                        `Nucleosome assembly` = 21,
+                                        `Chromatin remodeling` = 22,
+                                        `Chromatin modification` = 22,
+                                        Translation = 23,
+                                        `mRNA metabolic process` = 5,
+                                        `Negative regulation of cell cycle` = 6))
+
+category_names = unlist(lapply(categories, names))
+category_symbol = setNames(do.call(c, categories), category_names)
+category_color = setNames(c(rep('blue', length(categories[[1]])),
+                            rep('red', length(categories[[2]]))),
+                          category_names)
+
+go_term_match_indices = match(go_terms_40$GO, colnames(pctable))
+go_indices = setNames(sapply(category_names, grep, go_terms_40$Description,
+                             ignore.case = TRUE),
+                      category_names)
+
+# There’s certainly a better way to invert a mapping (values->names) …
+go_category_map = sapply(go_indices,
+                         function (i) colnames(pctable)[go_term_match_indices][i])
+category_for_go = unlist(go_category_map)
+category_for_go = setNames(names(category_for_go), category_for_go)
+category_for_go = sub('\\d+$', '', category_for_go)
+
+# Quick and dirty plot to check placement of categories.
+cat = unname(category_for_go[rownames(pc$x)])
+p = pc_plot(pc, main = NULL,
+            pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+            col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+            bg = category_color[cat], las = 1)
+label_pos = pc$x[c('GO:0000087', 'GO:0007389'), ]
+labels = c('M phase of mitotic cell cycle', 'pattern specification process')
+ggdata = data.frame(x = label_pos[, 1], y = label_pos[, 2], Text = labels)
+p + geom_text(data = ggdata, aes(x = x, y = y, label = Text, color = NULL,
+                                 fill = NULL, pch = NULL))
+```
+
+Just for the record, here’s the same but using raw codon counts rather than
+frequencies.
+
+```{r}
+go_cu_count = inner_join(gene_codon_usage, go_genes, by = 'Gene') %>%
+    group_by(GO) %>%
+    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
+    select(GO, CU) %>%
+    filter(row_number() == 1)
+```
+
+```{r go_cu_raw_pca}
+pctable_count = `colnames<-`(do.call(cbind, go_cu_count$CU), go_cu_count$GO)
+pc_count = prcomp(t(pctable_count))
+stopifnot(all.equal(rownames(pc$x), rownames(pc_count$x)))
+pc_plot(pc_count, main = NULL,
+        pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+        col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+        bg = category_color[cat], las = 1)
+```
+
+Using this data, we can also plot figure 2A from the Gingold paper, plotting the
+codon usage bias of M phase mitotic cell cycle genes against pattern
+specification process genes.
+
+```{r go_term_codon_usage}
+genetic_code = read.delim('./data/genetic_code.tsv', header = FALSE,
+                          col.names = c('Codon', 'AA'))
+
+cub = as.data.frame(pctable_count) %>%
+    add_rownames('Codon') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    filter(AA != 'Stop') %>%
+    group_by(AA) %>%
+    mutate_each(funs(. / sum(.)), starts_with('GO:'))
+
+descriptions = c('M phase of mitotic cell cycle',
+                 'pattern specification process')
+
+m_psp_go_genes = sapply(descriptions,
+                        . %>% {filter(go_genes, Description == .)},
+                        simplify = FALSE)
+
+go_ids = sapply(m_psp_go_genes, . %>% dplyr::slice(1) %>% .$GO)
+go_lengths = sapply(m_psp_go_genes, nrow)
+
+library(ggplot2)
+theme_set(theme_bw())
+
+aes_args = c(lapply(go_ids, . %>% {sprintf('`%s`', .)}), 'AA') %>%
+    setNames(c('x', 'y', 'color'))
+ggplot(cub, do.call(aes_string, aes_args)) +
+    geom_point() +
+    geom_text(aes(label = AA), hjust = -0.5) +
+    scale_color_discrete(guide = FALSE) +
+    scale_x_continuous(name = sprintf('%s (%d genes)',
+                                      descriptions[1], go_lengths[1])) +
+    scale_y_continuous(name = sprintf('%s (%d genes)',
+                                      descriptions[2], go_lengths[2]))
+```
+
+Now do a PCA by amino acid usage rather than codon usage.
+
+```{r go_aa_pca}
+aa_indices = match(genetic_code$Codon, rownames(pctable))
+pctable_aa = do.call(rbind, by(pctable, genetic_code$AA[aa_indices], colSums))
+pc_aa = prcomp(t(pctable_aa), scale. = TRUE)
+
+stopifnot(all.equal(rownames(pc$x), rownames(pc_aa$x)))
+pc_plot(pc_aa, main = NULL,
+        pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+        col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+        bg = category_color[cat], las = 1)
+```
+
+These seem to be obviously related, just with inverted first PCs. The sole
+outlier is `r ker = names(which.max(pc_aa$x[, 1])); ker`
+(`r unique(filter(go_genes, GO == ker)$Description)`). Removing this outlier
+from the data yields the following plot:
+
+```{r}
+pctable_no_ker = pctable_aa[, colnames(pctable_aa) != ker]
+pc_no_ker = prcomp(t(pctable_no_ker), scale. = TRUE)
+
+pc_plot(pc_no_ker, main = NULL,
+        pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+        col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+        bg = category_color[cat])
+```
+
+Let’s see how well the individual PCs correlate.
+
+```{r}
+contrasts = list(`First PCs` = list(pc$x[, 1], pc_aa$x[, 1]),
+                 `Strongest in AA` = list(pc$x[, 2], pc_aa$x[, 1]),
+                 `Strongest in codons` = list(pc$x[, 1], pc_aa$x[, 2]))
+```
+
+$R^2$ of Pearson correlation between PCs:
+
+```{r}
+sapply(contrasts, . %>% {do.call(cor, .)}) ** 2
+```
+
+It seems clear that the first PC of the codon usage is highly related to the
+second PC of the amino acid usage. We therefore investigate whether there is an
+effect of codon usage *beyond* mere amino acid deployment.
+
+```{r go_cub_norm_pca}
+pctable_cu_by_aa = pctable %>%
+    as.data.frame() %>%
+    add_rownames('Codon') %>%
+    inner_join(genetic_code, by = 'Codon') %>%
+    group_by(AA) %>%
+    mutate_each(funs(. / sum(.)), starts_with('GO:')) %>%
+    as.data.frame() %>%
+    `rownames<-`(.$Codon) %>%
+    {.[, colnames(pctable)]}
+
+# Remove zero variance rows (all 1 because only one synonymous codon exists).
+singular_rows = apply(pctable_cu_by_aa, 1, function (x) all(x == 1))
+pctable_cu_by_aa = pctable_cu_by_aa[! singular_rows, ]
+pc_cu_by_aa = prcomp(t(pctable_cu_by_aa), scale. = TRUE)
+
+stopifnot(all.equal(rownames(pc$x), rownames(pc_cu_by_aa$x)))
+
+pc_plot(pc_cu_by_aa, main = NULL,
+        pch = ifelse(is.na(cat), 19, category_symbol[cat]),
+        col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+        bg = category_color[cat], las = 1)
+```
+
+The pattern observed before thus remains, even after normalising for amino acid
+usage.
+
+Investigate the gene set sizes of the GO categories.
+
+```{r go_size_effect}
+go_sizes = go_genes %>%
+    group_by(GO) %>%
+    summarize(Size = n())
+
+go_sizes = with(go_sizes, setNames(Size, GO))
+
+plot(pc$x[, 1], sapply(go_sizes[rownames(pc$x)], min, 500),
+     main = 'PC1 of GO terms by codon usage against gene set size',
+     col = ifelse(is.na(cat), '#00000040', category_color[cat]),
+     pch = ifelse(go_sizes[rownames(pc$x)] > 500, 17, 16), ylim = c(40, 500),
+     xlab = 'PC1', ylab = 'Gene set size', las = 1)
+```
+
+The following looks at the the GC content of the GO terms, and how it correlates
+with codon usage.
+
+```{r}
+gc_content = function (str)
+    nchar(gsub('[AT]', '', str)) / nchar(str)
+
+ccds_gc = all_ccds %>% mutate(GC = gc_content(Seq))
+gene_gc = ccds_gc %>%
+    group_by(Gene) %>%
+    summarize(GC = mean(GC))
+go_gc = inner_join(go_genes, gene_gc, by = 'Gene') %>%
+    group_by(GO) %>%
+    summarize(GC = mean(GC))
+
+go_gc = setNames(go_gc$GC, go_gc$GO)
+go_gc = go_gc[rownames(pc$x)]
+```
+
+```{r go_cu_pc1_gc_cor}
+ggdata = data.frame(x = pc$x[, 1], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC1 of codon usage') +
+    scale_y_continuous(name = 'GC bias')
+```
+
+Pearson correlation: `r cor(pc$x[, 1], go_gc)`.
+
+More importantly, is the GC bias also correlated with the codon usage bias?
+
+```{r go_cub_by_aa_pc1_gc_cor}
+ggdata = data.frame(x = pc_cu_by_aa$x[, 1], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC1 of relative codon usage') +
+    scale_y_continuous(name = 'GC bias')
+```
+
+Pearson correlation: `r cor(pc_cu_by_aa$x[, 1], go_gc)`.
+
+The correlation even exists with pure amino acid usage, to some extent:
+
+```{r go_aa_gc_cor}
+ggdata = data.frame(x = pc_aa$x[, 2], y = go_gc)
+ggplot(ggdata, aes(x = x, y = y)) +
+    geom_point(color = '#00000080') +
+    scale_x_continuous(name = 'PC2 of amino acid usage') +
+    scale_y_continuous(name = 'GC bias')
+```
+
+Pearson correlation: `r cor(pc_aa$x[, 2], go_gc)`.
