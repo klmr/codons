@@ -1,8 +1,4 @@
-data_dir := data
-ref_dir := ${data_dir}/reference
-lib_dir := ${data_dir}/raw_data
-quant_dir := results/quant
-bsub := bsub -K
+include structure.make
 
 hs := homo_sapiens
 ref_dir_hs = ${ref_dir}/${hs}
@@ -50,10 +46,5 @@ dirs: ${dirs}
 
 ${dirs}:
 	mkdir -p $@
-
-# For debugging
-
-print-%:
-	@echo '$*=$($*)'
 
 # vim: ft=make
