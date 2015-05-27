@@ -35,16 +35,11 @@ quant_files_hs := $(addprefix ${quant_dir_hs}/,$(patsubst %p1.fq.gz,%/abundance.
 .PHONY: quant_hs
 quant_hs: ${quant_files_hs}
 
-${quant_dir_hs}/%/abundance.h5: ${lib_dir_hs}/%.fq.gz ${index_hs} ${quant_dir_hs}
+${quant_dir_hs}/%/abundance.h5: ${lib_dir_hs}/%.fq.gz ${index_hs}
+	mkdir -p '${quant_dir_hs}'
 	${bsub} kallisto quant --index '${index_hs}' \
 		--output-dir '$@' \
 		--bootstrap-samples 100 \
 		'$<' '${<:%.p1=%.p2}'
-
-.PHONY: dirs
-dirs: ${dirs}
-
-${dirs}:
-	mkdir -p $@
 
 # vim: ft=make
