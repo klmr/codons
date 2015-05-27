@@ -30,4 +30,13 @@ ${ref_dir}/%.cds.all.fa.gz:
 	mkdir -p "${ref_dir}/$(*D)"
 	wget -O "$@" "${cds_base_uri}/$(*D)/cds/$(*F).cds.all.fa.gz"
 
+all_codon_usage := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-codon_usage.rds,${cds/$i}))
+
+.PHONY: codon-usage
+codon-usage: ${all_codon_usage}
+
+${result_dir}/%-codon_usage.rds: ${ref_dir}/%.cds.all.fa.gz
+	mkdir -p "${result_dir}/$(*D)"
+	${bsub} "./transcriptome-codon-usage.r $< $@"
+
 # vim: ft=make
