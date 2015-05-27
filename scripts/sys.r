@@ -16,8 +16,12 @@ script_name = local({
 #' Quit the program
 #'
 #' @param code numeric exit code (default: \code{0})
-exit = function (code = 0)
+#' @param msg message to be printed to the standard error (optional)
+exit = function (code = 0, msg) {
+    if (! missing(msg))
+        message(msg)
     quit(save = 'no', status = if (is.null(code)) 0 else code)
+}
 
 #' Execute the \code{entry_point} function defined by the caller
 #'
