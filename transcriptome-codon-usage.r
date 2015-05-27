@@ -1,9 +1,7 @@
 #!/usr/bin/env Rscript
 options(stringsAsFactors = FALSE)
 library(modules) # Needed due to bug #44 in modules.
-library(dplyr)
 sys = modules::import('scripts/sys')
-base = modules::import('ebits/base')
 
 #' Efficient \code{rbind} with matching column names
 #'
@@ -13,12 +11,11 @@ base = modules::import('ebits/base')
 #' @note This is effectively similar to \\code{dplyr::bind_rows} but the
 #' argument doesn’t need to consist of \code{data.frame}s.
 rbind_matching = function (data) {
-    colnames = names(data[[1]])
-    rest = data[-1]
-    all_colnames = do.call(rbind, lapply(rest, names))
-    col_indices = apply(all_colnames, 1, match, colnames)
-    reordered = lapply(seq_along(rest), i -> rest[[i]][col_indices[, i]])
-    do.call(rbind, c(data[1], reordered))
+    all_colnames = do.call(rbind, lapply(data, names))
+    unique_colnames = unique(as.vector(all_colnames))
+    col_indices = apply(all_colnames, 1, x -> match(unique_colnames, x))
+    reordered = lapply(seq_along(data), i -> data[[i]][col_indices[, i]])
+    `colnames<-`(do.call(rbind, reordered), unique_colnames)
 }
 
 parse_cds_header = function (data) {
@@ -50,6 +47,9 @@ sys$run({
     outfile = sys$args[2]
     if (is.na(outfile))
         sys$exit(1, 'No output filename provided')
+
+    library(dplyr)
+    base = modules::import('ebits/base')
 
     bios = loadNamespace('Biostrings')
     cds = bios$readDNAStringSet(infile)
