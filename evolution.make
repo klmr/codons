@@ -39,4 +39,9 @@ ${result_dir}/%-codon_usage.rds: ${ref_dir}/%.cds.all.fa.gz
 	mkdir -p "${result_dir}/${*D}"
 	${bsub} "./transcriptome-codon-usage.r $< $@"
 
+# Correlation with genomic background only:
+
+${result_dir}/%-rcu-GO0000087.rds: ${result_dir}/%-codon_usage.rds
+	./gene-set-rcu.r $< ${data_dir}/reference/$(notdir ${*D})/${*F}-GO0000087.txt $@
+
 # vim: ft=make
