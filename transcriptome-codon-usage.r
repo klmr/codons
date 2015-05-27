@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript
+options(stringsAsFactors = FALSE)
 library(modules) # Needed due to bug #44 in modules.
+library(dplyr)
 sys = modules::import('scripts/sys')
 base = modules::import('ebits/base')
 
@@ -19,7 +21,7 @@ rbind_matching = function (data) {
     do.call(rbind, c(data[1], reordered))
 }
 
-parse_header = function (data) {
+parse_cds_header = function (data) {
     tokens = strsplit(data, ' ')
     # The format does not specify whether the following columns are always in
     # the same order so we do not make this assumption here.
@@ -30,22 +32,61 @@ parse_header = function (data) {
         lapply(x -> unlist(lapply(x, y -> setNames(y[2], y[1])))) %>%
         rbind_matching()
 
-    as.data.frame(cbind(ID = ids, result))
+    as.data.frame(cbind(Transcript = ids, result)) %>%
+        # Special treatment for the Chromosomes column.
+        mutate(Chr = vapply(stringi::stri_split_fixed(chromosome, ':'),
+                                   function (x) x[2], character(1))) %>%
+        select(Gene = gene,
+               Transcript = Transcript,
+               Chr = Chr,
+               Biotype = transcript_biotype)
 }
 
 sys$run({
-    filename = sys$args[1]
-    if (is.na(filename))
-        sys$exit(1)
+    infile = sys$args[1]
+    if (is.na(infile))
+        sys$exit(1, 'No input filename provided')
+
+    outfile = sys$args[2]
+    if (is.na(outfile))
+        sys$exit(1, 'No output filename provided')
 
     bios = loadNamespace('Biostrings')
-    cds = bios$readDNAStringSet(filename)
+    cds = bios$readDNAStringSet(infile)
 
-    metadata = parse_header(names(cds))
+    metadata = parse_cds_header(names(cds))
 
-    # Use only protein-coding transcripts.
-
+    # Use only protein-coding transcripts on autosomal nuclear chromosomes.
     # Sanity check that transcript is actually a valid CDS
-
     # Compute the canonical transcript as the longest transcript.
+
+    is_numeric = function (str) suppressWarnings(! is.na(as.numeric(str)))
+
+    is_valid_cds = function (seq)
+        nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+    canonical_cds = cbind(metadata, Sequence = as.character(cds)) %>%
+        tbl_df() %>%
+        filter(Biotype == 'protein_coding') %>%
+        filter(is_numeric(Chr)) %>%
+        filter(is_valid_cds(Sequence)) %>%
+        group_by(Gene) %>%
+        arrange(desc(nchar(Sequence))) %>%
+        slice(1)
+
+    genetic_code = as.data.frame(bios$GENETIC_CODE) %>%
+        add_rownames() %>%
+        select(Codon = 1, AA = 2) %>%
+        filter(AA != '*')
+
+    codon_usage = canonical_cds$Sequence %>%
+        bios$DNAStringSet() %>%
+        bios$trinucleotideFrequency(3) %>%
+        as.data.frame() %>%
+        {cbind(Gene = canonical_cds$Gene, .)} %>%
+        reshape2::melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'Count') %>%
+        inner_join(genetic_code, by = 'Codon') %>%
+        tbl_df()
+
+    saveRDS(codon_usage, outfile)
 })
