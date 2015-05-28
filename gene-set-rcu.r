@@ -1,7 +1,6 @@
 #!/usr/bin/env Rscript
 options(stringsAsFactors = FALSE)
 library(modules) # Needed due to bug #44 in modules.
-library(dplyr)
 sys = modules::import('scripts/sys')
 
 force_arg = function (pos, msg, error_code = 1) {
@@ -22,6 +21,8 @@ sys$run({
     codon_usage_file = force_arg(1, 'No codon usage filename provided')
     gene_set_file = force_arg(2, 'No gene set filename provided')
     outfile = force_arg(3, 'No output filename provided')
+
+    library(dplyr)
 
     codon_usage = readRDS(codon_usage_file)
     gene_set = readLines(gene_set_file)
