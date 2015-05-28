@@ -54,4 +54,7 @@ ${result_dir}/correlations.tsv: ${all_rcu_GO0000087} ${all_rcu_GO0007389}
 	./scripts/merge-go-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' \
 		'${all_rcu_GO0000087}' '${all_rcu_GO0007389}' > '$@'
 
+${result_dir}/correlations.pdf: ${result_dir}/correlations.tsv
+	./plot-evo-comparison.r '$<' '$@'
+
 # vim: ft=make

@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 options(stringsAsFactors = FALSE)
 library(modules) # Needed due to bug #44 in modules.
 
@@ -38,4 +39,5 @@ sys$run({
         geom_segment(size = 5) +
         coord_flip() +
         theme_bw()
+    NULL
 })
