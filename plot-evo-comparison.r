@@ -33,11 +33,15 @@ sys$run({
 
     library(ggplot2)
 
-    on.exit(dev.off())
-    pdf(outfile)
-    ggplot(data, aes(x = Species, xend = Species, y = 0, yend = Correlation)) +
+    p = ggplot(data, aes(x = Species, xend = Species,
+                         y = 0, yend = Correlation, color = GO)) +
         geom_segment(size = 5) +
+        scale_y_continuous(name = 'Codon bias (correlation)') +
         coord_flip() +
         theme_bw()
+
+    on.exit(dev.off())
+    pdf(outfile, width = 8, height = 6)
+    plot(p)
     NULL
 })
