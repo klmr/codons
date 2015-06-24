@@ -54,6 +54,18 @@ ${result_dir}/correlations.tsv: ${all_rcu_GO0000087} ${all_rcu_GO0007389}
 	./scripts/merge-go-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' \
 		'${all_rcu_GO0000087}' '${all_rcu_GO0007389}' > '$@'
 
+# Random gene set correlations with genomic background
+
+${result_dir}/%-rcu-random.txt: ${result_dir}/%-codon_usage.rds
+	./random_gene_set_rcu.r '$<' 100 100 '$@'
+
+all_rcu_random := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-rcu-random.txt,${cds/$i}))
+
+${result_dir}/random-correlations.tsv: ${all_rcu_random}
+	./scripts/merge-random-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' ${all_rcu_random} > '$@'
+
+# Plot the results
+
 ${result_dir}/correlations.pdf: ${result_dir}/correlations.tsv
 	./plot_evo_comparison.r '$<' '$@'
 
