@@ -37,15 +37,15 @@ codon-usage: ${all_codon_usage}
 
 ${result_dir}/%-codon_usage.rds: ${ref_dir}/%.cds.all.fa.gz
 	mkdir -p "${result_dir}/${*D}"
-	${bsub} "./transcriptome-codon-usage.r $< $@"
+	${bsub} "./transcriptome_codon_usage.r $< $@"
 
 # Correlation with genomic background only:
 
 ${result_dir}/%-rcu-GO0000087.txt: ${result_dir}/%-codon_usage.rds
-	./gene-set-rcu.r $< ${data_dir}/reference/$(notdir ${*D})/${*F}-GO0000087.txt $@
+	./gene_set_rcu.r $< ${data_dir}/reference/$(notdir ${*D})/${*F}-GO0000087.txt $@
 
 ${result_dir}/%-rcu-GO0007389.txt: ${result_dir}/%-codon_usage.rds
-	./gene-set-rcu.r $< ${data_dir}/reference/$(notdir ${*D})/${*F}-GO0007389.txt $@
+	./gene_set_rcu.r $< ${data_dir}/reference/$(notdir ${*D})/${*F}-GO0007389.txt $@
 
 all_rcu_GO0000087 := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-rcu-GO0000087.txt,${cds/$i}))
 all_rcu_GO0007389 := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-rcu-GO0007389.txt,${cds/$i}))
@@ -54,7 +54,19 @@ ${result_dir}/correlations.tsv: ${all_rcu_GO0000087} ${all_rcu_GO0007389}
 	./scripts/merge-go-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' \
 		'${all_rcu_GO0000087}' '${all_rcu_GO0007389}' > '$@'
 
+# Random gene set correlations with genomic background
+
+${result_dir}/%-rcu-random.txt: ${result_dir}/%-codon_usage.rds
+	./random_gene_set_rcu.r '$<' 100 100 '$@'
+
+all_rcu_random := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-rcu-random.txt,${cds/$i}))
+
+${result_dir}/random-correlations.tsv: ${all_rcu_random}
+	./scripts/merge-random-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' ${all_rcu_random} > '$@'
+
+# Plot the results
+
 ${result_dir}/correlations.pdf: ${result_dir}/correlations.tsv
-	./plot-evo-comparison.r '$<' '$@'
+	./plot_evo_comparison.r '$<' '$@'
 
 # vim: ft=make
