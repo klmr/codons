@@ -391,6 +391,21 @@ de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
 sapply(de_genes, nrow)
 ```
 
+Save the differentially expressed genes in a table
+
+```{r de-table}
+write_de_result = contrast ~ dds -> {
+    results = subset(as.data.frame(deseq$results(dds)), ! is.na(padj))
+    io$write_table(results[order(results$padj), ],
+                   file = sprintf('results/de-genes-%s.tsv', contrast),
+                   row.names = TRUE)
+}
+
+mapply(write_de_result,
+       base$map(x -> paste(tolower(x), collapse = '-'), contrasts),
+       dds)
+```
+
 Secondly, re-calculate codon usage bias, but using only a subset of genes in
 each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
