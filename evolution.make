@@ -61,8 +61,8 @@ ${result_dir}/%-rcu-random.txt: ${result_dir}/%-codon_usage.rds
 
 all_rcu_random := $(foreach i,${all_species},${result_dir}/${species/$i}/$(patsubst %.cds.all.fa.gz,%-rcu-random.txt,${cds/$i}))
 
-${result_dir}/random-correlations.tsv: ${all_rcu_random}
-	./scripts/merge-random-rcu-bias.sh '$(foreach i,${all_species},${species/$i})' ${all_rcu_random} > '$@'
+${result_dir}/random-correlations.tsv: ${all_codon_usage}
+	./random_gene_set_rcu.r ${all_codon_usage} > '$@'
 
 # Plot the results
 
