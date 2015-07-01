@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-sys = modules::import('sys')
+sys = modules::import('./sys')
 
 sys$run({
     input = sys$args[1]
