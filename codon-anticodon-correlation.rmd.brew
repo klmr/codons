@@ -113,7 +113,7 @@ sum of the codon usage of its amino acid.
 The first step is to retrieve the canonical coding sequence (CDS) of each gene.
 
 ```{r cds}
-bios = loadNamespace('Biostrings')
+bios = modules::import_package('Biostrings')
 cds = bios$readDNAStringSet(config$cds)
 names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
 cds = data.frame(Gene = names(cds), Sequence = cds)
@@ -364,7 +364,7 @@ compute the sets of differentially expressed genes between healthy tissues and
 cancer cell lines.
 
 ```{r de}
-deseq = loadNamespace('DESeq2')
+deseq = modules::import_package('DESeq2')
 untidy = function (tidy_data, rownames = 1)
     `rownames<-`(as.data.frame(tidy_data[-rownames]), tidy_data[[rownames]])
 
