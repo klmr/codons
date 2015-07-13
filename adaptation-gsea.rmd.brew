@@ -1,0 +1,218 @@
+```{r echo=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
+               cache.path = 'cache/codon-anticodon-<%= species %>-',
+               dev = c('png', 'pdf'))
+
+config = modules::import('config_<%= species %>')
+```
+
+## Load data
+
+The aim of this analysis is to test whether the anticodon isoacceptor tRNA pool
+is optimised to efficiently decode a condition specific set of codons, or
+whether it is largely unchanging, and optimised to the overall codon usage.
+
+First, we load the relevant data (gene expression counts, annotation and
+experimental design).
+
+```{r}
+trna_counts = io$read_table(config$trna_counts, header = TRUE) %>%
+    tbl_df() %>% rename(Gene = X)
+mrna_counts = io$read_table(config$mrna_counts, header = TRUE) %>%
+    tbl_df()
+
+trna_annotation = io$read_table(config$trna_annotation, header = FALSE) %>%
+    select(Chr = 1, Num = 2, AA = 5, Anticodon = 6) %>%
+    filter(grepl('(chr)?\\d+', Chr)) %>%
+    filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
+    transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
+    tbl_df()
+
+trna_counts = inner_join(trna_annotation, trna_counts, by = 'Gene')
+
+mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
+    tbl_df() %>%
+    filter(source == 'protein_coding') %>%
+    mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
+           Start = as.integer(base$grep(':(\\d+)', locus)),
+           End = as.integer(base$grep('\\.\\.(\\d+)', locus))) %>%
+    filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
+    select(Gene = ID, Name, Chr, Start, End, GO)
+
+mrna_counts = inner_join(mrna_annotation, mrna_counts, by = 'Gene')
+
+trna_design = io$read_table(config$trna_design) %>%
+    tbl_df() %>%
+    select(DO = 1, AB = 2, Celltype = 3) %>%
+    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
+
+trna_inputs = filter(trna_design, AB == 'Input')$DO
+trna_design = filter(trna_design, ! DO %in% trna_inputs)
+trna_counts = select(trna_counts, -one_of(trna_inputs))
+trna_design = select(trna_design, -AB)
+
+mrna_design = io$read_table(config$mrna_design) %>%
+    tbl_df() %>%
+    select(DO = 1, Celltype = 2) %>%
+    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
+
+trna_design
+trna_counts
+mrna_design
+mrna_counts
+```
+
+## Filtering
+
+Filter out never expressed genes. For protein-coding genes this is
+straightforward, we retain all whose count is $>0$.
+
+```{r}
+zero_rows = rowSums(select(mrna_counts, starts_with('do'))) == 0
+table(zero_rows)
+(mrna_counts = mrna_counts[! zero_rows, ])
+```
+
+For tRNA genes, we need to be more sensitive to spurious counts, using an
+adjusted lower bound. To make this at all comparable across libraries, we use
+normalised counts.
+
+```{r}
+norm = modules::import('norm')
+
+trna_sf = trna_counts %>% select(starts_with('do')) %>% norm$size_factors()
+
+trna_counts_sf = norm$transform_counts(trna_counts, . / trna_sf$.,
+                                       starts_with('do'))
+
+filter_unexpressed = function (counts, design) {
+    threshold = 10 # This works well.
+    expressed = counts %>% tidyr::gather(DO, Count, starts_with('do')) %>%
+        inner_join(design, by = 'DO') %>%
+        group_by(Gene, Celltype) %>%
+        summarize(Expressed = all(Count > threshold)) %>%
+        summarize(Expressed = any(Expressed)) %>%
+        filter(Expressed) %>% .$Gene
+
+    filter(counts, Gene %in% expressed)
+}
+
+trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
+```
+
+## Codon usage and anticodon abundance
+
+Calculate relative codon usage (RCU) and tRNA anticodon abundance. The RCU is
+the proportion each codon contributes to the amino acid it codes for. To
+calculate the RCU, we first calculate the codon usage (i.e. the count of each
+codon) per gene. These counts are multiplied with the gene’s normalised
+expression, and then summed over the transcriptome. Finally, each codon usage
+is divided by the sum of the codon usage of its amino acid.
+
+The first step is to retrieve the canonical coding sequence (CDS) of each gene.
+
+```{r cds}
+bios = modules::import_package('Biostrings')
+cds = bios$readDNAStringSet(config$cds)
+names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
+cds = data.frame(Gene = names(cds), Sequence = cds)
+
+# Filter CCDS, only preserve valid coding frames
+
+is_valid_cds = function (seq)
+    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+cds = cds %>% filter(is_valid_cds(Sequence))
+canonical_cds = cds %>%
+    mutate(Length = nchar(Sequence)) %>%
+    group_by(Gene) %>%
+    arrange(desc(Length)) %>%
+    slice(1)
+```
+
+Calculate codon usage.
+
+```{r codon_usage}
+mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
+mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
+                                       starts_with('do'))
+
+cu = import('codon_usage')
+rcu = cu$cu(canonical_cds) %>%
+    inner_join(canonical_cds, by = 'Gene') %>%
+    inner_join(mrna_counts_sf, by = 'Gene')
+
+rcu = lapply(mrna_design$DO, lib -> {
+    rcu %>%
+        mutate_(CU = bquote(CU * .(as.name(lib)) / Length)) %>%
+        `class<-`(c('codon_usage$cu', class(.))) %>%
+        cu$rcu() %>%
+        select(Gene, Codon, RCU) %>%
+        mutate(DO = lib)
+}) %>%
+    bind_rows()
+```
+
+Calculate the relative anticodon abundance (RAA), the tRNA equivalent of the
+RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
+isotype.
+
+Helper function for comparing CUB and AAB.
+
+```{r revcomp}
+revcomp = function (seq)
+    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
+```
+
+```{r aab}
+raa = trna_counts_sf %>%
+    melt(id.vars = c('Gene', 'AA', 'Anticodon'),
+         variable.name = 'DO', value.name = 'Count') %>%
+    mutate(Codon = revcomp(Anticodon)) %>%
+    group_by(DO, AA, Codon) %>%
+    summarize(Count = sum(Count)) %>%
+    mutate(RAA = Count / sum(Count)) %>%
+    select(DO, Codon, RAA)
+```
+
+3. Calculate correlation/tAI
+4. Sort genes by (3)
+5. Perform enrichment analysis and/or KS-test
+
+## Correlation of codon–anticodon adaptation
+
+For each condition, calculate the adaptation of codons and anticodons as the
+correlation between RCU and RAA between all genes.
+
+```{r}
+conditions = unique(unlist(config$contrasts))
+
+per_gene_adaptation = function (condition) {
+    mrna_dos = filter(mrna_design, Celltype == condition)$DO
+    trna_dos = filter(trna_design, Celltype == condition)$DO
+    aab = aab_long %>%
+        filter(DO %in% trna_dos) %>%
+        group_by(Codon) %>%
+        summarize(AA = mean(Count))
+    paired_codons = unique(aab$Codon)
+
+    cub = bind_rows(gene_wise_codon_usage[mrna_dos]) %>%
+        melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'CU') %>%
+        filter(Codon %in% paired_codons) %>%
+        group_by(Gene, Codon) %>%
+        summarize(CU = mean(CU))
+
+    cor = inner_join(cub, aab, by = 'Codon') %>%
+        summarize(Cor = suppressWarnings(cor(CU, AA, method = 'spearman')))
+
+    suppressWarnings(with(inner_join(cub, aab, by = 'Codon'), cor(CU, AA)))
+}
+
+gene_set_adaptation = function (condition, gene_set)
+    setNames(unlist(lapply(gene_set, gene_adaptation, condition = condition)),
+             gene_set)
+
+all_genes = gene_wise_codon_usage[[1]]$Gene
+adaptation = lapply(conditions, gene_set_adaptation, gene_set = all_genes)
+```
