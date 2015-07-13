@@ -192,22 +192,19 @@ conditions = unique(unlist(config$contrasts))
 per_gene_adaptation = function (condition) {
     mrna_dos = filter(mrna_design, Celltype == condition)$DO
     trna_dos = filter(trna_design, Celltype == condition)$DO
-    aab = aab_long %>%
+    # Compute mean over replicate libraries
+    mean_raa = raa %>%
         filter(DO %in% trna_dos) %>%
         group_by(Codon) %>%
-        summarize(AA = mean(Count))
-    paired_codons = unique(aab$Codon)
-
-    cub = bind_rows(gene_wise_codon_usage[mrna_dos]) %>%
-        melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'CU') %>%
-        filter(Codon %in% paired_codons) %>%
+        summarize(RAA = mean(RAA))
+    paired_codons = unique(raa$Codon)
+    mean_rcu_by_gene = rcu %>%
+        filter(DO %in% mrna_dos, Codon %in% paired_codons) %>%
         group_by(Gene, Codon) %>%
-        summarize(CU = mean(CU))
+        summarize(RCU = mean(RCU))
 
-    cor = inner_join(cub, aab, by = 'Codon') %>%
-        summarize(Cor = suppressWarnings(cor(CU, AA, method = 'spearman')))
-
-    suppressWarnings(with(inner_join(cub, aab, by = 'Codon'), cor(CU, AA)))
+    cor = inner_join(mean_rcu_by_gene, mean_raa, by = 'Codon') %>%
+        summarize(Cor = suppressWarnings(cor(RCU, RAA, method = 'spearman')))
 }
 
 gene_set_adaptation = function (condition, gene_set)
