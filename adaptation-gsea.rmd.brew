@@ -173,6 +173,7 @@ raa = trna_counts_sf %>%
     group_by(DO, AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
     mutate(RAA = Count / sum(Count)) %>%
+    ungroup() %>%
     select(DO, Codon, RAA)
 ```
 
