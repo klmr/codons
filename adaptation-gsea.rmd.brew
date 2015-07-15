@@ -177,18 +177,12 @@ raa = trna_counts_sf %>%
     select(DO, Codon, RAA)
 ```
 
-3. Calculate correlation/tAI
-4. Sort genes by (3)
-5. Perform enrichment analysis and/or KS-test
-
 ## Correlation of codon–anticodon adaptation
 
 For each condition, calculate the adaptation of codons and anticodons as the
 correlation between RCU and RAA between all genes.
 
 ```{r}
-conditions = unique(unlist(config$contrasts))
-
 per_gene_adaptation = function (condition) {
     mrna_dos = filter(mrna_design, Celltype == condition)$DO
     trna_dos = filter(trna_design, Celltype == condition)$DO
@@ -197,20 +191,100 @@ per_gene_adaptation = function (condition) {
         filter(DO %in% trna_dos) %>%
         group_by(Codon) %>%
         summarize(RAA = mean(RAA))
-    paired_codons = unique(raa$Codon)
     mean_rcu_by_gene = rcu %>%
-        filter(DO %in% mrna_dos, Codon %in% paired_codons) %>%
+        filter(DO %in% mrna_dos) %>%
         group_by(Gene, Codon) %>%
         summarize(RCU = mean(RCU))
 
-    cor = inner_join(mean_rcu_by_gene, mean_raa, by = 'Codon') %>%
-        summarize(Cor = suppressWarnings(cor(RCU, RAA, method = 'spearman')))
+    cu$adaptation(mean_rcu_by_gene, mean_raa)
 }
 
-gene_set_adaptation = function (condition, gene_set)
-    setNames(unlist(lapply(gene_set, gene_adaptation, condition = condition)),
-             gene_set)
+conditions = unique(unlist(config$contrasts))
+adaptation = mclapply(conditions, per_gene_adaptation, mc.cores = detectCores())
+names(adaptation) = conditions
+```
 
-all_genes = gene_wise_codon_usage[[1]]$Gene
-adaptation = lapply(conditions, gene_set_adaptation, gene_set = all_genes)
+Load GO gene sets. We use only GO terms with $> 39$ genes.
+
+```{r}
+go_genes = io$read_table('data/gene_association.goa_human', header = FALSE,
+                         comment.char = '!', quote = '', sep = '\t') %>%
+    select(Name = 3, GO = 5) %>%
+    inner_join(mrna_annotation, by = 'Name') %>%
+    select(Gene, GO = GO.x) %>%
+    group_by(GO) %>%
+    mutate(Size = length(Gene)) %>%
+    ungroup() %>%
+    filter(Size >= 40) %>%
+    select(-Size) %>%
+    tbl_df()
+```
+
+Perform GSEA on gene set ordered by adaptation.
+
+```{r}
+piano = modules::import_package('piano')
+
+go_genes_gsa = piano$loadGSC(go_genes, 'data.frame')
+
+perform_gsea = function (stats) {
+    stats = na.omit(with(stats, setNames(Adaptation, Gene)))
+    # Make correlation coefficients [-1, 1] p-value like by transforming them
+    # into the domain (0, 1] — albeit we make 0 inclusive for simplicity.
+    # They also need to be inverted since higher correlation implies better fit.
+    stats = (1 - stats) * 0.5
+    piano$runGSA(stats, gsc = go_genes_gsa)
+}
+
+gsea = mclapply(adaptation, perform_gsea, mc.cores = detectCores())
+```
+
+Prettify tables and save them.
+
+```{r}
+prettify_gsea_results = function (results)
+    piano$GSAsummaryTable(results) %>%
+    select(Name = 1, Genes = 2, Stat = 3, p = 4, padj = 5, Up = 6, Down = 7) %>%
+    arrange(padj) %>%
+    tbl_df()
+
+pretty_gsea = lapply(gsea, prettify_gsea_results)
+
+write_gsea = function (data, name)
+    io$write_table(data, file = sprintf('results/gsea-%s-%s.tsv',
+                                        config$species, name))
+
+invisible(mapply(write_gsea, pretty_gsea, names(pretty_gsea)))
+```
+
+---
+
+## Gene set correlation
+
+Do gene-set-level analysis of adaptation. Compare these results with … PC1?
+
+```{r}
+go_rcu = inner_join(rcu, go_genes, by = 'Gene') %>%
+    group_by(DO, GO, Codon) %>%
+    summarize(RCU = mean(RCU, na.rm = TRUE)) %>%
+    ungroup()
+
+per_go_adaptation = function (condition) {
+    mrna_dos = filter(mrna_design, Celltype == condition)$DO
+    trna_dos = filter(trna_design, Celltype == condition)$DO
+    # Compute mean over replicate libraries
+    mean_raa = raa %>%
+        filter(DO %in% trna_dos) %>%
+        group_by(Codon) %>%
+        summarize(RAA = mean(RAA))
+    mean_rcu_by_go = go_rcu %>%
+        filter(DO %in% mrna_dos) %>%
+        group_by(GO, Codon) %>%
+        summarize(RCU = mean(RCU))
+
+    cu$adaptation(mean_rcu_by_go, mean_raa)
+}
+
+go_adaptation = mclapply(conditions, per_go_adaptation, mc.cores = detectCores())
+names(go_adaptation) = conditions
 ```
