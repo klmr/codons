@@ -9,9 +9,12 @@
 modules::import_package('dplyr', attach = TRUE)
 modules::import_package('reshape2', attach = TRUE)
 
+#' The genetic code
 genetic_code = data.frame(AA = .bios$GENETIC_CODE) %>%
-    add_rownames('Codon')
+    add_rownames('Codon') %>%
+    tbl_df()
 
+#' Vector of stop codons
 stop_codons = filter(genetic_code, AA == '*')$Codon
 
 #' Calculate codon usage for gene set
@@ -59,9 +62,21 @@ rcu = function (x) UseMethod('rcu')
 rcu.default = function (x)
     rcu(cu(x))
 
+#' Calculate adaptation between codons and tRNA
+#'
+#' Calculate the correlation between codon usage and anticodon abundance as a
+#' measure of goodness of adaptation of the anticodon supply to the codon
+#' demand.
+#'
+#' @param rcu Relative codon usage as given by \code{rcu}
+#' @param raa Relative anticodon abundance, with \code{Codon} column
+#' @note \code{raa} is equivalent to \code{rcu} for the abundance of anticodons.
+#' The function expects this to be given with reverse complemented anticodons,
+#' so that the format of the data is equivalent for \code{rcu} and \code{raa}.
 adaptation = function (rcu, raa, method = adaptation_no_wobble)
     method(rcu, raa)
 
+#' Simple codon–anticodon adaptation, ignoring wobble base pairing.
 adaptation_no_wobble = function (rcu, raa)
     inner_join(rcu, raa, by = 'Codon') %>%
     summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
