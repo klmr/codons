@@ -288,3 +288,45 @@ per_go_adaptation = function (condition) {
 go_adaptation = mclapply(conditions, per_go_adaptation, mc.cores = detectCores())
 names(go_adaptation) = conditions
 ```
+
+Calculate the PCA
+
+```{r}
+go_cu = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup()
+
+go_cu_table = acast(go_cu, GO ~ Codon, value.var = 'CU')
+go_cu_pc = prcomp(go_cu_table, scale. = TRUE)
+
+#--------------------------
+merged_go_cu = inner_join(cu$cu(merged_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup()
+
+go_cu1 = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(Gene) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup() %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    ungroup()
+
+merged_go_cu1 = inner_join(cu$cu(merged_cds), go_genes, by = 'Gene') %>%
+    group_by(Gene) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup() %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    ungroup()
+
+merged_go_cu_table = acast(merged_go_cu, GO ~ Codon, value.var = 'CU')
+merged_go_cu_pc = prcomp(merged_go_cu_table, scale. = TRUE)
+
+go_cu_table1 = acast(go_cu1, GO ~ Codon, value.var = 'CU')
+go_cu_pc1 = prcomp(go_cu_table1, scale. = TRUE)
+```
