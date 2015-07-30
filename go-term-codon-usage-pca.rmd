@@ -111,14 +111,10 @@ Good.
 Define a helper function to calculate the codon usage.
 
 ```{r}
-codon_usage = function (sequence) {
-    codons = as.character(codons(DNAString(sequence)))
-    freqs = table(codons)
-    all_codons = names(GENETIC_CODE)
-    all_codon_freqs = setNames(rep(0, length(all_codons)), all_codons)
-    all_codon_freqs[names(freqs)] = freqs
-    all_codon_freqs
-}
+coding_codons = setdiff(names(GENETIC_CODE), c('TAA', 'TGA', 'TAG'))
+
+codon_usage = function (sequence)
+    trinucleotideFrequency(DNAString(sequence), 3)[coding_codons]
 ```
 
 Now create a table with the codon usage for every CDS.
