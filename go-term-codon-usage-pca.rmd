@@ -121,7 +121,19 @@ Now create a table with the codon usage for every CDS.
 
 ```{r}
 ncores = detectCores()
-ccds_codon_usage = all_ccds %>%
+canonical_ccds = all_ccds %>%
+    mutate(Length = nchar(Seq)) %>%
+    group_by(Gene) %>%
+    arrange(desc(Length)) %>%
+    dplyr::slice(1) %>%
+    ungroup() %>%
+    as.data.frame()
+
+ccds_codon_usage_old = all_ccds %>%
+    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    select(CCDS, Gene, CU)
+
+ccds_codon_usage = canonical_ccds %>%
     mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
     select(CCDS, Gene, CU)
 
