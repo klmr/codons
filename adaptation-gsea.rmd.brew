@@ -209,7 +209,8 @@ Load GO gene sets. We use only GO terms with $> 39$ genes.
 ```{r}
 go_genes = io$read_table('data/gene_association.goa_human', header = FALSE,
                          comment.char = '!', quote = '', sep = '\t') %>%
-    select(Name = 3, GO = 5) %>%
+    select(Name = 3, GO = 5, Aspect = 9) %>%
+    filter(Aspect == 'P') %>%
     inner_join(mrna_annotation, by = 'Name') %>%
     select(Gene, GO = GO.x) %>%
     group_by(GO) %>%
