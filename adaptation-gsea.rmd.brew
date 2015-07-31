@@ -213,6 +213,7 @@ go_genes = io$read_table('data/gene_association.goa_human', header = FALSE,
     filter(Aspect == 'P') %>%
     inner_join(mrna_annotation, by = 'Name') %>%
     select(Gene, GO = GO.x) %>%
+    distinct(GO, Gene) %>%
     group_by(GO) %>%
     mutate(Size = length(Gene)) %>%
     ungroup() %>%
