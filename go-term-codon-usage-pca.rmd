@@ -85,22 +85,22 @@ Next retrieve the CCDS sequences.
 ```{r}
 all_ccds = ccds_info %>%
     filter(CCDS %in% existing_ccds) %>%
-    mutate(Seq = as.character(ccds[CCDS]))
+    mutate(Sequence = as.character(ccds[CCDS]))
 ```
 
 Sanity check: every length is divisible by three.
 
 ```{r}
-! any(nchar(all_ccds$Seq) %% 3 != 0)
+! any(nchar(all_ccds$Sequence) %% 3 != 0)
 ```
 
 Bummer. Log and remove those. And make sure they *are* removed.
 
 ```{r}
-invalid_cds = all_ccds %>% filter(nchar(Seq) %% 3 != 0)
+invalid_cds = all_ccds %>% filter(nchar(Sequence) %% 3 != 0)
 invalid_cds$CCDS
 
-all_ccds = all_ccds %>% filter(nchar(Seq) %% 3 == 0)
+all_ccds = all_ccds %>% filter(nchar(Sequence) %% 3 == 0)
 ! any(all_ccds$Length %% 3 != 0)
 ```
 
@@ -122,7 +122,7 @@ Now create a table with the codon usage for every CDS.
 ```{r}
 ncores = detectCores()
 canonical_ccds = all_ccds %>%
-    mutate(Length = nchar(Seq)) %>%
+    mutate(Length = nchar(Sequence)) %>%
     group_by(Gene) %>%
     arrange(desc(Length)) %>%
     dplyr::slice(1) %>%
@@ -130,11 +130,11 @@ canonical_ccds = all_ccds %>%
     as.data.frame()
 
 ccds_codon_usage_old = all_ccds %>%
-    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    mutate(CU = mclapply(Sequence, codon_usage, mc.cores = ncores)) %>%
     select(CCDS, Gene, CU)
 
 ccds_codon_usage = canonical_ccds %>%
-    mutate(CU = mclapply(Seq, codon_usage, mc.cores = ncores)) %>%
+    mutate(CU = mclapply(Sequence, codon_usage, mc.cores = ncores)) %>%
     select(CCDS, Gene, CU)
 
 # ERROR: not compatible with STRSXP
@@ -419,7 +419,7 @@ with codon usage.
 gc_content = function (str)
     nchar(gsub('[AT]', '', str)) / nchar(str)
 
-ccds_gc = all_ccds %>% mutate(GC = gc_content(Seq))
+ccds_gc = all_ccds %>% mutate(GC = gc_content(Sequence))
 gene_gc = ccds_gc %>%
     group_by(Gene) %>%
     summarize(GC = mean(GC))
