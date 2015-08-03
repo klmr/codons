@@ -158,15 +158,11 @@ And, from that, a table with the codon usage for every gene.
 ```{r}
 gene_codon_usage = ccds_codon_usage %>%
     group_by(Gene) %>%
-    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
-    select(Gene, CU) %>%
-    filter(row_number() == 1)
+    summarize(CU = list(rowMeans(do.call(cbind, CU)))) %>%
 
 gene_codon_freq = ccds_codon_freq %>%
     group_by(Gene) %>%
-    mutate(CU = list(rowMeans(do.call(cbind, CU)))) %>%
-    select(Gene, CU) %>%
-    filter(row_number() == 1)
+    summarize(CU = list(rowMeans(do.call(cbind, CU))))
 ```
 
 Using that, we can generate the mean per-GO codon usage.
