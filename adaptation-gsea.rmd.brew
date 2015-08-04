@@ -158,18 +158,11 @@ Calculate the relative anticodon abundance (RAA), the tRNA equivalent of the
 RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
 isotype.
 
-Helper function for comparing CUB and AAB.
-
-```{r revcomp}
-revcomp = function (seq)
-    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
-```
-
 ```{r aab}
 raa = trna_counts_sf %>%
     melt(id.vars = c('Gene', 'AA', 'Anticodon'),
          variable.name = 'DO', value.name = 'Count') %>%
-    mutate(Codon = revcomp(Anticodon)) %>%
+    mutate(Codon = cu$revcomp(Anticodon)) %>%
     group_by(DO, AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
     mutate(RAA = Count / sum(Count)) %>%
