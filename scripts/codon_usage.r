@@ -101,3 +101,10 @@ norm = function (x) UseMethod('norm')
     warning('Normalizing RCU makes no sense, skipped.')
     x
 }
+
+#' Reverse complement a set of sequences
+#'
+#' @param seq a character vector
+#' @return A character vector of the reverse complemented sequences.
+revcomp = function (seq)
+    as.character(.bios$reverseComplement(.bios$DNAStringSet(seq)))
