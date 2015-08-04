@@ -85,3 +85,19 @@ make_adaptation_tai = function (...) {
     # TODO: Implement
     function (rcu, raa) {}
 }
+
+#' Normalize codon usage
+#'
+#' Normalizing codon usage ensures that the codon usage sums to 1, in other
+#' words, calculate \code{n[i] = x[i] / sum(x)}.
+#' @param x codon usage in tidy data format
+#' @return The normalized codon usage in tidy data format.
+norm = function (x) UseMethod('norm')
+
+`norm.codon_usage$cu` = function (x)
+    mutate(x, CU = CU / sum(CU))
+
+`norm.codon_usage$rcu` = function (x) {
+    warning('Normalizing RCU makes no sense, skipped.')
+    x
+}
