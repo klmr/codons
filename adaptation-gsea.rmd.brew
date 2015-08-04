@@ -139,9 +139,8 @@ mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
                                        starts_with('do'))
 
 cu = import('codon_usage')
-rcu = cu$cu(canonical_cds) %>%
-    inner_join(canonical_cds, by = 'Gene') %>%
-    inner_join(mrna_counts_sf, by = 'Gene')
+mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
+rcu = inner_join(cu$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
 rcu = lapply(mrna_design$DO, lib -> {
     rcu %>%
