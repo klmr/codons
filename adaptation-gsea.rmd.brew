@@ -32,22 +32,7 @@ is divided by the sum of the codon usage of its amino acid.
 The first step is to retrieve the canonical coding sequence (CDS) of each gene.
 
 ```{r cds}
-bios = modules::import_package('Biostrings')
-cds = bios$readDNAStringSet(config$cds)
-names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
-cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
-
-# Filter CCDS, only preserve valid coding frames
-
-is_valid_cds = function (seq)
-    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
-
-cds = cds %>% filter(is_valid_cds(Sequence))
-canonical_cds = cds %>%
-    mutate(Length = nchar(Sequence)) %>%
-    group_by(Gene) %>%
-    arrange(desc(Length)) %>%
-    slice(1)
+canonical_cds = data$canonical_cds(config)
 ```
 
 Calculate codon usage.

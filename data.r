@@ -74,3 +74,22 @@ mrna_design = cache %@% function (config)
         tbl_df() %>%
         select(DO = 1, Celltype = 2) %>%
         mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
+
+canonical_cds = cache %@% function (config) {
+    bios = modules::import_package('Biostrings')
+    cds = bios$readDNAStringSet(config$cds)
+    names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
+    cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
+
+    # Filter CCDS, only preserve valid coding frames
+
+    is_valid_cds = function (seq)
+        nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+
+    cds %>%
+        filter(is_valid_cds(Sequence)) %>%
+        mutate(Length = nchar(Sequence)) %>%
+        group_by(Gene) %>%
+        arrange(desc(Length)) %>%
+        slice(1)
+}
