@@ -4,7 +4,8 @@ species := mouse human
 
 .PHONY: all
 all:
-	@echo No default rule. Please run `make rule`
+	@echo >&2 No default rule. Please run \`make rule\`
+	exit 1
 
 %-mouse.rmd: %.rmd.brew
 	${BIN}/brew $< $@ 'species="mouse"'
