@@ -1,6 +1,7 @@
 modules::import('cache', attach = TRUE)
 modules::import_package('dplyr', attach = TRUE)
 tidyr = modules::import_package('tidyr')
+base = modules::import('ebits/base')
 io = modules::import('ebits/io')
 
 trna_counts = cache %@% function (config) {
