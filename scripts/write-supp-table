@@ -1,0 +1,19 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('type', 'the type (“mrna” or “trna”)',
+                                 validate = function (x) x %in% c('mrna', 'trna')))
+
+    data = import('../data')
+    config = import(paste('../config', args$species, sep = '_'))
+    io = import('ebits/io')
+    counts = data[[paste(args$type, 'counts', sep = '_')]](config)
+    io$write_table(counts, stdout(), sep = '\t')
+    NULL
+})
+
+# vim: ft=r
