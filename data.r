@@ -93,3 +93,18 @@ canonical_cds = cache %@% function (config) {
         arrange(desc(Length)) %>%
         slice(1)
 }
+
+go_genes = cache %@% function (config)
+    io$read_table('data/gene_association.goa_human', header = FALSE,
+                         comment.char = '!', quote = '', sep = '\t') %>%
+    select(Name = 3, GO = 5, Aspect = 9) %>%
+    filter(Aspect == 'P') %>%
+    inner_join(mrna_annotation(config), by = 'Name') %>%
+    select(Gene, GO = GO.x) %>%
+    distinct(GO, Gene) %>%
+    group_by(GO) %>%
+    mutate(Size = length(Gene)) %>%
+    ungroup() %>%
+    filter(Size >= 40) %>%
+    select(-Size) %>%
+    tbl_df()
