@@ -11,7 +11,8 @@ sys$run({
     data = import('../data')
     config = import(paste('../config', args$species, sep = '_'))
     io = import('ebits/io')
-    counts = data[[paste(args$type, 'counts', sep = '_')]](config)
+    table_name = paste(args$type, 'tpm_counts', sep = '_')
+    counts = data[[table_name]](config)
     io$write_table(counts, stdout(), sep = '\t')
     NULL
 })
