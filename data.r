@@ -4,19 +4,21 @@ tidyr = modules::import_package('tidyr')
 base = modules::import('ebits/base')
 io = modules::import('ebits/io')
 
-trna_counts = cache %@% function (config) {
-    trna_annotation = io$read_table(config$trna_annotation, header = FALSE) %>%
-        select(Chr = 1, Num = 2, AA = 5, Anticodon = 6) %>%
+trna_annotation = cache %@% function (config)
+    io$read_table(config$trna_annotation, header = FALSE) %>%
+        select(Chr = 1, Num = 2, AA = 5, Anticodon = 6, Start = 3, Stop = 4) %>%
         filter(grepl('(chr)?\\d+', Chr)) %>%
         filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
-        transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
+        transmute(Gene = paste(Chr, Num, sep = '.trna'), AA, Anticodon,
+                  Length = abs(Stop - Start) + 1) %>%
         tbl_df()
 
+trna_counts = cache %@% function (config) {
     counts = io$read_table(config$trna_counts, header = TRUE) %>%
         `colnames<-`(., c('X', colnames(.)[-1])) %>%
         tbl_df() %>%
-        rename(Gene = X) %>%
-        inner_join(trna_annotation, ., by = 'Gene') %>%
+        mutate(Gene = sub('.', '.trna', X, fixed = TRUE)) %>%
+        inner_join(trna_annotation(config), ., by = 'Gene') %>%
         select(Gene, AA, Anticodon, one_of(trna_design(config)$DO))
 
     # Filter out never expressed genes. For tRNA genes, we need to be sensitive
@@ -54,12 +56,33 @@ mrna_annotation = cache %@% function (config)
 mrna_counts = cache %@% function (config) {
     counts = io$read_table(config$mrna_counts, header = TRUE) %>%
         tbl_df() %>%
-        inner_join(mrna_annotation(config), ., by = 'Gene')
+        inner_join(mrna_annotation(config), ., by = 'Gene') %>%
+        select(Gene, Name, starts_with('do'))
 
     # Filter out never expressed genes. For protein-coding genes this is
     # straightforward, we retain all whose count is $>0$.
     zero_rows = rowSums(select(counts, starts_with('do'))) == 0
     counts[! zero_rows, ]
+}
+
+trna_tpm_counts = cache %@% function (config) {
+    # Required by dplyr::funs: norm$tpm wouldn’t work
+    # TODO: Report as bug in dplyr
+    modules::import('norm', attach = TRUE)
+    annotation = trna_annotation(config) %>%
+        select(-AA, -Anticodon)
+    counts = inner_join(trna_counts(config), annotation, by = 'Gene')
+    transform_counts(counts, tfm(., Length), starts_with('do')) %>%
+        select(Gene, AA, Anticodon, starts_with('do'))
+}
+
+mrna_tpm_counts = cache %@% function (config) {
+    # Required by dplyr::funs: norm$tpm wouldn’t work
+    # TODO: Report as bug in dplyr
+    modules::import('norm', attach = TRUE)
+    counts = inner_join(mrna_counts(config), canonical_cds(config), by = 'Gene')
+    transform_counts(counts, tpm(., Length), starts_with('do')) %>%
+        select(Gene, Name, starts_with('do'))
 }
 
 trna_design = cache %@% function (config)
@@ -80,16 +103,17 @@ canonical_cds = cache %@% function (config) {
     bios = modules::import_package('Biostrings')
     cds = bios$readDNAStringSet(config$cds)
     names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
-    cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
+    cds = data.frame(Gene = names(cds), Sequence = as.character(cds),
+                     stringsAsFactors = FALSE)
 
     # Filter CCDS, only preserve valid coding frames
 
     is_valid_cds = function (seq)
-        nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
+        base::nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
 
     cds %>%
         filter(is_valid_cds(Sequence)) %>%
-        mutate(Length = nchar(Sequence)) %>%
+        mutate(Length = base::nchar(Sequence)) %>%
         group_by(Gene) %>%
         arrange(desc(Length)) %>%
         slice(1)
