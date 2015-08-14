@@ -7,6 +7,10 @@ all:
 	@echo >&2 No default rule. Please run \`make rule\`
 	exit 1
 
+.PHONY: supplements
+supplements:
+	make -f supplements.make
+
 %-mouse.rmd: %.rmd.brew
 	${BIN}/brew $< $@ 'species="mouse"'
 
