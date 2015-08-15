@@ -10,10 +10,33 @@ sys$run({
 
     data = import('../data')
     config = import(paste('../config', args$species, sep = '_'))
+
+    load_data = function (type)
+        data[[paste(args$type, type, sep = '_')]](config)
+
+    per_library_counts = load_data('tpm_counts')
+    design = load_data('design')
+
+    import_package('dplyr', attach = TRUE)
+    import_package('tidyr', attach = TRUE)
+
+    group_by_all_except = function (.data, ...) {
+        except_names = vapply(lazyeval::lazy_dots(...),
+                              function (x) as.character(x$expr),
+                              character(1))
+        group_by_names = setdiff(colnames(.data), except_names)
+        group_by_(.data, .dots = group_by_names)
+    }
+
+    per_condition_counts = per_library_counts %>%
+        gather(DO, Count, starts_with('DO')) %>%
+        inner_join(design, by = 'DO') %>%
+        group_by_all_except(DO, Count) %>%
+        summarize(Count = mean(Count)) %>%
+        spread(Celltype, Count)
+
     io = import('ebits/io')
-    table_name = paste(args$type, 'tpm_counts', sep = '_')
-    counts = data[[table_name]](config)
-    io$write_table(counts, stdout(), sep = '\t')
+    io$write_table(per_condition_counts, stdout(), sep = '\t')
     NULL
 })
 
