@@ -72,7 +72,7 @@ trna_tpm_counts = cache %@% function (config) {
     annotation = trna_annotation(config) %>%
         select(-AA, -Anticodon)
     counts = inner_join(trna_counts(config), annotation, by = 'Gene')
-    transform_counts(counts, tfm(., Length), starts_with('do')) %>%
+    transform_counts(counts, tpm(., Length), starts_with('do')) %>%
         select(Gene, AA, Anticodon, starts_with('do'))
 }
 
