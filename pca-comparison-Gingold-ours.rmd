@@ -1,0 +1,69 @@
+```{r echo=FALSE, warning=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/pca-comparison',
+               cache.path = 'cache/pca-comparison',
+               dev = c('png', 'pdf'))
+
+config = modules::import('./config_human')
+```
+
+Here we verify that, despite small differences due to the different data
+sources used, the per-GO term codon usage PCAs look comparable between the
+Gingold *& al* paper and our own analysis.
+
+In the first instance, we load and process the data used by Gingold *& al*.
+
+```{r load-data-gingold}
+go_terms_gingold = io$read_table('./data/GO_2012.xlsx', sheetName = 'GOs_40',
+                                 header = FALSE) %>%
+    select(GO = 1, Description = 2) %>%
+    mutate(Category = as.character(NA))
+
+go_cat = io$read_table('./data/go-categories.tsv', header = TRUE)
+go_cat_matches = lapply(go_cat$Category, grep, go_terms_gingold$Description,
+                       ignore.case = TRUE)
+
+assign_cat = function (i)
+    go_terms_gingold$Category[go_cat_matches[[i]]] <<-
+        go_cat$Category[[i]]
+
+Map(assign_cat, seq_along(go_cat_matches)) %>% invisible()
+go_terms_gingold = inner_join(go_terms_gingold, go_cat, by = 'Category')
+```
+
+```{r load-data-ensembl}
+cu = import('codon_usage')
+tidyr = import_package('tidyr')
+data = import('./data')
+go_genes = data$go_genes(config)
+canonical_cds = data$canonical_cds(config)
+```
+
+```{r pca}
+pca = function (go_cu) {
+    table = tidyr$spread(go_cu, Codon, CU)
+    prcomp(select(table, -GO), scale. = TRUE)
+}
+```
+
+```{r plot-pca}
+
+plot_pca = function (pca) {
+    ve = sprintf('(%.0f%% variance explained)',
+                 summary(pca)$importance['Proportion of Variance', 1 : 2] * 100)
+    ggplot(as.data.frame(pca$x), aes(x = PC1, y = PC2)) +
+        geom_point() +
+        xlab(paste('PC1', ve[1])) +
+        ylab(paste('PC2', ve[2]))
+}
+```
+
+```{r pca-ensembl}
+go_cu_ensembl = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup()
+
+pca_ensembl = pca(go_cu_ensembl)
+```
