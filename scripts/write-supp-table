@@ -19,10 +19,11 @@ sys$run({
 
     import_package('dplyr', attach = TRUE)
     import_package('tidyr', attach = TRUE)
+    import('ebits/base/lambda') # for ->
 
     group_by_all_except = function (.data, ...) {
         except_names = vapply(lazyeval::lazy_dots(...),
-                              function (x) as.character(x$expr),
+                              x -> as.character(x$expr),
                               character(1))
         group_by_names = setdiff(colnames(.data), except_names)
         group_by_(.data, .dots = group_by_names)
