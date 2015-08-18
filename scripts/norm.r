@@ -10,8 +10,8 @@ fpkm = function (counts, transcript_lengths)
     exp(log(counts) - log(transcript_lengths) - log(sum(counts)) + log(1e9))
 
 tpm = function (counts, transcript_lengths) {
-    log_by_size = log(counts) - log(transcript_lengths)
-    exp(log_by_size - log(sum(exp(log_by_size))) + log(1E6))
+    rate = log(counts) - log(transcript_lengths)
+    exp(rate - log(sum(exp(rate))) + log(1E6))
 }
 
 size_factors = function (counts) {
