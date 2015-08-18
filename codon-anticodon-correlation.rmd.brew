@@ -18,17 +18,10 @@ experimental design).
 
 ```{r}
 data = import('./data')
-trna_counts = data$trna_counts(config)
-mrna_counts = data$mrna_counts(config)
-trna_annotation = data$trna_annotation(config)
-mrna_annotation = data$mrna_annotation(config)
-trna_design = data$trna_design(config)
-mrna_design = data$mrna_design(config)
-
-trna_design
-trna_counts
-mrna_design
-mrna_counts
+(trna_counts = data$trna_counts(config))
+(mrna_counts = data$mrna_counts(config))
+(trna_design = data$trna_design(config))
+(mrna_design = data$mrna_design(config))
 ```
 
 ## Codon usage and anticodon abundance
