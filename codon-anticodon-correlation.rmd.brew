@@ -443,7 +443,7 @@ mean to simulate gene sets.
 
 For efficiency’s sake, we’re working with gene indices rather than genes.
 
-```{r}
+```{r sample-gene-sets}
 transcriptome_size = length(unique(codon_usage$Gene))
 simulate_gene_set = function (size)
     sample.int(transcriptome_size, size)
@@ -458,7 +458,7 @@ go_samples = replicate(n_simulations, simulate_gene_set(go_size))
 
 Calculate RCU for all samples in all libraries.
 
-```{r}
+```{r rcu-simulations}
 stopifnot(length(unique(codon_usage$Codon)) == 61)
 
 get_gene_indices = function (i)
