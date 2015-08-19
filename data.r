@@ -7,7 +7,7 @@ io = modules::import('ebits/io')
 trna_annotation = cache %@% function (config)
     io$read_table(config$trna_annotation, header = FALSE) %>%
         select(Chr = 1, Num = 2, AA = 5, Anticodon = 6, Start = 3, Stop = 4) %>%
-        filter(grepl('(chr)?\\d+', Chr)) %>%
+        filter(grepl('^(chr)?\\d+$', Chr)) %>%
         filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
         transmute(Gene = paste(Chr, Num, sep = '.trna'), AA, Anticodon,
                   Length = abs(Stop - Start) + 1) %>%
