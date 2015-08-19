@@ -174,8 +174,8 @@ Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
 ```{r define_contrasts}
-all_contrasts = expand.grid(Codon = unique(cub_long$Celltype),
-                            Anti = unique(aab_long$Celltype),
+all_contrasts = expand.grid(Codon = unique(rcu_long$Celltype),
+                            Anti = unique(raa_long$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
@@ -190,11 +190,11 @@ As a sanity check, plot the codon–anticodon usage for all three conditions.
 ```{r}
 plot_ca_correlation = function (condition) {
     # For each point, calculate mean and min/max.
-    cu = cub_long %>%
+    cu = rcu_long %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
         summarize(cu = mean(Count), cu_min = min(Count), cu_max = max(Count))
-    aa = aab_long %>%
+    aa = raa_long %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
         summarize(aa = mean(Count), aa_min = min(Count), aa_max = max(Count))
@@ -224,7 +224,7 @@ filters out all codons without corresponding anticodon.
 #### Matching and mismatching codon–anticodon pools
 
 ```{r correlate}
-correlate_contrast = function (contrast, f, cub, aab) {
+correlate_contrast = function (contrast, f, rcu, raa) {
     codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
     anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
     contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
@@ -232,8 +232,8 @@ correlate_contrast = function (contrast, f, cub, aab) {
     parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
         codon_do = contrast[1]
         anti_do = contrast[2]
-        contrast_data = inner_join(filter(cub, DO == codon_do),
-                                   filter(aab, DO == anti_do),
+        contrast_data = inner_join(filter(rcu, DO == codon_do),
+                                   filter(raa, DO == anti_do),
                                    by = 'Codon') %>%
             select(Label = Codon, Codon = Count.x, Anti = Count.y)
         f(contrast_data)
@@ -245,10 +245,10 @@ do_contrasts = function(contrasts, f, ...)
 
 cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     cub_long, aab_long)
+                                     rcu_long, raa_long)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
                                         correlate_contrast, cf,
-                                        cub_long, aab_long)
+                                        rcu_long, raa_long)
 
 all_correlations = rbind(data.frame(Correlation = matching_correlations,
                                     Type = 'Matching'),
