@@ -324,28 +324,18 @@ each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
-```{r de_cub}
-cub_for_gene_set = function (gene_set, sample)
-    gene_wise_codon_usage[[sample]] %>%
-    filter(Gene %in% gene_set) %>%
-    select(-Gene) %>%
-    colSums() %>%
-    as.data.frame() %>%
-    add_rownames('Codon') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
-    group_by(AA) %>%
-    mutate(CUB = . / sum(.)) %>%
+```{r de-cub}
+rcu_for_condition = function (sample_ids, gene_set)
+    codon_usage %>%
+    filter(DO %in% sample_ids, Gene %in% gene_set) %>%
+    group_by(DO, Codon) %>%
+    summarize(CU = sum(CU, na.rm = TRUE)) %>%
     ungroup() %>%
-    select(Codon, CUB)
+    `class<-`(c('codon_usage$cu', class(.))) %>%
+    cu$rcu(DO) %>%
+    select(DO, Codon, RCU)
 
-cubs_for_condition = function (sample_ids, gene_set)
-    sapply(sample_ids, cub_for_gene_set, gene_set = gene_set,
-           simplify = FALSE) %>%
-        {base$reduce(a ~ b -> inner_join(a, b, by = 'Codon'),
-                     .[-1], .[[1]])} %>%
-        `colnames<-`(c('Codon', sample_ids))
-
-cubs_for_contrast = function (de_genes, contrast) {
+rcu_for_contrast = function (de_genes, contrast) {
     de_genes = add_rownames(de_genes, 'Gene')
     top_n = 200
     up = list(filter(de_genes, log2FoldChange < 0),
@@ -366,11 +356,10 @@ cubs_for_contrast = function (de_genes, contrast) {
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
 
-    do.call(inner_join, c(unname(base$map(cubs_for_condition, sample_ids, up)),
-                          by = 'Codon'))
+    base$map(rcu_for_condition, sample_ids, up) %>% rbind_all()
 }
 
-de_cub = base$map(cubs_for_contrast, de_genes, contrasts)
+de_rcu = base$map(rcu_for_contrast, de_genes, contrasts)
 ```
 
 Finally, calculate the correlation between every sample’s DE gene CUB and the
@@ -379,16 +368,12 @@ that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de_codon_correlation}
-de_cub_long = lapply(de_cub, dc -> dc %>%
-    melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
-    tbl_df())
-
 de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
 
 de_correlations = base$map(
-    contrast ~ cub -> do_contrasts(contrast, correlate_contrast, cf,
-                                   cub, aab_long),
-    de_contrasts, de_cub_long) %>%
+    contrast ~ rcu -> do_contrasts(contrast, correlate_contrast, cf,
+                                   rcu, raa_long),
+                           de_contrasts, de_rcu) %>%
     unlist()
 
 all_correlations = rbind(all_correlations,
@@ -427,10 +412,10 @@ go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
 cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
-go_cancer_cubs = cubs_for_condition(cancer_mrna_samples, go_terms$GO0000087)
+go_cancer_cubs = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
 
 healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
-go_healthy_cubs = cubs_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+go_healthy_cubs = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
 
 go_cub = inner_join(go_cancer_cubs, go_healthy_cubs, by = 'Codon')
 go_cub_long = go_cub %>%
