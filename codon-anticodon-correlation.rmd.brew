@@ -193,11 +193,11 @@ plot_ca_correlation = function (condition) {
     cu = rcu_long %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
-        summarize(cu = mean(Count), cu_min = min(Count), cu_max = max(Count))
+        summarize(cu = mean(RCU), cu_min = min(RCU), cu_max = max(RCU))
     aa = raa_long %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
-        summarize(aa = mean(Count), aa_min = min(Count), aa_max = max(Count))
+        summarize(aa = mean(RAA), aa_min = min(RAA), aa_max = max(RAA))
 
     data = inner_join(cu, aa, by = 'Codon')
     rsq = summary(lm(aa ~ cu, data))$r.squared
@@ -333,9 +333,10 @@ rcu_for_condition = function (sample_ids, gene_set)
     cu$rcu(DO) %>%
     select(DO, Codon, RCU)
 
+top_n_de = 200
+
 rcu_for_contrast = function (de_genes, contrast) {
     de_genes = add_rownames(de_genes, 'Gene')
-    top_n = 200
     up = list(filter(de_genes, log2FoldChange < 0),
               filter(de_genes, log2FoldChange > 0)) %>%
         setNames(contrast)
@@ -345,7 +346,7 @@ rcu_for_contrast = function (de_genes, contrast) {
             mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
             filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
             arrange(desc(abs(log2FoldChange))) %>%
-            head(top_n) %>%
+            head(top_n_de) %>%
             .$Gene
     }
 
@@ -444,4 +445,90 @@ supply and demand, and between the codon supply and demand just for gene sets
 from condition-specific GO terms yields $p(\text{observation | GO = Matching})
 = `r go_p`$, where $H_1$: “specific GO term gene set CUB correlates *better*
 with matching AAB than whole-transcriptome codon usage”. For the inverted
-hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.
+hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.<!-- ` -->
+
+## Account for sample size
+
+The gene sets used in the four comparisons have different size, which implies
+different magnitude of sampling bias. This in turn influences adaptation. To
+account for this, perform simulations for each of the different sizes used. This
+allows us to assess whether a given gene set’s adaptation is explained by its
+gene set size.
+
+“Matching” and “mismatching” reflect the whole transcriptome and have the same
+gene set size. “DE” uses sets of size `r top_n_de`. The GO term sets have sizes
+`r paste(sapply(go_terms, length), collapse = ' and ')`, of which we’ll take the
+mean to simulate gene sets.
+
+For efficiency’s sake, we’re working with gene indices rather than genes.
+
+```{r}
+transcriptome_size = length(unique(codon_usage$Gene))
+simulate_gene_set = function (size)
+    sample.int(transcriptome_size, size)
+
+n_simulations = 100
+go_size = mean(sapply(go_terms, length))
+
+transcriptome_samples = replicate(n_simulations, simulate_gene_set(transcriptome_size))
+de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
+go_samples = replicate(n_simulations, simulate_gene_set(go_size))
+```
+
+Calculate RCU for all samples in all libraries.
+
+```{r}
+stopifnot(length(unique(codon_usage$Codon)) == 61)
+
+get_gene_indices = function (i)
+    (seq_len(61) - 1) * transcriptome_size + i
+
+gene_sample_rcu = function (gene_set) {
+    gene_indices = unlist(lapply(gene_set, get_gene_indices))
+    codon_usage %>% group_by(DO) %>%
+        slice(gene_indices) %>%
+        group_by(DO, Codon) %>%
+        summarize(CU = sum(CU, na.rm = TRUE)) %>%
+        ungroup() %>%
+        `class<-`(c('codon_usage$cu', class(.))) %>%
+        cu$rcu(DO) %>%
+        select(DO, Codon, RCU)
+}
+
+gene_sample_adaptation = function (contrasts, gene_set) {
+    rcu = gene_sample_rcu(gene_set)
+    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa_long)
+}
+
+all_sample_adaptations = function (contrasts, samples) {
+    # samples is a matrix genes x sample_ids
+    apply(samples, 2, gene_sample_adaptation, contrasts = contrasts) %>%
+        as.numeric()
+}
+
+matching_sample_adaptation = all_sample_adaptations(matching_contrasts,
+                                                    transcriptome_samples)
+mismatching_sample_adaptation = all_sample_adaptations(mismatching_contrasts,
+                                                       transcriptome_samples)
+# DE samples use matching contrasts as well; this works since we’re just
+# interested in sample size, not actual DE gene sets.
+de_sample_adaptation = all_sample_adaptations(matching_contrasts, de_samples)
+go_sample_adaptation = all_sample_adaptations(matching_contrasts, go_samples)
+
+all_sample_adaptation = list(matching = matching_sample_adaptation,
+                             mismatching = mismatching_sample_adaptation,
+                             DE = de_sample_adaptation,
+                             GO = go_sample_adaptation) %>%
+    {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
+    bind_rows() %>%
+    mutate(Type = paste('Sample', Type))
+
+ggplot(rbind(all_correlations, all_sample_adaptation),
+       aes(factor(Type), Correlation)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    scale_x_discrete(name = bquote(paste('Sample types compared ',
+                                         (p == .(p))))) +
+    ggtitle('Codon–anticodon correlations between different conditions')
+```
