@@ -22,6 +22,7 @@ data = import('./data')
 (mrna_counts = data$mrna_counts(config))
 (trna_design = data$trna_design(config))
 (mrna_design = data$mrna_design(config))
+canonical_cds = data$canonical_cds(config)
 ```
 
 ## Codon usage and anticodon abundance
@@ -32,26 +33,6 @@ the CUB, we first calculate the codon usage (i.e. the count of each codon) per
 gene. These counts are multiplied with the gene’s normalised expression, and
 then summed over the transcriptome. Finally, each codon usage is divided by the
 sum of the codon usage of its amino acid.
-
-The first step is to retrieve the canonical coding sequence (CDS) of each gene.
-
-```{r cds}
-bios = modules::import_package('Biostrings')
-cds = bios$readDNAStringSet(config$cds)
-names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
-cds = data.frame(Gene = names(cds), Sequence = as.character(cds))
-
-# Filter CCDS, only preserve valid coding frames
-
-is_valid_cds = function (seq)
-    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
-
-cds = cds %>% filter(is_valid_cds(Sequence))
-canonical_cds = cds %>%
-    group_by(Gene) %>%
-    arrange(desc(nchar(Sequence))) %>%
-    slice(1)
-```
 
 Calculate codon usage.
 
