@@ -88,23 +88,10 @@ Make genetic code available as tidy data.
 genetic_code = data.frame(AA = bios$GENETIC_CODE) %>% add_rownames('Codon')
 ```
 
-Calculate codon usage bias.
-
-```{r cub}
-cub = sample_codon_usage %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
-    group_by(DO, AA) %>%
-    mutate(CUB = Count / sum(Count)) %>%
-    select(DO, Codon, CUB) %>%
-    dcast(DO ~ Codon, value.var = 'CUB') %>%
-    tbl_df()
-```
-
-Verify correctness: for each amino acid in each sample, the CUBs must sum to 1.
+Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
 
 ```{r verify_cub}
-cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     inner_join(genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
     summarize(Sum = sum(Count)) %>%
@@ -116,11 +103,12 @@ cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     .$Correct
 ```
 
-Calculate the anticodon abundance bias (AAB), the tRNA equivalent of the CUB,
-i.e. the proportional contribution of each anticodon isoacceptor to its isotype.
+Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
+RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
+isotype.
 
 ```{r aab}
-aab = trna_counts %>%
+raa = trna_counts %>%
     melt(id.vars = c('Gene', 'AA', 'Anticodon'),
          variable.name = 'DO', value.name = 'Count') %>%
     group_by(DO, AA, Anticodon) %>%
@@ -141,7 +129,7 @@ revcomp = function (seq)
 Verify correctness in the same way as for the CUB above.
 
 ```{r verify_aab}
-aab %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
+raa %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
     mutate(Codon = revcomp(Anti)) %>%
     inner_join(genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
@@ -165,12 +153,14 @@ transcriptome.
 ## Prepare data
 
 ```{r prepare_dfs}
-cub_long = cub %>%
+# FIXME: This is redundant: We first calculate RCU, `dcast` it, store the result
+# in `sample_rcu`, and then `melt` it here again. The `dcast` + `melt` must go.
+rcu_long = sample_rcu %>%
     melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     inner_join(mrna_design, by = 'DO') %>%
     select(DO, Celltype, Codon, Count) %>%
     tbl_df()
-aab_long = aab %>%
+raa_long = raa %>%
     melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'Count') %>%
     inner_join(trna_design, by = 'DO') %>%
     mutate(Codon = revcomp(Anticodon)) %>%
