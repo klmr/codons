@@ -156,15 +156,15 @@ transcriptome.
 # FIXME: This is redundant: We first calculate RCU, `dcast` it, store the result
 # in `sample_rcu`, and then `melt` it here again. The `dcast` + `melt` must go.
 rcu_long = sample_rcu %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'RCU') %>%
     inner_join(mrna_design, by = 'DO') %>%
-    select(DO, Celltype, Codon, Count) %>%
+    select(DO, Celltype, Codon, RCU) %>%
     tbl_df()
 raa_long = raa %>%
-    melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'Count') %>%
+    melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'RAA') %>%
     inner_join(trna_design, by = 'DO') %>%
     mutate(Codon = revcomp(Anticodon)) %>%
-    select(DO, Celltype, Codon, Count) %>%
+    select(DO, Celltype, Codon, RAA) %>%
     tbl_df()
 ```
 
@@ -234,16 +234,14 @@ correlate_contrast = function (contrast, f, rcu, raa) {
         anti_do = contrast[2]
         contrast_data = inner_join(filter(rcu, DO == codon_do),
                                    filter(raa, DO == anti_do),
-                                   by = 'Codon') %>%
-            select(Label = Codon, Codon = Count.x, Anti = Count.y)
-        f(contrast_data)
+                                   by = 'Codon') %>% f()
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
 do_contrasts = function(contrasts, f, ...)
     unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
 
-cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
+cf = x -> cor(x$RCU, x$RAA, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
                                      rcu_long, raa_long)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
