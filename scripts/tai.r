@@ -3,6 +3,9 @@
 s = list(naive = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5),
          ecoli = c(0, 0, 0, 0, 0.41, 0.28, 0.9999, 0.68, 0.89))
 
+get_s = function (species)
+    if (species %in% names(s)) s[[species]] else s$naive
+
 # Reverse complement of the anticodons, in the order of anticodons as given in
 # Figure 1 of dos Reis & al.
 rc_anticodons = c('TTT', 'TTC', 'TTA', 'TTG',
