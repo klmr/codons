@@ -88,10 +88,9 @@ Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
 RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
 isotype.
 
-```{r aab}
-raa = trna_counts %>%
-    melt(id.vars = c('Gene', 'AA', 'Anticodon'),
-         variable.name = 'DO', value.name = 'Count') %>%
+```{r raa}
+aa = trna_counts %>%
+    tidyr::gather(DO, Count, starts_with('do')) %>%
     group_by(DO, AA, Anticodon) %>%
     summarize(Count = sum(Count)) %>%
     ungroup()
