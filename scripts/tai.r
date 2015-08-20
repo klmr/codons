@@ -34,5 +34,7 @@ stop_codons = match(c('TAA', 'TAG', 'TGA'), rc_anticodons)
 ws = function () {
 }
 
-tai = function (codon_counts, w, lengths)
-    exp(colSums(apply(codon_counts[, rc_anticodons], 1, `*`, log(w))) / lengths)
+tai = function (codon_counts, w, lengths) {
+    codons = rc_anticodons[-stop_codons]
+    exp(colSums(apply(codon_counts[, codons], 1, `*`, log(w))) / lengths)
+}
