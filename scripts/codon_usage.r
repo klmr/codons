@@ -50,17 +50,20 @@ cu.DNAStringSet = function (genes)
 #' @return Tidy table of per-gene relative codon usage.
 #' @details The accepted input corresponds to either the output of
 #' \code{\link{cu}}, or any input that function accepts.
-rcu = function (x) UseMethod('rcu')
+rcu = function (x, column = Gene)
+    rcu_(x, deparse(substitute(column)))
 
-`rcu.codon_usage$cu` = function (x)
+rcu_ = function (x, column = 'Gene') UseMethod('rcu_')
+
+`rcu_.codon_usage$cu` = function (x, column = 'Gene')
     inner_join(x, genetic_code, by = 'Codon') %>%
-    group_by(Gene, AA) %>%
+    group_by_(.dots = c(column, 'AA')) %>%
     mutate(RCU = CU / sum(CU)) %>%
     ungroup() %>%
     `class<-`(c('codon_usage$rcu', class(.)))
 
-rcu.default = function (x)
-    rcu(cu(x))
+rcu_.default = function (x, column = 'Gene')
+    rcu_(cu(x), column)
 
 #' Calculate adaptation between codons and tRNA
 #'
