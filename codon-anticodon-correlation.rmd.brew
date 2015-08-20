@@ -499,20 +499,20 @@ mismatching_sample_adaptation = all_sample_adaptations(mismatching_contrasts,
 de_sample_adaptation = all_sample_adaptations(matching_contrasts, de_samples)
 go_sample_adaptation = all_sample_adaptations(matching_contrasts, go_samples)
 
-all_sample_adaptation = list(matching = matching_sample_adaptation,
-                             mismatching = mismatching_sample_adaptation,
+all_sample_adaptation = list(Matching = matching_sample_adaptation,
+                             Mismatching = mismatching_sample_adaptation,
                              DE = de_sample_adaptation,
                              GO = go_sample_adaptation) %>%
     {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
-    bind_rows() %>%
-    mutate(Type = paste('Sample', Type))
+    bind_rows()
 
-ggplot(rbind(all_correlations, all_sample_adaptation),
-       aes(factor(Type), Correlation)) +
+ggplot(all_correlations, aes(factor(Type), Correlation)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = bquote(paste('Sample types compared ',
-                                         (p == .(p))))) +
+    stat_summary(data = all_sample_adaptation, aes(factor(Type), Correlation),
+                 fun.data = median_hilow,
+                 color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
+    scale_x_discrete(name = '') +
     ggtitle('Codon–anticodon correlations between different conditions')
 ```
