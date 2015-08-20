@@ -1,7 +1,7 @@
 # Based on the paper by Dos Reis & al, 2004
 
 s = list(naive = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5),
-         human = c(0, 0, 0, 0, 0.41, 0.28, 0.9999, 0.68, 0.89))
+         ecoli = c(0, 0, 0, 0, 0.41, 0.28, 0.9999, 0.68, 0.89))
 
 # Reverse complement of the anticodons, in the order of anticodons as given in
 # Figure 1 of dos Reis & al.
