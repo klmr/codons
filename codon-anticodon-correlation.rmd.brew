@@ -27,12 +27,12 @@ canonical_cds = data$canonical_cds(config)
 
 ## Codon usage and anticodon abundance
 
-Calculate codon usage bias (CUB) and tRNA anticodon abundance. The CUB is the
-proportion each codon contributes to the amino acid it codes for. To calculate
-the CUB, we first calculate the codon usage (i.e. the count of each codon) per
-gene. These counts are multiplied with the gene’s normalised expression, and
-then summed over the transcriptome. Finally, each codon usage is divided by the
-sum of the codon usage of its amino acid.
+Calculate relative codon usage (RCU) and tRNA anticodon abundance. The RCU is
+the proportion each codon contributes to the amino acid it codes for. To
+calculate the RCU, we first calculate the codon usage (i.e. the count of each
+codon) per gene. These counts are multiplied with the gene’s normalised
+expression, and then summed over the transcriptome. Finally, each codon usage
+is divided by the sum of the codon usage of its amino acid.
 
 Calculate codon usage.
 
@@ -65,13 +65,13 @@ sample_rcu = codon_usage %>%
 
 Make genetic code available as tidy data.
 
-```{r genetic_code}
+```{r genetic-code}
 genetic_code = data.frame(AA = bios$GENETIC_CODE) %>% add_rownames('Codon')
 ```
 
 Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
 
-```{r verify_cub}
+```{r verify-rcu}
 sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     inner_join(genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
@@ -94,22 +94,26 @@ raa = trna_counts %>%
          variable.name = 'DO', value.name = 'Count') %>%
     group_by(DO, AA, Anticodon) %>%
     summarize(Count = sum(Count)) %>%
+    ungroup()
+
+raa = aa %>%
+    group_by(DO, AA) %>%
     mutate(Prop = Count / sum(Count)) %>%
     select(DO, Anticodon, Prop) %>%
     dcast(DO ~ Anticodon, value.var = 'Prop') %>%
     tbl_df()
 ```
 
-Helper function for comparing CUB and AAB.
+Helper function for comparing RCU and RAA
 
 ```{r revcomp}
 revcomp = function (seq)
     as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
 ```
 
-Verify correctness in the same way as for the CUB above.
+Verify correctness in the same way as for the RCU above.
 
-```{r verify_aab}
+```{r verify-raa}
 raa %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
     mutate(Codon = revcomp(Anti)) %>%
     inner_join(genetic_code, by = 'Codon') %>%
@@ -303,7 +307,7 @@ each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
-```{r de-cub}
+```{r de-rcu}
 rcu_for_condition = function (sample_ids, gene_set)
     codon_usage %>%
     filter(DO %in% sample_ids, Gene %in% gene_set) %>%
@@ -342,7 +346,7 @@ rcu_for_contrast = function (de_genes, contrast) {
 de_rcu = base$map(rcu_for_contrast, de_genes, contrasts)
 ```
 
-Finally, calculate the correlation between every sample’s DE gene CUB and the
+Finally, calculate the correlation between every sample’s DE gene RCU and the
 sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
 that these are significantly higher than mismatching codon–anticodon pool
 correlations.
@@ -424,8 +428,8 @@ ggplot(all_correlations, aes(Type, Correlation)) +
 Testing for significant difference between the distribution of matching codon
 supply and demand, and between the codon supply and demand just for gene sets
 from condition-specific GO terms yields $p(\text{observation | GO = Matching})
-= `r go_p`$, where $H_1$: “specific GO term gene set CUB correlates *better*
-with matching AAB than whole-transcriptome codon usage”. For the inverted
+= `r go_p`$, where $H_1$: “specific GO term gene set RCU correlates *better*
+with matching RAA than whole-transcriptome codon usage”. For the inverted
 hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.<!-- ` -->
 
 ## Account for sample size
