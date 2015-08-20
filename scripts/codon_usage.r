@@ -8,6 +8,7 @@
 .bios = modules::import_package('Biostrings')
 modules::import_package('dplyr', attach = TRUE)
 modules::import_package('reshape2', attach = TRUE)
+tidyr = modules::import_package('tidyr')
 
 #' The genetic code
 genetic_code = data.frame(AA = .bios$GENETIC_CODE) %>%
@@ -84,9 +85,15 @@ adaptation_no_wobble = function (rcu, raa)
     inner_join(rcu, raa, by = 'Codon') %>%
     summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
 
-make_adaptation_tai = function (...) {
-    # TODO: Implement
-    function (rcu, raa) {}
+# Calculate outside function for speed
+coding_codons = setdiff(genetic_code$Codon, stop_codons)
+
+adaptation_tai = function (cu, aa, cds) {
+    lengths = setNames(cds$Length, cds$Gene)[cu$Gene]
+    cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
+    aa = setNames(aa$AA, aa$Codon)
+    tai = import('tai')
+    tai$tai(cu, tai$ws(aa, tai$s$naive), lengths)
 }
 
 #' Normalize codon usage
