@@ -1,7 +1,6 @@
 # Based on the paper by Dos Reis & al, 2004
 
-s = list(naive = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5),
-         ecoli = c(0, 0, 0, 0, 0.41, 0.28, 0.9999, 0.68, 0.89))
+s = list(naive = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5))
 
 get_s = function (species)
     if (species %in% names(s)) s[[species]] else s$naive
