@@ -59,6 +59,7 @@ rcu_ = function (x, column = 'Gene') UseMethod('rcu_')
     inner_join(x, genetic_code, by = 'Codon') %>%
     group_by_(.dots = c(column, 'AA')) %>%
     mutate(RCU = CU / sum(CU)) %>%
+    mutate(RCU = ifelse(is.nan(RCU), 0, RCU)) %>%
     ungroup() %>%
     `class<-`(c('codon_usage$rcu', class(.)))
 
