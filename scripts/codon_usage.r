@@ -88,7 +88,7 @@ adaptation_no_wobble = function (rcu, raa)
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
 
 adaptation_tai = function (cu, aa, cds) {
-    lengths = setNames(cds$Length, cds$Gene)[cu$Gene]
+    lengths = setNames(cds$Length, cds$Gene)[unique(cu$Gene)]
     cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
     aa = setNames(aa$AA, aa$Codon)
     tai = import('tai')
