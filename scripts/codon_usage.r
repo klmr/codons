@@ -7,7 +7,6 @@
 
 .bios = modules::import_package('Biostrings')
 modules::import_package('dplyr', attach = TRUE)
-modules::import_package('reshape2', attach = TRUE)
 tidyr = modules::import_package('tidyr')
 
 #' The genetic code
@@ -38,8 +37,8 @@ cu.data.frame = function (genes)
 cu.DNAStringSet = function (genes)
     .bios$trinucleotideFrequency(genes, 3) %>%
     as.data.frame() %>%
-    {cbind(Gene = names(genes), .)} %>%
-    melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'CU') %>%
+    mutate(Gene = names(genes)) %>%
+    tidyr$gather(Codon, CU, -Gene) %>%
     mutate(Codon = as.character(Codon)) %>%
     filter(! Codon %in% stop_codons) %>%
     tbl_df() %>%
