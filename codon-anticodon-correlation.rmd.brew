@@ -63,17 +63,11 @@ sample_rcu = codon_usage %>%
     dcast(DO ~ Codon, value.var = 'RCU')
 ```
 
-Make genetic code available as tidy data.
-
-```{r genetic-code}
-genetic_code = data.frame(AA = bios$GENETIC_CODE) %>% add_rownames('Codon')
-```
-
 Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
 
 ```{r verify-rcu}
 sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
+    inner_join(cu$genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
     summarize(Sum = sum(Count)) %>%
     ungroup() %T>% {
@@ -82,6 +76,14 @@ sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count
     } %>%
     summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
     .$Correct
+```
+
+Helper function for comparing RCU and RAA
+
+```{r revcomp}
+bios = import_package('Biostrings')
+revcomp = function (seq)
+    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
 ```
 
 Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
@@ -101,13 +103,6 @@ raa = aa %>%
     group_by(DO, AA) %>%
     mutate(RAA = Count / sum(Count)) %>%
     ungroup()
-```
-
-Helper function for comparing RCU and RAA
-
-```{r revcomp}
-revcomp = function (seq)
-    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
 ```
 
 ## Correlation of usage and abundance
