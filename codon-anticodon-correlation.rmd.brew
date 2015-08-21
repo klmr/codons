@@ -91,16 +91,16 @@ isotype.
 ```{r raa}
 aa = trna_counts %>%
     tidyr::gather(DO, Count, starts_with('do')) %>%
-    group_by(DO, AA, Anticodon) %>%
+    mutate(Codon = revcomp(Anticodon)) %>%
+    group_by(DO, AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
-    ungroup()
+    ungroup() %>%
+    inner_join(trna_design, by = 'DO')
 
 raa = aa %>%
     group_by(DO, AA) %>%
-    mutate(Prop = Count / sum(Count)) %>%
-    select(DO, Anticodon, Prop) %>%
-    dcast(DO ~ Anticodon, value.var = 'Prop') %>%
-    tbl_df()
+    mutate(RAA = Count / sum(Count)) %>%
+    ungroup()
 ```
 
 Helper function for comparing RCU and RAA
@@ -108,22 +108,6 @@ Helper function for comparing RCU and RAA
 ```{r revcomp}
 revcomp = function (seq)
     as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
-```
-
-Verify correctness in the same way as for the RCU above.
-
-```{r verify-raa}
-raa %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
-    mutate(Codon = revcomp(Anti)) %>%
-    inner_join(genetic_code, by = 'Codon') %>%
-    group_by(DO, AA) %>%
-    summarize(Sum = sum(Count)) %>%
-    ungroup() %T>% {
-        {setNames(.$Sum, .$AA)} %>%
-        print()
-    } %>%
-    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
-    .$Correct
 ```
 
 ## Correlation of usage and abundance
@@ -144,12 +128,6 @@ rcu_long = sample_rcu %>%
     inner_join(mrna_design, by = 'DO') %>%
     select(DO, Celltype, Codon, RCU) %>%
     tbl_df()
-raa_long = raa %>%
-    melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'RAA') %>%
-    inner_join(trna_design, by = 'DO') %>%
-    mutate(Codon = revcomp(Anticodon)) %>%
-    select(DO, Celltype, Codon, RAA) %>%
-    tbl_df()
 ```
 
 Define the contrasts we are looking at.
@@ -159,7 +137,7 @@ from the list of mismatching conditions.
 
 ```{r define_contrasts}
 all_contrasts = expand.grid(Codon = unique(rcu_long$Celltype),
-                            Anti = unique(raa_long$Celltype),
+                            Anti = unique(raa$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
@@ -178,7 +156,7 @@ plot_ca_correlation = function (condition) {
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
         summarize(cu = mean(RCU), cu_min = min(RCU), cu_max = max(RCU))
-    aa = raa_long %>%
+    aa = raa %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
         summarize(aa = mean(RAA), aa_min = min(RAA), aa_max = max(RAA))
@@ -227,10 +205,10 @@ do_contrasts = function(contrasts, f, ...)
 
 cf = x -> cor(x$RCU, x$RAA, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     rcu_long, raa_long)
+                                     rcu_long, raa)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
                                         correlate_contrast, cf,
-                                        rcu_long, raa_long)
+                                        rcu_long, raa)
 
 all_correlations = rbind(data.frame(Correlation = matching_correlations,
                                     Type = 'Matching'),
@@ -355,8 +333,7 @@ de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
 
 de_correlations = base$map(
     contrast ~ rcu -> do_contrasts(contrast, correlate_contrast, cf,
-                                   rcu, raa_long),
-                           de_contrasts, de_rcu) %>%
+                                   rcu, raa), de_contrasts, de_rcu) %>%
     unlist()
 
 all_correlations = rbind(all_correlations,
