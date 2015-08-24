@@ -83,6 +83,7 @@ adaptation = function (rcu, raa, method = adaptation_no_wobble)
 #' Simple codon–anticodon adaptation, ignoring wobble base pairing.
 adaptation_no_wobble = function (rcu, raa)
     inner_join(rcu, raa, by = 'Codon') %>%
+    group_by(Gene) %>%
     summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
 
 # Calculate outside function for speed
