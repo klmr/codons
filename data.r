@@ -116,7 +116,8 @@ canonical_cds = cache %@% function (config) {
         mutate(Length = base::nchar(Sequence)) %>%
         group_by(Gene) %>%
         arrange(desc(Length)) %>%
-        slice(1)
+        slice(1) %>%
+        ungroup()
 }
 
 go_genes = cache %@% function (config)
