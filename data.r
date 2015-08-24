@@ -34,7 +34,7 @@ trna_sf_counts = cache %@% function (config) {
     norm$transform_counts(counts, . / size_factors$., starts_with('do'))
 }
 
-filter_unexpressed = function (design, counts) {
+filter_expressed = function (design, counts) {
     norm = modules::import('norm')
     threshold = 10 # This value works well.
 
