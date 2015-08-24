@@ -86,15 +86,15 @@ adaptation_no_wobble = function (rcu, raa)
     group_by(Gene) %>%
     summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
 
-# Calculate outside function for speed
+# Calculate outside function for speed — `adaptation` is called very frequently.
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
+tai = import('tai')
 
-adaptation_tai = function (cu, aa, cds) {
+adaptation_tai = function (cu, aa, cds, s = tai$naive_s) {
     lengths = setNames(cds$Length, cds$Gene)[unique(cu$Gene)]
     cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
     aa = setNames(aa$AA, aa$Codon)
-    tai = import('tai')
-    tai$tai(cu, tai$w(aa, tai$s$naive), lengths)
+    tai$tai(cu, tai$w(aa, s), lengths)
 }
 
 #' Normalize codon usage
