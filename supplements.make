@@ -4,7 +4,10 @@ combinations := human-mrna mouse-mrna human-trna mouse-trna
 de_genes_combinations := $(addprefix de-genes-,${combinations})
 
 .PHONY: all
-all: ${combinations} de-genes
+all: gene-expression de-genes
+
+.PHONY: gene-expression
+gene-expression: ${combinations}
 
 ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
