@@ -4,7 +4,7 @@ combinations := human-mrna mouse-mrna human-trna mouse-trna
 de_genes_combinations := $(addprefix de-genes-,${combinations})
 
 .PHONY: all
-all: ${combinations}
+all: ${combinations} de-genes
 
 ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
@@ -29,8 +29,6 @@ endef
 .PHONY: ${combinations}
 
 .SECONDEXPANSION:
-${combinations}: \
-	${supp_dir}/gene-expression-$$@.tsv \
-	de-genes-$$@
+${combinations}: ${supp_dir}/gene-expression-$$@.tsv
 
 # vim: ft=make
