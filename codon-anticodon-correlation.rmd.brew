@@ -18,7 +18,7 @@ experimental design).
 
 ```{r}
 data = import('./data')
-(trna_counts = data$trna_counts(config))
+(trna_sf_counts = data$trna_sf_counts(config))
 (mrna_counts = data$mrna_counts(config))
 (trna_design = data$trna_design(config))
 (mrna_design = data$mrna_design(config))
@@ -91,7 +91,7 @@ RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
 isotype.
 
 ```{r raa}
-aa = trna_counts %>%
+aa = trna_sf_counts %>%
     tidyr::gather(DO, Count, starts_with('do')) %>%
     mutate(Codon = revcomp(Anticodon)) %>%
     group_by(DO, AA, Codon) %>%

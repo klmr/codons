@@ -27,6 +27,13 @@ trna_counts = cache %@% function (config) {
     filter(counts, Gene %in% filter_expressed(trna_design(config), counts))
 }
 
+trna_sf_counts = cache %@% function (config) {
+    norm = modules::import('norm')
+    counts = trna_counts(config)
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+}
+
 filter_unexpressed = function (design, counts) {
     norm = modules::import('norm')
     threshold = 10 # This value works well.
