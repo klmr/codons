@@ -1,9 +1,7 @@
 # Based on the paper by Dos Reis & al, 2004
 
-s = list(naive = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5, 0.5, 0.5))
+naive_s = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5)
 
-get_s = function (species)
-    if (species %in% names(s)) s[[species]] else s$naive
 
 # Reverse complement of the anticodons, in the order of anticodons as given in
 # Figure 1 of dos Reis & al.
@@ -30,7 +28,7 @@ rc_anticodons = c('TTT', 'TTC', 'TTA', 'TTG',
 met_codon = match('ATG', rc_anticodons)
 stop_codons = match(c('TAA', 'TAG', 'TGA'), rc_anticodons)
 
-w = function (counts, s = get_s(species), species) {
+w = function (counts, s = naive_s) {
     counts = counts[rc_anticodons]
     counts[is.na(counts)] = 0
     p = 1 - s
