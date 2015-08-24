@@ -24,23 +24,22 @@ trna_counts = cache %@% function (config) {
     # Filter out never expressed genes. For tRNA genes, we need to be sensitive
     # to spurious counts from the ChIP-seq data, using an adjusted lower bound.
     # To make this at all comparable across libraries, we use normalised counts.
-
-    norm = modules::import('norm')
-    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
-    norm_counts = norm$transform_counts(counts, . / size_factors$., starts_with('do'))
-    filter_unexpressed(norm_counts, trna_design(config))
+    filter(counts, Gene %in% filter_expressed(trna_design(config), counts))
 }
 
-filter_unexpressed = function (counts, design) {
+filter_unexpressed = function (design, counts) {
+    norm = modules::import('norm')
     threshold = 10 # This value works well.
-    expressed = counts %>% tidyr$gather(DO, Count, starts_with('do')) %>%
+
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm_counts = norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+
+    norm_counts %>% tidyr$gather(DO, Count, starts_with('do')) %>%
         inner_join(design, by = 'DO') %>%
         group_by(Gene, Celltype) %>%
         summarize(Expressed = all(Count > threshold)) %>%
         summarize(Expressed = any(Expressed)) %>%
         filter(Expressed) %>% .$Gene
-
-    filter(counts, Gene %in% expressed)
 }
 
 mrna_annotation = cache %@% function (config)
