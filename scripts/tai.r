@@ -30,7 +30,7 @@ rc_anticodons = c('TTT', 'TTC', 'TTA', 'TTG',
 met_codon = match('ATG', rc_anticodons)
 stop_codons = match(c('TAA', 'TAG', 'TGA'), rc_anticodons)
 
-ws = function (counts, s = get_s(species), species) {
+w = function (counts, s = get_s(species), species) {
     counts = counts[rc_anticodons]
     counts[is.na(counts)] = 0
     p = 1 - s

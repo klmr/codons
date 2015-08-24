@@ -94,7 +94,7 @@ adaptation_tai = function (cu, aa, cds) {
     cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
     aa = setNames(aa$AA, aa$Codon)
     tai = import('tai')
-    tai$tai(cu, tai$ws(aa, tai$s$naive), lengths)
+    tai$tai(cu, tai$w(aa, tai$s$naive), lengths)
 }
 
 #' Normalize codon usage
