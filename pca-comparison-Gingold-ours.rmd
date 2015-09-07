@@ -1,4 +1,4 @@
-```{r echo=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/pca-comparison',
                cache.path = 'cache/pca-comparison',
@@ -66,4 +66,5 @@ go_cu_ensembl = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
     ungroup()
 
 pca_ensembl = pca(go_cu_ensembl)
+plot_pca(pca_ensembl)
 ```
