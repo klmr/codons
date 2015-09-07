@@ -95,43 +95,11 @@ mismatching_contrasts = filter(mismatching_contrasts,
                                Codon == 'Liver-Adult' | Anti == 'Liver-Adult')
 ```
 
-### Simple correlation
+### tRNA adaptation index
 
-As a sanity check, plot the codon–anticodon usage for all three conditions.
-
-```{r}
-plot_ca_correlation = function (condition) {
-    # For each point, calculate mean and min/max.
-    cu = rcu_long %>%
-        filter(Celltype == condition) %>%
-        group_by(Codon) %>%
-        summarize(cu = mean(RCU), cu_min = min(RCU), cu_max = max(RCU))
-    aa = raa %>%
-        filter(Celltype == condition) %>%
-        group_by(Codon) %>%
-        summarize(aa = mean(RAA), aa_min = min(RAA), aa_max = max(RAA))
-
-    data = inner_join(cu, aa, by = 'Codon')
-    rsq = summary(lm(aa ~ cu, data))$r.squared
-    ggplot(data, aes(x = aa, y = cu)) +
-        geom_point() +
-        geom_errorbar(aes(ymin = cu_min, ymax = cu_max)) +
-        geom_errorbarh(aes(xmin = aa_min, xmax = aa_max)) +
-        stat_smooth(method = lm) +
-        annotate(geom = 'text', label = sprintf('italic(r)**2==%0.2f', rsq),
-                 x = 0.3, y = 0.9, parse = TRUE) +
-        scale_x_continuous(name = 'Relative anticodon isoacceptor abundance') +
-        scale_y_continuous(name = 'Relative codon usage')
-}
-
-conditions = unique(mrna_design$Celltype)
-base$map(plot_ca_correlation, conditions)
-```
-
-### Ignoring wobble base pairing
-
-The simplest correlation we can calculate ignores wobble base pairing and
-filters out all codons without corresponding anticodon.
+Apart from simple correlation of matching codon/anticodon pairs, the tRNA
+adaptation index (tAI; Dos Reis & al, 2004) is a measure of codon–anticodon
+adaptation that accounts for wobble base pairing.
 
 #### Matching and mismatching codon–anticodon pools
 
