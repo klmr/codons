@@ -2,6 +2,18 @@
 
 naive_s = c(0, 0, 0, 0, 0.5, 0.5, 0.75, 0.5)
 
+find_optimal_s = function (codon_usage, expression, lengths, trna) {
+    f = function (s)
+        cor(tai(codon_usage, w(trna, c(0, 0, 0, 0, exp(s))), lengths),
+            expression,
+            method = 'spearman')
+
+    # Fix first four values, optimize rest.
+    # Optimize `log(s)` to avoid getting negative values into `s`.
+    par = log(naive_s[-(1 : 4)])
+    within(optim(par, f, control = list(fnscale = -1)),
+           {par = c(0, 0, 0, 0, exp(par))})
+}
 
 # Reverse complement of the anticodons, in the order of anticodons as given in
 # Figure 1 of dos Reis & al.
