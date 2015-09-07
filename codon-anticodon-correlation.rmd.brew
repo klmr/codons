@@ -104,7 +104,7 @@ adaptation that accounts for wobble base pairing.
 #### Matching and mismatching codon–anticodon pools
 
 ```{r correlate}
-correlate_contrast = function (contrast, f, rcu, raa) {
+correlate_contrast = function (contrast, f, cu, aa) {
     codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
     anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
     contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
@@ -112,16 +112,14 @@ correlate_contrast = function (contrast, f, rcu, raa) {
     parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
         codon_do = contrast[1]
         anti_do = contrast[2]
-        contrast_data = inner_join(filter(rcu, DO == codon_do),
-                                   filter(raa, DO == anti_do),
-                                   by = 'Codon') %>% f()
+        f(filter(cu, DO == codon_do), filter(aa, DO == anti_aa))
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
 do_contrasts = function(contrasts, f, ...)
     unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
 
-cf = x -> cor(x$RCU, x$RAA, method = 'spearman')
+cf = cu ~ aa -> cu_$adaptation_tai(cu, aa, canonical_cds)
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
                                      rcu_long, raa)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
