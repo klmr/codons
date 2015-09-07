@@ -44,18 +44,15 @@ mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
 
 cu_ = import('codon_usage')
 mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
-cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
+raw_cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
 cu = Map(DO ~ Celltype -> {
-    cu %>%
+    raw_cu %>%
         mutate_(CU = bquote(CU * .(as.name(DO)) / nchar(Sequence))) %>%
         select(Gene, Codon, CU) %>%
         mutate(DO = DO, Celltype = Celltype)
 }, mrna_design$DO, mrna_design$Celltype) %>%
-    bind_rows() %>%
-    group_by(DO, Celltype, Codon) %>%
-    summarize(CU = sum(CU)) %>%
-    ungroup()
+    bind_rows()
 ```
 
 Calculate the anticodon abundance (AA), the tRNA equivalent of the CU, i.e.
@@ -112,23 +109,31 @@ correlate_contrast = function (contrast, f, cu, aa) {
     parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
         codon_do = contrast[1]
         anti_do = contrast[2]
-        f(filter(cu, DO == codon_do), filter(aa, DO == anti_aa))
+        expr = cu %>%
+            group_by(Gene) %>%
+            summarize_(Weight = lazyeval::interp(~first(DO),
+                                                 DO = as.name(codon_do)))
+        f(cu, filter(aa, DO == anti_do), expr$Weight)
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
 do_contrasts = function(contrasts, f, ...)
     unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
 
-cf = cu ~ aa -> cu_$adaptation_tai(cu, aa, canonical_cds)
+cf = cu ~ aa ~ expression -> {
+    all_tai = cu_$adaptation_tai(cu, aa, canonical_cds)
+    weighted.mean(all_tai, expression)
+}
+
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     rcu_long, raa)
+                                     raw_cu, aa)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
                                         correlate_contrast, cf,
-                                        rcu_long, raa)
+                                        raw_cu, aa)
 
-all_correlations = rbind(data.frame(Correlation = matching_correlations,
+all_correlations = rbind(data.frame(tAI = matching_correlations,
                                     Type = 'Matching'),
-                         data.frame(Correlation = mismatching_correlations,
+                         data.frame(tAI = mismatching_correlations,
                                     Type = 'Mismatching'))
 
 significance = wilcox.test(matching_correlations,
@@ -137,7 +142,7 @@ significance = wilcox.test(matching_correlations,
 
 p = format.pval(significance$p.value)
 
-ggplot(all_correlations, aes(factor(Type), Correlation)) +
+ggplot(all_correlations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
