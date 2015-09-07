@@ -63,10 +63,11 @@ the abundance of each anticodon isoacceptor quantified by tRNA gene expression.
 
 ```{r aa}
 aa = trna_sf_counts %>%
-    tidyr::gather(DO, Count, starts_with('do')) %>%
+    rename(Type = AA) %>%
+    tidyr::gather(DO, AA, starts_with('do')) %>%
     mutate(Codon = cu_$revcomp(Anticodon)) %>%
-    group_by(DO, AA, Codon) %>%
-    summarize(Count = sum(Count)) %>%
+    group_by(DO, Type, Codon) %>%
+    summarize(AA = sum(AA)) %>%
     ungroup() %>%
     inner_join(trna_design, by = 'DO')
 ```
