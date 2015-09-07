@@ -83,8 +83,8 @@ adaptation = function (rcu, raa, method = adaptation_no_wobble)
 #' Simple codon–anticodon adaptation, ignoring wobble base pairing.
 adaptation_no_wobble = function (rcu, raa)
     inner_join(rcu, raa, by = 'Codon') %>%
-    group_by(Gene) %>%
-    summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
+    summarize(Adaptation = cor(RCU, RAA, method = 'spearman')) %>%
+    .$Adaptation
 
 # Calculate outside function for speed — `adaptation` is called very frequently.
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
