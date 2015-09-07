@@ -1,4 +1,4 @@
-```{r echo=FALSE,message=FALSE}
+```{r echo=FALSE, message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
                cache.path = 'cache/codon-anticodon-<%= species %>-',
@@ -36,7 +36,7 @@ is divided by the sum of the codon usage of its amino acid.
 
 Calculate codon usage.
 
-```{r codon_usage}
+```{r codon-usage}
 norm = import('norm')
 mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
 mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
@@ -46,93 +46,43 @@ cu = import('codon_usage')
 mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
 codon_usage = inner_join(cu$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
-codon_usage = lapply(mrna_design$DO, lib -> {
+codon_usage = Map(DO ~ Celltype -> {
     codon_usage %>%
-        mutate_(CU = bquote(CU * .(as.name(lib)) / nchar(Sequence))) %>%
+        mutate_(CU = bquote(CU * .(as.name(DO)) / nchar(Sequence))) %>%
         select(Gene, Codon, CU) %>%
-        mutate(DO = lib)
-}) %>%
-    bind_rows()
-
-sample_rcu = codon_usage %>%
-    group_by(DO, Codon) %>%
-    summarize(CU = sum(CU, na.rm = TRUE)) %>%
-    ungroup() %>%
-    `class<-`(c('codon_usage$cu', class(.))) %>%
-    cu$rcu(DO) %>%
-    dcast(DO ~ Codon, value.var = 'RCU')
+        mutate(DO = DO, Celltype = Celltype)
+}, mrna_design$DO, mrna_design$Celltype) %>% bind_rows()
 ```
 
-Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
+Calculate the anticodon abundance (AA), the tRNA equivalent of the CU, i.e.
+the abundance of each anticodon isoacceptor quantified by tRNA gene expression.
 
-```{r verify-rcu}
-sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(cu$genetic_code, by = 'Codon') %>%
-    group_by(DO, AA) %>%
-    summarize(Sum = sum(Count)) %>%
-    ungroup() %T>% {
-        {setNames(.$Sum, .$AA)} %>%
-        print()
-    } %>%
-    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
-    .$Correct
-```
-
-Helper function for comparing RCU and RAA
-
-```{r revcomp}
-bios = import_package('Biostrings')
-revcomp = function (seq)
-    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
-```
-
-Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
-RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
-isotype.
-
-```{r raa}
+```{r aa}
 aa = trna_sf_counts %>%
     tidyr::gather(DO, Count, starts_with('do')) %>%
-    mutate(Codon = revcomp(Anticodon)) %>%
+    mutate(Codon = cu$revcomp(Anticodon)) %>%
     group_by(DO, AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
     ungroup() %>%
     inner_join(trna_design, by = 'DO')
-
-raa = aa %>%
-    group_by(DO, AA) %>%
-    mutate(RAA = Count / sum(Count)) %>%
-    ungroup()
 ```
 
-## Correlation of usage and abundance
+## Codon usage and anticodon abundance adaptation
 
-Correlate codon usage and anticodon abundance in samples of (a) matching, and
-(b) mismatching conditions. Compare the range of these correlations between (a)
-and (b) to test whether they are significantly different. This being the case
-would reject the hypothesis of no adaptation of the tRNA abundance to the
-transcriptome.
-
-## Prepare data
-
-```{r prepare_dfs}
-# FIXME: This is redundant: We first calculate RCU, `dcast` it, store the result
-# in `sample_rcu`, and then `melt` it here again. The `dcast` + `melt` must go.
-rcu_long = sample_rcu %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'RCU') %>%
-    inner_join(mrna_design, by = 'DO') %>%
-    select(DO, Celltype, Codon, RCU) %>%
-    tbl_df()
-```
+Calculate tRNA adaptation index weighted by gene expression in samples of (a)
+matching, and (b) mismatching conditions. Compare the range of these
+adaptations between (a) and (b) to test whether they are significantly
+different. This being the case would reject the hypothesis of no adaptation of
+the tRNA abundance to the transcriptome.
 
 Define the contrasts we are looking at.
 
 Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
-```{r define_contrasts}
-all_contrasts = expand.grid(Codon = unique(rcu_long$Celltype),
-                            Anti = unique(raa$Celltype),
+```{r define-contrasts}
+all_contrasts = expand.grid(Codon = unique(codon_usage$Celltype),
+                            Anti = unique(aa$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
