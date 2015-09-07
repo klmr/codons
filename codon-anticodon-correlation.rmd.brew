@@ -42,16 +42,20 @@ mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
 mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
                                        starts_with('do'))
 
-cu = import('codon_usage')
+cu_ = import('codon_usage')
 mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
-codon_usage = inner_join(cu$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
+cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
-codon_usage = Map(DO ~ Celltype -> {
-    codon_usage %>%
+cu = Map(DO ~ Celltype -> {
+    cu %>%
         mutate_(CU = bquote(CU * .(as.name(DO)) / nchar(Sequence))) %>%
         select(Gene, Codon, CU) %>%
         mutate(DO = DO, Celltype = Celltype)
-}, mrna_design$DO, mrna_design$Celltype) %>% bind_rows()
+}, mrna_design$DO, mrna_design$Celltype) %>%
+    bind_rows() %>%
+    group_by(DO, Celltype, Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    ungroup()
 ```
 
 Calculate the anticodon abundance (AA), the tRNA equivalent of the CU, i.e.
@@ -60,7 +64,7 @@ the abundance of each anticodon isoacceptor quantified by tRNA gene expression.
 ```{r aa}
 aa = trna_sf_counts %>%
     tidyr::gather(DO, Count, starts_with('do')) %>%
-    mutate(Codon = cu$revcomp(Anticodon)) %>%
+    mutate(Codon = cu_$revcomp(Anticodon)) %>%
     group_by(DO, AA, Codon) %>%
     summarize(Count = sum(Count)) %>%
     ungroup() %>%
@@ -237,7 +241,7 @@ rcu_for_condition = function (sample_ids, gene_set)
     summarize(CU = sum(CU, na.rm = TRUE)) %>%
     ungroup() %>%
     `class<-`(c('codon_usage$cu', class(.))) %>%
-    cu$rcu(DO) %>%
+    cu_$rcu(DO) %>%
     select(DO, Codon, RCU)
 
 top_n_de = 200
@@ -397,7 +401,7 @@ gene_sample_rcu = function (gene_set) {
         summarize(CU = sum(CU, na.rm = TRUE)) %>%
         ungroup() %>%
         `class<-`(c('codon_usage$cu', class(.))) %>%
-        cu$rcu(DO) %>%
+        cu_$rcu(DO) %>%
         select(DO, Codon, RCU)
 }
 
