@@ -7,7 +7,7 @@ io = modules::import('ebits/io')
 trna_annotation = cache %@% function (config)
     io$read_table(config$trna_annotation, header = FALSE) %>%
         select(Chr = 1, Num = 2, AA = 5, Anticodon = 6, Start = 3, Stop = 4) %>%
-        filter(grepl('(chr)?\\d+', Chr)) %>%
+        filter(grepl('^(chr)?\\d+$', Chr)) %>%
         filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
         transmute(Gene = paste(Chr, Num, sep = '.trna'), AA, Anticodon,
                   Length = abs(Stop - Start) + 1) %>%
@@ -24,23 +24,29 @@ trna_counts = cache %@% function (config) {
     # Filter out never expressed genes. For tRNA genes, we need to be sensitive
     # to spurious counts from the ChIP-seq data, using an adjusted lower bound.
     # To make this at all comparable across libraries, we use normalised counts.
-
-    norm = modules::import('norm')
-    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
-    norm_counts = norm$transform_counts(counts, . / size_factors$., starts_with('do'))
-    filter_unexpressed(norm_counts, trna_design(config))
+    filter(counts, Gene %in% filter_expressed(trna_design(config), counts))
 }
 
-filter_unexpressed = function (counts, design) {
+trna_sf_counts = cache %@% function (config) {
+    norm = modules::import('norm')
+    counts = trna_counts(config)
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+}
+
+filter_expressed = function (design, counts) {
+    norm = modules::import('norm')
     threshold = 10 # This value works well.
-    expressed = counts %>% tidyr$gather(DO, Count, starts_with('do')) %>%
+
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm_counts = norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+
+    norm_counts %>% tidyr$gather(DO, Count, starts_with('do')) %>%
         inner_join(design, by = 'DO') %>%
         group_by(Gene, Celltype) %>%
         summarize(Expressed = all(Count > threshold)) %>%
         summarize(Expressed = any(Expressed)) %>%
         filter(Expressed) %>% .$Gene
-
-    filter(counts, Gene %in% expressed)
 }
 
 mrna_annotation = cache %@% function (config)
@@ -116,7 +122,8 @@ canonical_cds = cache %@% function (config) {
         mutate(Length = base::nchar(Sequence)) %>%
         group_by(Gene) %>%
         arrange(desc(Length)) %>%
-        slice(1)
+        slice(1) %>%
+        ungroup()
 }
 
 go_genes = cache %@% function (config)

@@ -1,10 +1,10 @@
-```{r echo=FALSE}
+```{r echo=FALSE,message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
                cache.path = 'cache/codon-anticodon-<%= species %>-',
                dev = c('png', 'pdf'))
 
-config = modules::import('config_<%= species %>')
+config = import('./config_<%= species %>')
 ```
 
 ## Load data
@@ -17,172 +17,57 @@ First, we load the relevant data (gene expression counts, annotation and
 experimental design).
 
 ```{r}
-trna_counts = io$read_table(config$trna_counts, header = TRUE) %>%
-    tbl_df() %>% rename(Gene = X)
-mrna_counts = io$read_table(config$mrna_counts, header = TRUE) %>%
-    tbl_df()
-
-trna_annotation = io$read_table(config$trna_annotation, header = FALSE) %>%
-    select(Chr = 1, Num = 2, AA = 5, Anticodon = 6) %>%
-    filter(grepl('(chr)?\\d+', Chr)) %>%
-    filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
-    transmute(Gene = paste(Chr, Num, sep = '.'), AA, Anticodon) %>%
-    tbl_df()
-
-trna_counts = inner_join(trna_annotation, trna_counts, by = 'Gene')
-
-mrna_annotation = io$read_table(config$mrna_annotation, header = TRUE) %>%
-    tbl_df() %>%
-    filter(source == 'protein_coding') %>%
-    mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
-           Start = as.integer(base$grep(':(\\d+)', locus)),
-           End = as.integer(base$grep('\\.\\.(\\d+)', locus))) %>%
-    filter(grepl('^(chr)?(\\d+|X|Y)$', Chr)) %>%
-    select(Gene = ID, Name, Chr, Start, End, GO)
-
-mrna_counts = inner_join(mrna_annotation, mrna_counts, by = 'Gene')
-
-trna_design = io$read_table(config$trna_design) %>%
-    tbl_df() %>%
-    select(DO = 1, AB = 2, Celltype = 3) %>%
-    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
-
-trna_inputs = filter(trna_design, AB == 'Input')$DO
-trna_design = filter(trna_design, ! DO %in% trna_inputs)
-trna_counts = select(trna_counts, -one_of(trna_inputs))
-trna_design = select(trna_design, -AB)
-
-mrna_design = io$read_table(config$mrna_design) %>%
-    tbl_df() %>%
-    select(DO = 1, Celltype = 2) %>%
-    mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
-
-trna_design
-trna_counts
-mrna_design
-mrna_counts
-```
-
-## Filtering
-
-Filter out never expressed genes. For protein-coding genes this is
-straightforward, we retain all whose count is $>0$.
-
-```{r}
-zero_rows = rowSums(select(mrna_counts, starts_with('do'))) == 0
-table(zero_rows)
-(mrna_counts = mrna_counts[! zero_rows, ])
-```
-
-For tRNA genes, we need to be more sensitive to spurious counts, using an
-adjusted lower bound. To make this at all comparable across libraries, we use
-normalised counts.
-
-```{r}
-norm = modules::import('norm')
-
-trna_sf = trna_counts %>% select(starts_with('do')) %>% norm$size_factors()
-
-trna_counts_sf = norm$transform_counts(trna_counts, . / trna_sf$.,
-                                       starts_with('do'))
-
-filter_unexpressed = function (counts, design) {
-    threshold = 10 # This works well.
-    expressed = counts %>% tidyr::gather(DO, Count, starts_with('do')) %>%
-        inner_join(design, by = 'DO') %>%
-        group_by(Gene, Celltype) %>%
-        summarize(Expressed = all(Count > threshold)) %>%
-        summarize(Expressed = any(Expressed)) %>%
-        filter(Expressed) %>% .$Gene
-
-    filter(counts, Gene %in% expressed)
-}
-
-trna_counts_sf = filter_unexpressed(trna_counts_sf, trna_design)
+data = import('./data')
+(trna_sf_counts = data$trna_sf_counts(config))
+(mrna_counts = data$mrna_counts(config))
+(trna_design = data$trna_design(config))
+(mrna_design = data$mrna_design(config))
+canonical_cds = data$canonical_cds(config)
 ```
 
 ## Codon usage and anticodon abundance
 
-Calculate codon usage bias (CUB) and tRNA anticodon abundance. The CUB is the
-proportion each codon contributes to the amino acid it codes for. To calculate
-the CUB, we first calculate the codon usage (i.e. the count of each codon) per
-gene. These counts are multiplied with the gene’s normalised expression, and
-then summed over the transcriptome. Finally, each codon usage is divided by the
-sum of the codon usage of its amino acid.
-
-The first step is to retrieve the canonical coding sequence (CDS) of each gene.
-
-```{r cds}
-bios = modules::import_package('Biostrings')
-cds = bios$readDNAStringSet(config$cds)
-names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
-cds = data.frame(Gene = names(cds), Sequence = cds)
-
-# Filter CCDS, only preserve valid coding frames
-
-is_valid_cds = function (seq)
-    nchar(seq) %% 3 == 0 & grepl('^ATG', seq) & grepl('(TAG|TAA|TGA)$', seq)
-
-cds = cds %>% filter(is_valid_cds(Sequence))
-canonical_cds = cds %>%
-    group_by(Gene) %>%
-    arrange(desc(nchar(Sequence))) %>%
-    slice(1)
-```
+Calculate relative codon usage (RCU) and tRNA anticodon abundance. The RCU is
+the proportion each codon contributes to the amino acid it codes for. To
+calculate the RCU, we first calculate the codon usage (i.e. the count of each
+codon) per gene. These counts are multiplied with the gene’s normalised
+expression, and then summed over the transcriptome. Finally, each codon usage
+is divided by the sum of the codon usage of its amino acid.
 
 Calculate codon usage.
 
 ```{r codon_usage}
-gene_wise_raw_codon_usage = canonical_cds$Sequence %>%
-    bios$DNAStringSet() %>%
-    bios$trinucleotideFrequency(3) %>%
-    as.data.frame() %>%
-    {cbind(Gene = canonical_cds$Gene, .)}
-
+norm = import('norm')
 mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
 mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
                                        starts_with('do'))
 
-gene_wise_codon_usage = parallel::mclapply(mrna_design$DO, lib -> {
-    code = names(bios$GENETIC_CODE)
-    data = mrna_counts_sf %>% select_('Gene', lib) %>%
-        inner_join(gene_wise_raw_codon_usage, by = 'Gene') %>%
-        inner_join(canonical_cds, by = 'Gene')
-    cbind(Gene = data$Gene,
-          data %>% do({select(., one_of(code)) * .[[lib]] / nchar(.$Sequence)}))
-}, mc.cores = parallel::detectCores()) %>% setNames(mrna_design$DO)
+cu = import('codon_usage')
+mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
+codon_usage = inner_join(cu$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
-sample_codon_usage = lapply(gene_wise_codon_usage,
-                            lib -> colSums(select(lib, -Gene))) %>%
-    {do.call(rbind, .)} %>%
-    as.data.frame() %>%
-    add_rownames('DO')
+codon_usage = lapply(mrna_design$DO, lib -> {
+    codon_usage %>%
+        mutate_(CU = bquote(CU * .(as.name(lib)) / nchar(Sequence))) %>%
+        select(Gene, Codon, CU) %>%
+        mutate(DO = lib)
+}) %>%
+    bind_rows()
+
+sample_rcu = codon_usage %>%
+    group_by(DO, Codon) %>%
+    summarize(CU = sum(CU, na.rm = TRUE)) %>%
+    ungroup() %>%
+    `class<-`(c('codon_usage$cu', class(.))) %>%
+    cu$rcu(DO) %>%
+    dcast(DO ~ Codon, value.var = 'RCU')
 ```
 
-Make genetic code available as tidy data.
+Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
 
-```{r genetic_code}
-genetic_code = data.frame(AA = bios$GENETIC_CODE) %>% add_rownames('Codon')
-```
-
-Calculate codon usage bias.
-
-```{r cub}
-cub = sample_codon_usage %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
-    group_by(DO, AA) %>%
-    mutate(CUB = Count / sum(Count)) %>%
-    select(DO, Codon, CUB) %>%
-    dcast(DO ~ Codon, value.var = 'CUB') %>%
-    tbl_df()
-```
-
-Verify correctness: for each amino acid in each sample, the CUBs must sum to 1.
-
-```{r verify_cub}
-cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
+```{r verify-rcu}
+sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+    inner_join(cu$genetic_code, by = 'Codon') %>%
     group_by(DO, AA) %>%
     summarize(Sum = sum(Count)) %>%
     ungroup() %T>% {
@@ -193,42 +78,31 @@ cub %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
     .$Correct
 ```
 
-Calculate the anticodon abundance bias (AAB), the tRNA equivalent of the CUB,
-i.e. the proportional contribution of each anticodon isoacceptor to its isotype.
-
-```{r aab}
-aab = trna_counts_sf %>%
-    melt(id.vars = c('Gene', 'AA', 'Anticodon'),
-         variable.name = 'DO', value.name = 'Count') %>%
-    group_by(DO, AA, Anticodon) %>%
-    summarize(Count = sum(Count)) %>%
-    mutate(Prop = Count / sum(Count)) %>%
-    select(DO, Anticodon, Prop) %>%
-    dcast(DO ~ Anticodon, value.var = 'Prop') %>%
-    tbl_df()
-```
-
-Helper function for comparing CUB and AAB.
+Helper function for comparing RCU and RAA
 
 ```{r revcomp}
+bios = import_package('Biostrings')
 revcomp = function (seq)
     as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
 ```
 
-Verify correctness in the same way as for the CUB above.
+Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
+RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
+isotype.
 
-```{r verify_aab}
-aab %>% melt(id.vars = 'DO', variable.name = 'Anti', value.name = 'Count') %>%
-    mutate(Codon = revcomp(Anti)) %>%
-    inner_join(genetic_code, by = 'Codon') %>%
+```{r raa}
+aa = trna_sf_counts %>%
+    tidyr::gather(DO, Count, starts_with('do')) %>%
+    mutate(Codon = revcomp(Anticodon)) %>%
+    group_by(DO, AA, Codon) %>%
+    summarize(Count = sum(Count)) %>%
+    ungroup() %>%
+    inner_join(trna_design, by = 'DO')
+
+raa = aa %>%
     group_by(DO, AA) %>%
-    summarize(Sum = sum(Count)) %>%
-    ungroup() %T>% {
-        {setNames(.$Sum, .$AA)} %>%
-        print()
-    } %>%
-    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
-    .$Correct
+    mutate(RAA = Count / sum(Count)) %>%
+    ungroup()
 ```
 
 ## Correlation of usage and abundance
@@ -242,16 +116,12 @@ transcriptome.
 ## Prepare data
 
 ```{r prepare_dfs}
-cub_long = cub %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
+# FIXME: This is redundant: We first calculate RCU, `dcast` it, store the result
+# in `sample_rcu`, and then `melt` it here again. The `dcast` + `melt` must go.
+rcu_long = sample_rcu %>%
+    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'RCU') %>%
     inner_join(mrna_design, by = 'DO') %>%
-    select(DO, Celltype, Codon, Count) %>%
-    tbl_df()
-aab_long = aab %>%
-    melt(id.vars = 'DO', variable.name = 'Anticodon', value.name = 'Count') %>%
-    inner_join(trna_design, by = 'DO') %>%
-    mutate(Codon = revcomp(Anticodon)) %>%
-    select(DO, Celltype, Codon, Count) %>%
+    select(DO, Celltype, Codon, RCU) %>%
     tbl_df()
 ```
 
@@ -261,8 +131,8 @@ Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
 ```{r define_contrasts}
-all_contrasts = expand.grid(Codon = unique(cub_long$Celltype),
-                            Anti = unique(aab_long$Celltype),
+all_contrasts = expand.grid(Codon = unique(rcu_long$Celltype),
+                            Anti = unique(raa$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
@@ -277,14 +147,14 @@ As a sanity check, plot the codon–anticodon usage for all three conditions.
 ```{r}
 plot_ca_correlation = function (condition) {
     # For each point, calculate mean and min/max.
-    cu = cub_long %>%
+    cu = rcu_long %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
-        summarize(cu = mean(Count), cu_min = min(Count), cu_max = max(Count))
-    aa = aab_long %>%
+        summarize(cu = mean(RCU), cu_min = min(RCU), cu_max = max(RCU))
+    aa = raa %>%
         filter(Celltype == condition) %>%
         group_by(Codon) %>%
-        summarize(aa = mean(Count), aa_min = min(Count), aa_max = max(Count))
+        summarize(aa = mean(RAA), aa_min = min(RAA), aa_max = max(RAA))
 
     data = inner_join(cu, aa, by = 'Codon')
     rsq = summary(lm(aa ~ cu, data))$r.squared
@@ -311,7 +181,7 @@ filters out all codons without corresponding anticodon.
 #### Matching and mismatching codon–anticodon pools
 
 ```{r correlate}
-correlate_contrast = function (contrast, f, cub, aab) {
+correlate_contrast = function (contrast, f, rcu, raa) {
     codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
     anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
     contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
@@ -319,23 +189,21 @@ correlate_contrast = function (contrast, f, cub, aab) {
     parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
         codon_do = contrast[1]
         anti_do = contrast[2]
-        contrast_data = inner_join(filter(cub, DO == codon_do),
-                                   filter(aab, DO == anti_do),
-                                   by = 'Codon') %>%
-            select(Label = Codon, Codon = Count.x, Anti = Count.y)
-        f(contrast_data)
+        contrast_data = inner_join(filter(rcu, DO == codon_do),
+                                   filter(raa, DO == anti_do),
+                                   by = 'Codon') %>% f()
     }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
 }
 
 do_contrasts = function(contrasts, f, ...)
     unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
 
-cf = x -> cor(x$Codon, x$Anti, method = 'spearman')
+cf = x -> cor(x$RCU, x$RAA, method = 'spearman')
 matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     cub_long, aab_long)
+                                     rcu_long, raa)
 mismatching_correlations = do_contrasts(mismatching_contrasts,
                                         correlate_contrast, cf,
-                                        cub_long, aab_long)
+                                        rcu_long, raa)
 
 all_correlations = rbind(data.frame(Correlation = matching_correlations,
                                     Type = 'Matching'),
@@ -393,7 +261,7 @@ sapply(de_genes, nrow)
 
 Save the differentially expressed genes in a table
 
-```{r de-table}
+```{r de-table, echo=FALSE}
 write_de_result = contrast ~ dds -> {
     results = subset(as.data.frame(deseq$results(dds)), ! is.na(padj))
     io$write_table(results[order(results$padj), ],
@@ -411,30 +279,21 @@ each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
-```{r de_cub}
-cub_for_gene_set = function (gene_set, sample)
-    gene_wise_codon_usage[[sample]] %>%
-    filter(Gene %in% gene_set) %>%
-    select(-Gene) %>%
-    colSums() %>%
-    as.data.frame() %>%
-    add_rownames('Codon') %>%
-    inner_join(genetic_code, by = 'Codon') %>%
-    group_by(AA) %>%
-    mutate(CUB = . / sum(.)) %>%
+```{r de-rcu}
+rcu_for_condition = function (sample_ids, gene_set)
+    codon_usage %>%
+    filter(DO %in% sample_ids, Gene %in% gene_set) %>%
+    group_by(DO, Codon) %>%
+    summarize(CU = sum(CU, na.rm = TRUE)) %>%
     ungroup() %>%
-    select(Codon, CUB)
+    `class<-`(c('codon_usage$cu', class(.))) %>%
+    cu$rcu(DO) %>%
+    select(DO, Codon, RCU)
 
-cubs_for_condition = function (sample_ids, gene_set)
-    sapply(sample_ids, cub_for_gene_set, gene_set = gene_set,
-           simplify = FALSE) %>%
-        {base$reduce(a ~ b -> inner_join(a, b, by = 'Codon'),
-                     .[-1], .[[1]])} %>%
-        `colnames<-`(c('Codon', sample_ids))
+top_n_de = 200
 
-cubs_for_contrast = function (de_genes, contrast) {
+rcu_for_contrast = function (de_genes, contrast) {
     de_genes = add_rownames(de_genes, 'Gene')
-    top_n = 200
     up = list(filter(de_genes, log2FoldChange < 0),
               filter(de_genes, log2FoldChange > 0)) %>%
         setNames(contrast)
@@ -444,7 +303,7 @@ cubs_for_contrast = function (de_genes, contrast) {
             mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
             filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
             arrange(desc(abs(log2FoldChange))) %>%
-            head(top_n) %>%
+            head(top_n_de) %>%
             .$Gene
     }
 
@@ -453,29 +312,23 @@ cubs_for_contrast = function (de_genes, contrast) {
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
 
-    do.call(inner_join, c(unname(base$map(cubs_for_condition, sample_ids, up)),
-                          by = 'Codon'))
+    base$map(rcu_for_condition, sample_ids, up) %>% rbind_all()
 }
 
-de_cub = base$map(cubs_for_contrast, de_genes, contrasts)
+de_rcu = base$map(rcu_for_contrast, de_genes, contrasts)
 ```
 
-Finally, calculate the correlation between every sample’s DE gene CUB and the
+Finally, calculate the correlation between every sample’s DE gene RCU and the
 sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
 that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de_codon_correlation}
-de_cub_long = lapply(de_cub, dc -> dc %>%
-    melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
-    tbl_df())
-
 de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
 
 de_correlations = base$map(
-    contrast ~ cub -> do_contrasts(contrast, correlate_contrast, cf,
-                                   cub, aab_long),
-    de_contrasts, de_cub_long) %>%
+    contrast ~ rcu -> do_contrasts(contrast, correlate_contrast, cf,
+                                   rcu, raa), de_contrasts, de_rcu) %>%
     unlist()
 
 all_correlations = rbind(all_correlations,
@@ -514,18 +367,14 @@ go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
 cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
-go_cancer_cubs = cubs_for_condition(cancer_mrna_samples, go_terms$GO0000087)
+go_cancer_rcu = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
 
 healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
-go_healthy_cubs = cubs_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+go_healthy_rcu = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
 
-go_cub = inner_join(go_cancer_cubs, go_healthy_cubs, by = 'Codon')
-go_cub_long = go_cub %>%
-    melt(id.vars = 'Codon', variable.name = 'DO', value.name = 'Count') %>%
-    tbl_df()
-
+go_rcu = rbind(go_cancer_rcu, go_healthy_rcu)
 go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     go_cub_long, aab_long)
+                               go_rcu, raa_long)
 
 all_correlations = rbind(all_correlations,
                          data.frame(Correlation = go_correlations, Type = 'GO'))
@@ -550,6 +399,92 @@ ggplot(all_correlations, aes(Type, Correlation)) +
 Testing for significant difference between the distribution of matching codon
 supply and demand, and between the codon supply and demand just for gene sets
 from condition-specific GO terms yields $p(\text{observation | GO = Matching})
-= `r go_p`$, where $H_1$: “specific GO term gene set CUB correlates *better*
-with matching AAB than whole-transcriptome codon usage”. For the inverted
-hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.
+= `r go_p`$, where $H_1$: “specific GO term gene set RCU correlates *better*
+with matching RAA than whole-transcriptome codon usage”. For the inverted
+hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.<!-- ` -->
+
+## Account for sample size
+
+The gene sets used in the four comparisons have different size, which implies
+different magnitude of sampling bias. This in turn influences adaptation. To
+account for this, perform simulations for each of the different sizes used. This
+allows us to assess whether a given gene set’s adaptation is explained by its
+gene set size.
+
+“Matching” and “mismatching” reflect the whole transcriptome and have the same
+gene set size. “DE” uses sets of size `r top_n_de`. The GO term sets have sizes
+`r paste(sapply(go_terms, length), collapse = ' and ')`, of which we’ll take the
+mean to simulate gene sets.
+
+For efficiency’s sake, we’re working with gene indices rather than genes.
+
+```{r sample-gene-sets}
+transcriptome_size = length(unique(codon_usage$Gene))
+simulate_gene_set = function (size)
+    sample.int(transcriptome_size, size)
+
+n_simulations = 100
+go_size = mean(sapply(go_terms, length))
+
+transcriptome_samples = replicate(n_simulations, simulate_gene_set(transcriptome_size))
+de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
+go_samples = replicate(n_simulations, simulate_gene_set(go_size))
+```
+
+Calculate RCU for all samples in all libraries.
+
+```{r rcu-simulations}
+stopifnot(length(unique(codon_usage$Codon)) == 61)
+
+get_gene_indices = function (i)
+    (seq_len(61) - 1) * transcriptome_size + i
+
+gene_sample_rcu = function (gene_set) {
+    gene_indices = unlist(lapply(gene_set, get_gene_indices))
+    codon_usage %>% group_by(DO) %>%
+        slice(gene_indices) %>%
+        group_by(DO, Codon) %>%
+        summarize(CU = sum(CU, na.rm = TRUE)) %>%
+        ungroup() %>%
+        `class<-`(c('codon_usage$cu', class(.))) %>%
+        cu$rcu(DO) %>%
+        select(DO, Codon, RCU)
+}
+
+gene_sample_adaptation = function (contrasts, gene_set) {
+    rcu = gene_sample_rcu(gene_set)
+    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa_long)
+}
+
+all_sample_adaptations = function (contrasts, samples) {
+    # samples is a matrix genes x sample_ids
+    apply(samples, 2, gene_sample_adaptation, contrasts = contrasts) %>%
+        as.numeric()
+}
+
+matching_sample_adaptation = all_sample_adaptations(matching_contrasts,
+                                                    transcriptome_samples)
+mismatching_sample_adaptation = all_sample_adaptations(mismatching_contrasts,
+                                                       transcriptome_samples)
+# DE samples use matching contrasts as well; this works since we’re just
+# interested in sample size, not actual DE gene sets.
+de_sample_adaptation = all_sample_adaptations(matching_contrasts, de_samples)
+go_sample_adaptation = all_sample_adaptations(matching_contrasts, go_samples)
+
+all_sample_adaptation = list(Matching = matching_sample_adaptation,
+                             Mismatching = mismatching_sample_adaptation,
+                             DE = de_sample_adaptation,
+                             GO = go_sample_adaptation) %>%
+    {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
+    bind_rows()
+
+ggplot(all_correlations, aes(factor(Type), Correlation)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    stat_summary(data = all_sample_adaptation, aes(factor(Type), Correlation),
+                 fun.data = median_hilow,
+                 color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
+    scale_x_discrete(name = '') +
+    ggtitle('Codon–anticodon correlations between different conditions')
+```

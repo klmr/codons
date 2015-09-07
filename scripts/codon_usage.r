@@ -7,7 +7,7 @@
 
 .bios = modules::import_package('Biostrings')
 modules::import_package('dplyr', attach = TRUE)
-modules::import_package('reshape2', attach = TRUE)
+tidyr = modules::import_package('tidyr')
 
 #' The genetic code
 genetic_code = data.frame(AA = .bios$GENETIC_CODE) %>%
@@ -37,8 +37,8 @@ cu.data.frame = function (genes)
 cu.DNAStringSet = function (genes)
     .bios$trinucleotideFrequency(genes, 3) %>%
     as.data.frame() %>%
-    {cbind(Gene = names(genes), .)} %>%
-    melt(id.vars = 'Gene', variable.name = 'Codon', value.name = 'CU') %>%
+    mutate(Gene = names(genes)) %>%
+    tidyr$gather(Codon, CU, -Gene) %>%
     mutate(Codon = as.character(Codon)) %>%
     filter(! Codon %in% stop_codons) %>%
     tbl_df() %>%
@@ -50,17 +50,21 @@ cu.DNAStringSet = function (genes)
 #' @return Tidy table of per-gene relative codon usage.
 #' @details The accepted input corresponds to either the output of
 #' \code{\link{cu}}, or any input that function accepts.
-rcu = function (x) UseMethod('rcu')
+rcu = function (x, column = Gene)
+    rcu_(x, deparse(substitute(column)))
 
-`rcu.codon_usage$cu` = function (x)
+rcu_ = function (x, column = 'Gene') UseMethod('rcu_')
+
+`rcu_.codon_usage$cu` = function (x, column = 'Gene')
     inner_join(x, genetic_code, by = 'Codon') %>%
-    group_by(Gene, AA) %>%
+    group_by_(.dots = c(column, 'AA')) %>%
     mutate(RCU = CU / sum(CU)) %>%
+    mutate(RCU = ifelse(is.nan(RCU), 0, RCU)) %>%
     ungroup() %>%
     `class<-`(c('codon_usage$rcu', class(.)))
 
-rcu.default = function (x)
-    rcu(cu(x))
+rcu_.default = function (x, column = 'Gene')
+    rcu_(cu(x), column)
 
 #' Calculate adaptation between codons and tRNA
 #'
@@ -79,11 +83,18 @@ adaptation = function (rcu, raa, method = adaptation_no_wobble)
 #' Simple codon–anticodon adaptation, ignoring wobble base pairing.
 adaptation_no_wobble = function (rcu, raa)
     inner_join(rcu, raa, by = 'Codon') %>%
+    group_by(Gene) %>%
     summarize(Adaptation = cor(RCU, RAA, method = 'spearman'))
 
-make_adaptation_tai = function (...) {
-    # TODO: Implement
-    function (rcu, raa) {}
+# Calculate outside function for speed — `adaptation` is called very frequently.
+coding_codons = setdiff(genetic_code$Codon, stop_codons)
+tai = import('tai')
+
+adaptation_tai = function (cu, aa, cds, s = tai$naive_s) {
+    lengths = setNames(cds$Length, cds$Gene)[unique(cu$Gene)]
+    cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
+    aa = setNames(aa$AA, aa$Codon)
+    tai$tai(cu, tai$w(aa, s), lengths)
 }
 
 #' Normalize codon usage

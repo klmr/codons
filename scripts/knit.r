@@ -128,10 +128,11 @@ melt = function (...) {
     result[, varnames] = as.character(result[, varnames])
     result
 }
-assign('melt', melt, globalenv())
 
 # Load standard helpers
 
-local({base = import('ebits/base')}, globalenv())
-local({io = import('ebits/io')}, globalenv())
-local({fs = import('fs')}, globalenv())
+base = import('ebits/base')
+# Attach operators to parent environment.
+attach(parent.env(environment()), name = 'operators:base', warn.conflicts = FALSE)
+io = import('ebits/io')
+fs = import('fs')
