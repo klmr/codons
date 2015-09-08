@@ -114,6 +114,17 @@ expand_test_sets = function (contrasts) {
     unname(bind_cols(lapply(contrasts, expand_contrast)))
 }
 
+replicate_test_set = function (cu, aa, mrna_lib, trna_lib, genes) {
+    cu = filter(cu, Gene %in% genes)
+    aa = filter(aa, DO == trna_lib)
+    weights = cu %>%
+        group_by(Gene) %>%
+        summarize_(W = lazyeval::interp(~first(DO),
+                                        DO = as.name(mrna_lib))) %>%
+        {setNames(.$W, .$Gene)}
+    list(cu = cu, aa = aa, weights = weights)
+}
+
 # Calculate adaptations for a list of tests sets, given an adaptation index.
 adaptations = function (test_sets, index)
     parallel::mclapply(test_sets, index, mc.cores = parallel::detectCores()) %>%
@@ -121,17 +132,9 @@ adaptations = function (test_sets, index)
 
 # Generate an adaptation test set based on a given contrast, using all genes.
 complete_test_sets = function (cu, aa, contrasts) {
-    replicate_test_set = function (mrna_lib, trna_lib) {
-        weights = cu %>%
-            group_by(Gene) %>%
-            summarize_(W = lazyeval::interp(~first(DO),
-                                            DO = as.name(mrna_lib))) %>%
-            {setNames(.$W, .$Gene)}
-        list(cu = cu, aa = filter(aa, DO == trna_lib), weights = weights)
-    }
-
+    all_genes = unique(cu$Gene)
     test_set_ids = expand_test_sets(contrasts)
-    lapply(test_set_ids, x -> replicate_test_set(x[1], x[2]))
+    lapply(test_set_ids, x -> replicate_test_set(cu, aa, x[1], x[2], all_genes))
 }
 
 matching_test_sets = function (cu, aa)
@@ -251,24 +254,13 @@ set_b_for_contrast = function (de_genes)
     gene_set_for_contrast(de_genes, `>`)
 
 de_test_sets = function (cu, aa, contrast, genes) {
-    replicate_test_set = function (mrna_lib, trna_lib, genes) {
-        cu = filter(cu, Gene %in% genes)
-        aa = filter(aa, DO == trna_lib)
-        weights = cu %>%
-            group_by(Gene) %>%
-            summarize_(W = lazyeval::interp(~first(DO),
-                                            DO = as.name(mrna_lib))) %>%
-            {setNames(.$W, .$Gene)}
-        list(cu = cu, aa = aa, weights = weights)
-    }
-
     a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
     b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
 
     lapply(list(a, b), cond -> {
         # mRNA and tRNA come from same celltype
-        contrasts = expand_contrast(c(cond$celltype, cond$celltype))
-        lapply(contrasts, x -> replicate_test_set(x[1], x[2], cond$genes))
+        contrasts = expand_contrast(rep(cond$celltype, 2))
+        lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], cond$genes))
     }) %>% unlist(recursive = FALSE)
 }
 
