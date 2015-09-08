@@ -100,36 +100,57 @@ adaptation that accounts for wobble base pairing.
 
 #### Matching and mismatching codon–anticodon pools
 
-```{r correlate}
-correlate_contrast = function (contrast, f, cu, aa) {
-    codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
-    anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
-    contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
+```{r gene-set-adaptation}
+# Get all pairwise replicate library identifiers for a given contrast.
+expand_contrast = function (contrast) {
+    mrna_samples = filter(mrna_design, Celltype == contrast[1])$DO
+    trna_samples = filter(trna_design, Celltype == contrast[2])$DO
+    expand.grid(mrna_samples, trna_samples) %>% t() %>% as.data.frame()
+}
 
-    parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
-        codon_do = contrast[1]
-        anti_do = contrast[2]
-        expr = cu %>%
+# Get all pairwise replicate libraries for a set of contrasts.
+expand_test_sets = function (contrasts) {
+    contrasts = as.data.frame(t(contrasts))
+    unname(bind_cols(lapply(contrasts, expand_contrast)))
+}
+
+# Calculate adaptations for a list of tests sets, given an adaptation index.
+adaptations = function (test_sets, index)
+    parallel::mclapply(test_sets, index, mc.cores = parallel::detectCores()) %>%
+    unlist() %>% unname()
+
+# Generate an adaptation test set based on a given contrast, using all genes.
+complete_test_sets = function (cu, aa, contrasts) {
+    replicate_test_set = function (mrna_lib, trna_lib) {
+        weights = cu %>%
             group_by(Gene) %>%
-            summarize_(Weight = lazyeval::interp(~first(DO),
-                                                 DO = as.name(codon_do)))
-        f(cu, filter(aa, DO == anti_do), expr$Weight)
-    }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
+            summarize_(W = lazyeval::interp(~first(DO),
+                                            DO = as.name(mrna_lib))) %>%
+            {setNames(.$W, .$Gene)}
+        list(cu = cu, aa = filter(aa, DO == trna_lib), weights = weights)
+    }
+
+    test_set_ids = expand_test_sets(contrasts)
+    lapply(test_set_ids, x -> replicate_test_set(x[1], x[2]))
 }
 
-do_contrasts = function(contrasts, f, ...)
-    unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
+matching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, matching_contrasts)
 
-cf = cu ~ aa ~ expression -> {
-    all_tai = cu_$adaptation_tai(cu, aa, canonical_cds)
-    weighted.mean(all_tai, expression)
+mismatching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, mismatching_contrasts)
+
+all_test_set_adaptations = function (test_sets)
+    unlist(lapply(test_sets, test_set_adaptation))
+
+# Calculate tAI on a single test set, given an adaptation index function.
+tai = function (test_set) {
+    all_tai = cu_$adaptation_tai(test_set$cu, test_set$aa, canonical_cds)
+    weighted.mean(all_tai, test_set$weights[names(all_tai)])
 }
 
-matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     raw_cu, aa)
-mismatching_correlations = do_contrasts(mismatching_contrasts,
-                                        correlate_contrast, cf,
-                                        raw_cu, aa)
+matching_correlations = adaptations(matching_test_sets(raw_cu, aa), tai)
+mismatching_correlations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(data.frame(tAI = matching_correlations,
                                     Type = 'Matching'),
