@@ -100,36 +100,57 @@ adaptation that accounts for wobble base pairing.
 
 #### Matching and mismatching codon–anticodon pools
 
-```{r correlate}
-correlate_contrast = function (contrast, f, cu, aa) {
-    codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
-    anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
-    contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
-
-    parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
-        codon_do = contrast[1]
-        anti_do = contrast[2]
-        expr = cu %>%
-            group_by(Gene) %>%
-            summarize_(Weight = lazyeval::interp(~first(DO),
-                                                 DO = as.name(codon_do)))
-        f(cu, filter(aa, DO == anti_do), expr$Weight)
-    }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
+```{r gene-set-adaptation}
+# Get all pairwise replicate library identifiers for a given contrast.
+expand_contrast = function (contrast) {
+    mrna_samples = filter(mrna_design, Celltype == contrast[1])$DO
+    trna_samples = filter(trna_design, Celltype == contrast[2])$DO
+    expand.grid(mrna_samples, trna_samples) %>% t() %>% as.data.frame()
 }
 
-do_contrasts = function(contrasts, f, ...)
-    unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
-
-cf = cu ~ aa ~ expression -> {
-    all_tai = cu_$adaptation_tai(cu, aa, canonical_cds)
-    weighted.mean(all_tai, expression)
+# Get all pairwise replicate libraries for a set of contrasts.
+expand_test_sets = function (contrasts) {
+    contrasts = as.data.frame(t(contrasts))
+    unname(bind_cols(lapply(contrasts, expand_contrast)))
 }
 
-matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     raw_cu, aa)
-mismatching_correlations = do_contrasts(mismatching_contrasts,
-                                        correlate_contrast, cf,
-                                        raw_cu, aa)
+replicate_test_set = function (cu, aa, mrna_lib, trna_lib, genes) {
+    cu = filter(cu, Gene %in% genes)
+    aa = filter(aa, DO == trna_lib)
+    weights = cu %>%
+        group_by(Gene) %>%
+        summarize_(W = lazyeval::interp(~first(DO),
+                                        DO = as.name(mrna_lib))) %>%
+        {setNames(.$W, .$Gene)}
+    list(cu = cu, aa = aa, weights = weights)
+}
+
+# Calculate adaptations for a list of tests sets, given an adaptation index.
+adaptations = function (test_sets, index)
+    parallel::mclapply(test_sets, index, mc.cores = parallel::detectCores()) %>%
+    unlist() %>% unname()
+
+# Generate an adaptation test set based on a given contrast, using all genes.
+complete_test_sets = function (cu, aa, contrasts) {
+    all_genes = unique(cu$Gene)
+    test_set_ids = expand_test_sets(contrasts)
+    lapply(test_set_ids, x -> replicate_test_set(cu, aa, x[1], x[2], all_genes))
+}
+
+matching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, matching_contrasts)
+
+mismatching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, mismatching_contrasts)
+
+# Calculate tAI on a single test set, given an adaptation index function.
+tai = function (test_set) {
+    all_tai = cu_$adaptation_tai(test_set$cu, test_set$aa, canonical_cds)
+    weighted.mean(all_tai, test_set$weights[names(all_tai)])
+}
+
+matching_correlations = adaptations(matching_test_sets(raw_cu, aa), tai)
+mismatching_correlations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(data.frame(tAI = matching_correlations,
                                     Type = 'Matching'),
@@ -177,11 +198,12 @@ dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
 # Ensure Liver-Adult is condition A in the contrast
 dds_col_data$Celltype = factor(dds_col_data$Celltype)
 dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
-contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
-dds = lapply(contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
+de_contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
+dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
 threshold = 0.001
 de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
-                                     ! is.na(padj) & padj < threshold))
+                                     ! is.na(padj) & padj < threshold) %>%
+                            add_rownames('Gene'))
 sapply(de_genes, nrow)
 ```
 
@@ -196,7 +218,7 @@ write_de_result = contrast ~ dds -> {
 }
 
 mapply(write_de_result,
-       base$map(x -> paste(tolower(x), collapse = '-'), contrasts),
+       base$map(x -> paste(tolower(x), collapse = '-'), de_contrasts),
        dds)
 ```
 
@@ -205,55 +227,50 @@ each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
-```{r de-rcu}
-cu_for_condition = function (sample_ids, gene_set)
-    raw_cu %>%
-    filter(Gene %in% gene_set) %>%
-    select(Gene, Codon, CU, one_of(sample_ids))
-
+```{r de-cu}
 top_n_de = 200
 
-cu_for_contrast = function (de_genes, contrast) {
-    de_genes = add_rownames(de_genes, 'Gene')
-    up = list(filter(de_genes, log2FoldChange < 0),
-              filter(de_genes, log2FoldChange > 0)) %>%
-        setNames(contrast)
+gene_set_for_contrast = function (de_genes, cmp)
+    filter(de_genes, cmp(log2FoldChange, 0)) %>%
+    inner_join(canonical_cds, by = 'Gene') %>%
+    mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
+    filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
+    arrange(desc(abs(log2FoldChange))) %>%
+    head(top_n_de) %>%
+    .$Gene
 
-    get_top_n = function (x) {
-        inner_join(x, canonical_cds, by = 'Gene') %>%
-            mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
-            filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
-            arrange(desc(abs(log2FoldChange))) %>%
-            head(top_n_de) %>%
-            .$Gene
-    }
+set_a_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `<`)
 
-    up = base$map(get_top_n, up)
+set_b_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `>`)
 
-    sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
-                        simplify = FALSE)
+de_test_sets = function (cu, aa, contrast, genes) {
+    a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
+    b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
 
-    base$map(cu_for_condition, sample_ids, up) %>% rbind_all()
+    lapply(list(a, b), cond -> {
+        # mRNA and tRNA come from same celltype
+        contrasts = expand_contrast(rep(cond$celltype, 2))
+        lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], cond$genes))
+    }) %>% unlist(recursive = FALSE)
 }
 
-de_raw_cu = base$map(cu_for_contrast, de_genes, contrasts)
+all_de_test_sets = function (cu, aa)
+    Map(c ~ g -> de_test_sets(cu, aa, c, g), de_contrasts, de_genes) %>%
+    unlist(recursive  = FALSE)
 ```
 
-Finally, calculate the correlation between every sample’s DE gene RCU and the
+Finally, calculate the adaptation between every sample’s DE gene RCU and the
 sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
 that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
-```{r de_codon_correlation}
-de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
-
-de_correlations = base$map(
-        contrast ~ cu -> do_contrasts(contrast, correlate_contrast, cf, cu, aa),
-        de_contrasts, de_raw_cu) %>%
-    unlist()
+```{r de-codon-adaptation}
+de_correlations = adaptations(all_de_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = de_correlations, Type = 'DE'))
+                         data.frame(tAI = de_correlations, Type = 'DE'))
 all_correlations$Type = factor(all_correlations$Type,
                                c('Matching', 'Mismatching', 'DE'))
 
@@ -263,7 +280,7 @@ de_significance = wilcox.test(matching_correlations,
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_correlations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -280,25 +297,32 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go_associations, fig.width=5}
+```{r go-associations, fig.width=5}
 go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
 go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
-cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
-go_cancer_rcu = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
+go_test_sets = function (cu, aa, condition, genes) {
+    # mRNA and tRNA come from same celltype
+    contrasts = expand_contrast(rep(condition, 2))
+    lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], genes))
+}
 
-healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
-go_healthy_rcu = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+all_go_test_sets = function (cu, aa) {
+    healthy = go_test_sets(cu, aa, 'Liver-Adult', go_terms$GO0007389)
+    cancer_conditions = setdiff(unique(mrna_design$Celltype), 'Liver-Adult')
+    cancer = lapply(cancer_conditions,
+                    x -> go_test_sets(cu, aa, x, go_terms$GO0000087)) %>%
+        unlist(recursive = FALSE)
+    c(healthy, cancer)
+}
 
-go_rcu = rbind(go_cancer_rcu, go_healthy_rcu)
-go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                               go_rcu, raa_long)
+go_correlations = adaptations(all_go_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = go_correlations, Type = 'GO'))
+                         data.frame(tAI = go_correlations, Type = 'GO'))
 
 go_significance = wilcox.test(matching_correlations,
                               go_correlations, conf.int = TRUE,
@@ -309,12 +333,12 @@ go_inverse_test = wilcox.test(matching_correlations,
 
 go_p = format.pval(go_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_correlations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = '') +
-    scale_y_continuous(limits = c(0.75, 0.88))
+    scale_x_discrete(name = 'Sample types compared') +
+    ggtitle('Codon–anticodon correlations between different conditions')
 ```
 
 Testing for significant difference between the distribution of matching codon
