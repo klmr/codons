@@ -202,7 +202,8 @@ de_contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
 dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
 threshold = 0.001
 de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
-                                     ! is.na(padj) & padj < threshold))
+                                     ! is.na(padj) & padj < threshold) %>%
+                            add_rownames('Gene'))
 sapply(de_genes, nrow)
 ```
 
