@@ -297,25 +297,32 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go_associations, fig.width=5}
+```{r go-associations, fig.width=5}
 go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
 go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
-cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
-go_cancer_rcu = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
+go_test_sets = function (cu, aa, condition, genes) {
+    # mRNA and tRNA come from same celltype
+    contrasts = expand_contrast(rep(condition, 2))
+    lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], genes))
+}
 
-healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
-go_healthy_rcu = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+all_go_test_sets = function (cu, aa) {
+    healthy = go_test_sets(cu, aa, 'Liver-Adult', go_terms$GO0007389)
+    cancer_conditions = setdiff(unique(mrna_design$Celltype), 'Liver-Adult')
+    cancer = lapply(cancer_conditions,
+                    x -> go_test_sets(cu, aa, x, go_terms$GO0000087)) %>%
+        unlist(recursive = FALSE)
+    c(healthy, cancer)
+}
 
-go_rcu = rbind(go_cancer_rcu, go_healthy_rcu)
-go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                               go_rcu, raa_long)
+go_correlations = adaptations(all_go_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = go_correlations, Type = 'GO'))
+                         data.frame(tAI = go_correlations, Type = 'GO'))
 
 go_significance = wilcox.test(matching_correlations,
                               go_correlations, conf.int = TRUE,
@@ -326,12 +333,12 @@ go_inverse_test = wilcox.test(matching_correlations,
 
 go_p = format.pval(go_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_correlations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = '') +
-    scale_y_continuous(limits = c(0.75, 0.88))
+    scale_x_discrete(name = 'Sample types compared') +
+    ggtitle('Codon–anticodon correlations between different conditions')
 ```
 
 Testing for significant difference between the distribution of matching codon
