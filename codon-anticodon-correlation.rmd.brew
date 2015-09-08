@@ -206,19 +206,14 @@ usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
 ```{r de-rcu}
-rcu_for_condition = function (sample_ids, gene_set)
-    codon_usage %>%
-    filter(DO %in% sample_ids, Gene %in% gene_set) %>%
-    group_by(DO, Codon) %>%
-    summarize(CU = sum(CU, na.rm = TRUE)) %>%
-    ungroup() %>%
-    `class<-`(c('codon_usage$cu', class(.))) %>%
-    cu_$rcu(DO) %>%
-    select(DO, Codon, RCU)
+cu_for_condition = function (sample_ids, gene_set)
+    raw_cu %>%
+    filter(Gene %in% gene_set) %>%
+    select(Gene, Codon, CU, one_of(sample_ids))
 
 top_n_de = 200
 
-rcu_for_contrast = function (de_genes, contrast) {
+cu_for_contrast = function (de_genes, contrast) {
     de_genes = add_rownames(de_genes, 'Gene')
     up = list(filter(de_genes, log2FoldChange < 0),
               filter(de_genes, log2FoldChange > 0)) %>%
@@ -238,10 +233,10 @@ rcu_for_contrast = function (de_genes, contrast) {
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
 
-    base$map(rcu_for_condition, sample_ids, up) %>% rbind_all()
+    base$map(cu_for_condition, sample_ids, up) %>% rbind_all()
 }
 
-de_rcu = base$map(rcu_for_contrast, de_genes, contrasts)
+de_raw_cu = base$map(cu_for_contrast, de_genes, contrasts)
 ```
 
 Finally, calculate the correlation between every sample’s DE gene RCU and the
@@ -253,8 +248,8 @@ correlations.
 de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
 
 de_correlations = base$map(
-    contrast ~ rcu -> do_contrasts(contrast, correlate_contrast, cf,
-                                   rcu, raa), de_contrasts, de_rcu) %>%
+        contrast ~ cu -> do_contrasts(contrast, correlate_contrast, cf, cu, aa),
+        de_contrasts, de_raw_cu) %>%
     unlist()
 
 all_correlations = rbind(all_correlations,
