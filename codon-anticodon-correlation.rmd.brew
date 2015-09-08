@@ -356,78 +356,55 @@ account for this, perform simulations for each of the different sizes used. This
 allows us to assess whether a given gene set’s adaptation is explained by its
 gene set size.
 
-“Matching” and “mismatching” reflect the whole transcriptome and have the same
-gene set size. “DE” uses sets of size `r top_n_de`. The GO term sets have sizes
+“DE” uses sets of size `r top_n_de`. The GO term sets have sizes
 `r paste(sapply(go_terms, length), collapse = ' and ')`, of which we’ll take the
 mean to simulate gene sets.
 
-For efficiency’s sake, we’re working with gene indices rather than genes.
-
 ```{r sample-gene-sets}
-transcriptome_size = length(unique(codon_usage$Gene))
+transcriptome = unique(raw_cu$Gene)
+
 simulate_gene_set = function (size)
-    sample.int(transcriptome_size, size)
+    sample(transcriptome, size)
 
 n_simulations = 100
 go_size = mean(sapply(go_terms, length))
 
-transcriptome_samples = replicate(n_simulations, simulate_gene_set(transcriptome_size))
 de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
 go_samples = replicate(n_simulations, simulate_gene_set(go_size))
 ```
 
-Calculate RCU for all samples in all libraries.
+Calculate tAI for all samples in all libraries.
 
 ```{r rcu-simulations}
-stopifnot(length(unique(codon_usage$Codon)) == 61)
+sample_test_sets = go_test_sets
 
-get_gene_indices = function (i)
-    (seq_len(61) - 1) * transcriptome_size + i
-
-gene_sample_rcu = function (gene_set) {
-    gene_indices = unlist(lapply(gene_set, get_gene_indices))
-    codon_usage %>% group_by(DO) %>%
-        slice(gene_indices) %>%
-        group_by(DO, Codon) %>%
-        summarize(CU = sum(CU, na.rm = TRUE)) %>%
-        ungroup() %>%
-        `class<-`(c('codon_usage$cu', class(.))) %>%
-        cu_$rcu(DO) %>%
-        select(DO, Codon, RCU)
+all_sample_test_sets = function (cu, aa, samples) {
+    conditions = unique(mrna_design$Celltype)
+    single_sample_test_sets = function (genes)
+        lapply(conditions, x -> sample_test_sets(cu, aa, x, genes)) %>%
+            unlist(recursive = FALSE)
+    lapply(as.data.frame(samples), single_sample_test_sets) %>%
+        unlist(recursive = FALSE)
 }
 
-gene_sample_adaptation = function (contrasts, gene_set) {
-    rcu = gene_sample_rcu(gene_set)
-    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa_long)
-}
-
-all_sample_adaptations = function (contrasts, samples) {
-    # samples is a matrix genes x sample_ids
-    apply(samples, 2, gene_sample_adaptation, contrasts = contrasts) %>%
-        as.numeric()
-}
-
-matching_sample_adaptation = all_sample_adaptations(matching_contrasts,
-                                                    transcriptome_samples)
-mismatching_sample_adaptation = all_sample_adaptations(mismatching_contrasts,
-                                                       transcriptome_samples)
 # DE samples use matching contrasts as well; this works since we’re just
 # interested in sample size, not actual DE gene sets.
-de_sample_adaptation = all_sample_adaptations(matching_contrasts, de_samples)
-go_sample_adaptation = all_sample_adaptations(matching_contrasts, go_samples)
 
-all_sample_adaptation = list(Matching = matching_sample_adaptation,
-                             Mismatching = mismatching_sample_adaptation,
-                             DE = de_sample_adaptation,
-                             GO = go_sample_adaptation) %>%
-    {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
+de_sample_adaptations =
+    adaptations(all_sample_test_sets(raw_cu, aa, de_samples), tai)
+go_sample_adaptations =
+    adaptations(all_sample_test_sets(raw_cu, aa, go_samples), tai)
+
+all_sample_adaptation = list(DE = de_sample_adaptations,
+                             GO = go_sample_adaptations) %>%
+    {base$map(x ~ n -> data.frame(tAI = x, Type = n), ., names(.))} %>%
     bind_rows()
 
-ggplot(all_adaptations, aes(factor(Type), Correlation)) +
+ggplot(all_adaptations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    stat_summary(data = all_sample_adaptation, aes(factor(Type), Correlation),
+    stat_summary(data = all_sample_adaptation, aes(factor(Type), tAI),
                  fun.data = median_hilow,
                  color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
     scale_x_discrete(name = '') +
