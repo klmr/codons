@@ -235,47 +235,58 @@ cu_for_condition = function (sample_ids, gene_set)
 
 top_n_de = 200
 
-cu_for_contrast = function (de_genes, contrast) {
-    de_genes = add_rownames(de_genes, 'Gene')
-    up = list(filter(de_genes, log2FoldChange < 0),
-              filter(de_genes, log2FoldChange > 0)) %>%
-        setNames(contrast)
+gene_set_for_contrast = function (de_genes, cmp)
+    filter(de_genes, cmp(log2FoldChange, 0)) %>%
+    inner_join(canonical_cds, by = 'Gene') %>%
+    mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
+    filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
+    arrange(desc(abs(log2FoldChange))) %>%
+    head(top_n_de) %>%
+    .$Gene
 
-    get_top_n = function (x) {
-        inner_join(x, canonical_cds, by = 'Gene') %>%
-            mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
-            filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
-            arrange(desc(abs(log2FoldChange))) %>%
-            head(top_n_de) %>%
-            .$Gene
+set_a_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `<`)
+
+set_b_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `>`)
+
+de_test_sets = function (cu, aa, contrast, genes) {
+    replicate_test_set = function (mrna_lib, trna_lib, genes) {
+        cu = filter(cu, Gene %in% genes)
+        aa = filter(aa, DO == trna_lib)
+        weights = cu %>%
+            group_by(Gene) %>%
+            summarize_(W = lazyeval::interp(~first(DO),
+                                            DO = as.name(mrna_lib))) %>%
+            {setNames(.$W, .$Gene)}
+        list(cu = cu, aa = aa, weights = weights)
     }
 
-    up = base$map(get_top_n, up)
+    a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
+    b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
 
-    sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
-                        simplify = FALSE)
-
-    base$map(cu_for_condition, sample_ids, up) %>% rbind_all()
+    lapply(list(a, b), cond -> {
+        # mRNA and tRNA come from same celltype
+        contrasts = expand_contrast(c(cond$celltype, cond$celltype))
+        lapply(contrasts, x -> replicate_test_set(x[1], x[2], cond$genes))
+    }) %>% unlist(recursive = FALSE)
 }
 
-de_raw_cu = base$map(cu_for_contrast, de_genes, contrasts)
+all_de_test_sets = function (cu, aa)
+    Map(c ~ g -> de_test_sets(cu, aa, c, g), de_contrasts, de_genes) %>%
+    unlist(recursive  = FALSE)
 ```
 
-Finally, calculate the correlation between every sample’s DE gene RCU and the
+Finally, calculate the adaptation between every sample’s DE gene RCU and the
 sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
 that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
-```{r de_codon_correlation}
-de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
-
-de_correlations = base$map(
-        contrast ~ cu -> do_contrasts(contrast, correlate_contrast, cf, cu, aa),
-        de_contrasts, de_raw_cu) %>%
-    unlist()
+```{r de-codon-adaptation}
+de_correlations = adaptations(all_de_test_sets(raw_cu, aa), tai)
 
 all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = de_correlations, Type = 'DE'))
+                         data.frame(tAI = de_correlations, Type = 'DE'))
 all_correlations$Type = factor(all_correlations$Type,
                                c('Matching', 'Mismatching', 'DE'))
 
@@ -285,7 +296,7 @@ de_significance = wilcox.test(matching_correlations,
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_correlations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
