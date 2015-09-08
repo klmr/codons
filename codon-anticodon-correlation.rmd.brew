@@ -198,8 +198,8 @@ dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
 # Ensure Liver-Adult is condition A in the contrast
 dds_col_data$Celltype = factor(dds_col_data$Celltype)
 dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
-contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
-dds = lapply(contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
+de_contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
+dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
 threshold = 0.001
 de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
                                      ! is.na(padj) & padj < threshold))
@@ -217,7 +217,7 @@ write_de_result = contrast ~ dds -> {
 }
 
 mapply(write_de_result,
-       base$map(x -> paste(tolower(x), collapse = '-'), contrasts),
+       base$map(x -> paste(tolower(x), collapse = '-'), de_contrasts),
        dds)
 ```
 
