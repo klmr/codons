@@ -149,21 +149,21 @@ tai = function (test_set) {
     weighted.mean(all_tai, test_set$weights[names(all_tai)])
 }
 
-matching_correlations = adaptations(matching_test_sets(raw_cu, aa), tai)
-mismatching_correlations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
+matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), tai)
+mismatching_adaptations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
 
-all_correlations = rbind(data.frame(tAI = matching_correlations,
-                                    Type = 'Matching'),
-                         data.frame(tAI = mismatching_correlations,
-                                    Type = 'Mismatching'))
+all_adaptations = rbind(data.frame(tAI = matching_adaptations,
+                                   Type = 'Matching'),
+                        data.frame(tAI = mismatching_adaptations,
+                                   Type = 'Mismatching'))
 
-significance = wilcox.test(matching_correlations,
-                           mismatching_correlations,
+significance = wilcox.test(matching_adaptations,
+                           mismatching_adaptations,
                            alternative = 'greater', conf.int = TRUE)
 
 p = format.pval(significance$p.value)
 
-ggplot(all_correlations, aes(factor(Type), tAI)) +
+ggplot(all_adaptations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -267,20 +267,20 @@ that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de-codon-adaptation}
-de_correlations = adaptations(all_de_test_sets(raw_cu, aa), tai)
+de_adaptations = adaptations(all_de_test_sets(raw_cu, aa), tai)
 
-all_correlations = rbind(all_correlations,
-                         data.frame(tAI = de_correlations, Type = 'DE'))
-all_correlations$Type = factor(all_correlations$Type,
-                               c('Matching', 'Mismatching', 'DE'))
+all_adaptations = rbind(all_adaptations,
+                         data.frame(tAI = de_adaptations, Type = 'DE'))
+all_adaptations$Type = factor(all_adaptations$Type,
+                              c('Matching', 'Mismatching', 'DE'))
 
-de_significance = wilcox.test(matching_correlations,
-                              de_correlations, conf.int = TRUE,
+de_significance = wilcox.test(matching_adaptations,
+                              de_adaptations, conf.int = TRUE,
                               alternative = 'less')
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_correlations, aes(Type, tAI)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -319,21 +319,21 @@ all_go_test_sets = function (cu, aa) {
     c(healthy, cancer)
 }
 
-go_correlations = adaptations(all_go_test_sets(raw_cu, aa), tai)
+go_adaptations = adaptations(all_go_test_sets(raw_cu, aa), tai)
 
-all_correlations = rbind(all_correlations,
-                         data.frame(tAI = go_correlations, Type = 'GO'))
+all_adaptations = rbind(all_adaptations,
+                        data.frame(tAI = go_adaptations, Type = 'GO'))
 
-go_significance = wilcox.test(matching_correlations,
-                              go_correlations, conf.int = TRUE,
+go_significance = wilcox.test(matching_adaptations,
+                              go_adaptations, conf.int = TRUE,
                               alternative = 'less')
-go_inverse_test = wilcox.test(matching_correlations,
-                              go_correlations, conf.int = TRUE,
+go_inverse_test = wilcox.test(matching_adaptations,
+                              go_adaptations, conf.int = TRUE,
                               alternative = 'greater')
 
 go_p = format.pval(go_significance$p.value)
 
-ggplot(all_correlations, aes(Type, tAI)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -423,7 +423,7 @@ all_sample_adaptation = list(Matching = matching_sample_adaptation,
     {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
     bind_rows()
 
-ggplot(all_correlations, aes(factor(Type), Correlation)) +
+ggplot(all_adaptations, aes(factor(Type), Correlation)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
