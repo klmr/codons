@@ -92,7 +92,9 @@ per_gene_adaptation = function (condition) {
         group_by(Gene, Codon) %>%
         summarize(RCU = mean(RCU))
 
-    cu$adaptation(mean_rcu_by_gene, mean_raa)
+    mean_rcu_by_gene %>%
+        group_by(Gene) %>%
+        mutate(Adaptation = cu$adaptation(., mean_raa))
 }
 
 conditions = unique(unlist(config$contrasts))
@@ -168,7 +170,9 @@ per_go_adaptation = function (condition) {
         group_by(GO, Codon) %>%
         summarize(RCU = mean(RCU))
 
-    cu$adaptation(mean_rcu_by_go, mean_raa)
+    mean_rcu_by_go %>%
+        group_by(Gene) %>%
+        mutate(Adaptation = cu$adaptation(., mean_raa))
 }
 
 go_adaptation = mclapply(conditions, per_go_adaptation, mc.cores = detectCores())

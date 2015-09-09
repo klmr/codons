@@ -1,4 +1,4 @@
-```{r echo=FALSE,message=FALSE}
+```{r echo=FALSE, message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
                cache.path = 'cache/codon-anticodon-<%= species %>-',
@@ -36,103 +36,55 @@ is divided by the sum of the codon usage of its amino acid.
 
 Calculate codon usage.
 
-```{r codon_usage}
+```{r codon-usage}
 norm = import('norm')
 mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
 mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
                                        starts_with('do'))
 
-cu = import('codon_usage')
+cu_ = import('codon_usage')
 mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
-codon_usage = inner_join(cu$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
+raw_cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
-codon_usage = lapply(mrna_design$DO, lib -> {
-    codon_usage %>%
-        mutate_(CU = bquote(CU * .(as.name(lib)) / nchar(Sequence))) %>%
+cu = Map(DO ~ Celltype -> {
+    raw_cu %>%
+        mutate_(CU = bquote(CU * .(as.name(DO)) / nchar(Sequence))) %>%
         select(Gene, Codon, CU) %>%
-        mutate(DO = lib)
-}) %>%
+        mutate(DO = DO, Celltype = Celltype)
+}, mrna_design$DO, mrna_design$Celltype) %>%
     bind_rows()
-
-sample_rcu = codon_usage %>%
-    group_by(DO, Codon) %>%
-    summarize(CU = sum(CU, na.rm = TRUE)) %>%
-    ungroup() %>%
-    `class<-`(c('codon_usage$cu', class(.))) %>%
-    cu$rcu(DO) %>%
-    dcast(DO ~ Codon, value.var = 'RCU')
 ```
 
-Verify correctness: for each amino acid in each sample, the RCUs must sum to 1.
+Calculate the anticodon abundance (AA), the tRNA equivalent of the CU, i.e.
+the abundance of each anticodon isoacceptor quantified by tRNA gene expression.
 
-```{r verify-rcu}
-sample_rcu %>% melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'Count') %>%
-    inner_join(cu$genetic_code, by = 'Codon') %>%
-    group_by(DO, AA) %>%
-    summarize(Sum = sum(Count)) %>%
-    ungroup() %T>% {
-        {setNames(.$Sum, .$AA)} %>%
-        print()
-    } %>%
-    summarize(Correct = all.equal(Sum, rep(1, length(Sum)))) %>%
-    .$Correct
-```
-
-Helper function for comparing RCU and RAA
-
-```{r revcomp}
-bios = import_package('Biostrings')
-revcomp = function (seq)
-    as.character(bios$reverseComplement(bios$DNAStringSet(seq)))
-```
-
-Calculate the relative  anticodon abundance (RAA), the tRNA equivalent of the
-RCU, i.e. the proportional contribution of each anticodon isoacceptor to its
-isotype.
-
-```{r raa}
+```{r aa}
 aa = trna_sf_counts %>%
-    tidyr::gather(DO, Count, starts_with('do')) %>%
-    mutate(Codon = revcomp(Anticodon)) %>%
-    group_by(DO, AA, Codon) %>%
-    summarize(Count = sum(Count)) %>%
+    rename(Type = AA) %>%
+    tidyr::gather(DO, AA, starts_with('do')) %>%
+    mutate(Codon = cu_$revcomp(Anticodon)) %>%
+    group_by(DO, Type, Codon) %>%
+    summarize(AA = sum(AA)) %>%
     ungroup() %>%
     inner_join(trna_design, by = 'DO')
-
-raa = aa %>%
-    group_by(DO, AA) %>%
-    mutate(RAA = Count / sum(Count)) %>%
-    ungroup()
 ```
 
-## Correlation of usage and abundance
+## Codon usage and anticodon abundance adaptation
 
-Correlate codon usage and anticodon abundance in samples of (a) matching, and
-(b) mismatching conditions. Compare the range of these correlations between (a)
-and (b) to test whether they are significantly different. This being the case
-would reject the hypothesis of no adaptation of the tRNA abundance to the
-transcriptome.
-
-## Prepare data
-
-```{r prepare_dfs}
-# FIXME: This is redundant: We first calculate RCU, `dcast` it, store the result
-# in `sample_rcu`, and then `melt` it here again. The `dcast` + `melt` must go.
-rcu_long = sample_rcu %>%
-    melt(id.vars = 'DO', variable.name = 'Codon', value.name = 'RCU') %>%
-    inner_join(mrna_design, by = 'DO') %>%
-    select(DO, Celltype, Codon, RCU) %>%
-    tbl_df()
-```
+Calculate tRNA adaptation index weighted by gene expression in samples of (a)
+matching, and (b) mismatching conditions. Compare the range of these
+adaptations between (a) and (b) to test whether they are significantly
+different. This being the case would reject the hypothesis of no adaptation of
+the tRNA abundance to the transcriptome.
 
 Define the contrasts we are looking at.
 
 Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
-```{r define_contrasts}
-all_contrasts = expand.grid(Codon = unique(rcu_long$Celltype),
-                            Anti = unique(raa$Celltype),
+```{r define-contrasts}
+all_contrasts = expand.grid(Codon = unique(codon_usage$Celltype),
+                            Anti = unique(aa$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
@@ -140,83 +92,78 @@ mismatching_contrasts = filter(mismatching_contrasts,
                                Codon == 'Liver-Adult' | Anti == 'Liver-Adult')
 ```
 
-### Simple correlation
+### tRNA adaptation index
 
-As a sanity check, plot the codon–anticodon usage for all three conditions.
-
-```{r}
-plot_ca_correlation = function (condition) {
-    # For each point, calculate mean and min/max.
-    cu = rcu_long %>%
-        filter(Celltype == condition) %>%
-        group_by(Codon) %>%
-        summarize(cu = mean(RCU), cu_min = min(RCU), cu_max = max(RCU))
-    aa = raa %>%
-        filter(Celltype == condition) %>%
-        group_by(Codon) %>%
-        summarize(aa = mean(RAA), aa_min = min(RAA), aa_max = max(RAA))
-
-    data = inner_join(cu, aa, by = 'Codon')
-    rsq = summary(lm(aa ~ cu, data))$r.squared
-    ggplot(data, aes(x = aa, y = cu)) +
-        geom_point() +
-        geom_errorbar(aes(ymin = cu_min, ymax = cu_max)) +
-        geom_errorbarh(aes(xmin = aa_min, xmax = aa_max)) +
-        stat_smooth(method = lm) +
-        annotate(geom = 'text', label = sprintf('italic(r)**2==%0.2f', rsq),
-                 x = 0.3, y = 0.9, parse = TRUE) +
-        scale_x_continuous(name = 'Relative anticodon isoacceptor abundance') +
-        scale_y_continuous(name = 'Relative codon usage')
-}
-
-conditions = unique(mrna_design$Celltype)
-base$map(plot_ca_correlation, conditions)
-```
-
-### Ignoring wobble base pairing
-
-The simplest correlation we can calculate ignores wobble base pairing and
-filters out all codons without corresponding anticodon.
+Apart from simple correlation of matching codon/anticodon pairs, the tRNA
+adaptation index (tAI; Dos Reis & al, 2004) is a measure of codon–anticodon
+adaptation that accounts for wobble base pairing.
 
 #### Matching and mismatching codon–anticodon pools
 
-```{r correlate}
-correlate_contrast = function (contrast, f, rcu, raa) {
-    codon_samples = filter(mrna_design, Celltype == contrast[[1]])$DO
-    anti_samples = filter(trna_design, Celltype == contrast[[2]])$DO
-    contrasts = expand.grid(Codon = codon_samples, Anti = anti_samples)
-
-    parallel::mclapply(as.data.frame(t(contrasts)), contrast -> {
-        codon_do = contrast[1]
-        anti_do = contrast[2]
-        contrast_data = inner_join(filter(rcu, DO == codon_do),
-                                   filter(raa, DO == anti_do),
-                                   by = 'Codon') %>% f()
-    }, mc.cores = parallel::detectCores()) %>% unlist() %>% unname()
+```{r gene-set-adaptation}
+# Get all pairwise replicate library identifiers for a given contrast.
+expand_contrast = function (contrast) {
+    mrna_samples = filter(mrna_design, Celltype == contrast[1])$DO
+    trna_samples = filter(trna_design, Celltype == contrast[2])$DO
+    expand.grid(mrna_samples, trna_samples) %>% t() %>% as.data.frame()
 }
 
-do_contrasts = function(contrasts, f, ...)
-    unname(unlist(lapply(as.data.frame(t(contrasts)), f, ...)))
+# Get all pairwise replicate libraries for a set of contrasts.
+expand_test_sets = function (contrasts) {
+    contrasts = as.data.frame(t(contrasts))
+    unname(bind_cols(lapply(contrasts, expand_contrast)))
+}
 
-cf = x -> cor(x$RCU, x$RAA, method = 'spearman')
-matching_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                                     rcu_long, raa)
-mismatching_correlations = do_contrasts(mismatching_contrasts,
-                                        correlate_contrast, cf,
-                                        rcu_long, raa)
+replicate_test_set = function (cu, aa, mrna_lib, trna_lib, genes) {
+    cu = filter(cu, Gene %in% genes)
+    aa = filter(aa, DO == trna_lib)
+    weights = cu %>%
+        group_by(Gene) %>%
+        summarize_(W = lazyeval::interp(~first(DO),
+                                        DO = as.name(mrna_lib))) %>%
+        {setNames(.$W, .$Gene)}
+    list(cu = cu, aa = aa, weights = weights)
+}
 
-all_correlations = rbind(data.frame(Correlation = matching_correlations,
-                                    Type = 'Matching'),
-                         data.frame(Correlation = mismatching_correlations,
-                                    Type = 'Mismatching'))
+# Calculate adaptations for a list of tests sets, given an adaptation index.
+adaptations = function (test_sets, index)
+    parallel::mclapply(test_sets, index, mc.cores = parallel::detectCores()) %>%
+    unlist() %>% unname()
 
-significance = wilcox.test(matching_correlations,
-                           mismatching_correlations,
+# Generate an adaptation test set based on a given contrast, using all genes.
+complete_test_sets = function (cu, aa, contrasts) {
+    all_genes = unique(cu$Gene)
+    test_set_ids = expand_test_sets(contrasts)
+    lapply(test_set_ids, x -> replicate_test_set(cu, aa, x[1], x[2], all_genes))
+}
+
+matching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, matching_contrasts)
+
+mismatching_test_sets = function (cu, aa)
+    complete_test_sets(cu, aa, mismatching_contrasts)
+
+# Calculate tAI on a single test set, given an adaptation index function.
+tai = function (test_set) {
+    all_tai = cu_$adaptation_tai(test_set$cu, test_set$aa, canonical_cds)
+    weighted.mean(all_tai, test_set$weights[names(all_tai)])
+}
+
+matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), tai)
+mismatching_adaptations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
+
+all_adaptations = rbind(data.frame(tAI = matching_adaptations,
+                                   Type = 'Matching'),
+                        data.frame(tAI = mismatching_adaptations,
+                                   Type = 'Mismatching'))
+
+significance = wilcox.test(matching_adaptations,
+                           mismatching_adaptations,
                            alternative = 'greater', conf.int = TRUE)
 
 p = format.pval(significance$p.value)
 
-ggplot(all_correlations, aes(factor(Type), Correlation)) +
+ggplot(all_adaptations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -251,11 +198,12 @@ dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
 # Ensure Liver-Adult is condition A in the contrast
 dds_col_data$Celltype = factor(dds_col_data$Celltype)
 dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
-contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
-dds = lapply(contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
+de_contrasts = config$contrasts[grep('Liver-Adult', config$contrasts)]
+dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
 threshold = 0.001
 de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
-                                     ! is.na(padj) & padj < threshold))
+                                     ! is.na(padj) & padj < threshold) %>%
+                            add_rownames('Gene'))
 sapply(de_genes, nrow)
 ```
 
@@ -270,7 +218,7 @@ write_de_result = contrast ~ dds -> {
 }
 
 mapply(write_de_result,
-       base$map(x -> paste(tolower(x), collapse = '-'), contrasts),
+       base$map(x -> paste(tolower(x), collapse = '-'), de_contrasts),
        dds)
 ```
 
@@ -279,70 +227,60 @@ each condition. So instead of summing over all genes, we sum over the codon
 usage of genes significantly upregulated in the respective condition, and we do
 this separately for each contrast.
 
-```{r de-rcu}
-rcu_for_condition = function (sample_ids, gene_set)
-    codon_usage %>%
-    filter(DO %in% sample_ids, Gene %in% gene_set) %>%
-    group_by(DO, Codon) %>%
-    summarize(CU = sum(CU, na.rm = TRUE)) %>%
-    ungroup() %>%
-    `class<-`(c('codon_usage$cu', class(.))) %>%
-    cu$rcu(DO) %>%
-    select(DO, Codon, RCU)
-
+```{r de-cu}
 top_n_de = 200
 
-rcu_for_contrast = function (de_genes, contrast) {
-    de_genes = add_rownames(de_genes, 'Gene')
-    up = list(filter(de_genes, log2FoldChange < 0),
-              filter(de_genes, log2FoldChange > 0)) %>%
-        setNames(contrast)
+gene_set_for_contrast = function (de_genes, cmp)
+    filter(de_genes, cmp(log2FoldChange, 0)) %>%
+    inner_join(canonical_cds, by = 'Gene') %>%
+    mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
+    filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
+    arrange(desc(abs(log2FoldChange))) %>%
+    head(top_n_de) %>%
+    .$Gene
 
-    get_top_n = function (x) {
-        inner_join(x, canonical_cds, by = 'Gene') %>%
-            mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
-            filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
-            arrange(desc(abs(log2FoldChange))) %>%
-            head(top_n_de) %>%
-            .$Gene
-    }
+set_a_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `<`)
 
-    up = base$map(get_top_n, up)
+set_b_for_contrast = function (de_genes)
+    gene_set_for_contrast(de_genes, `>`)
 
-    sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
-                        simplify = FALSE)
+de_test_sets = function (cu, aa, contrast, genes) {
+    a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
+    b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
 
-    base$map(rcu_for_condition, sample_ids, up) %>% rbind_all()
+    lapply(list(a, b), cond -> {
+        # mRNA and tRNA come from same celltype
+        contrasts = expand_contrast(rep(cond$celltype, 2))
+        lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], cond$genes))
+    }) %>% unlist(recursive = FALSE)
 }
 
-de_rcu = base$map(rcu_for_contrast, de_genes, contrasts)
+all_de_test_sets = function (cu, aa)
+    Map(c ~ g -> de_test_sets(cu, aa, c, g), de_contrasts, de_genes) %>%
+    unlist(recursive  = FALSE)
 ```
 
-Finally, calculate the correlation between every sample’s DE gene RCU and the
+Finally, calculate the adaptation between every sample’s DE gene RCU and the
 sample’s matched anticodon abundance. The hypothesis of Gingold & al. would be
 that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
-```{r de_codon_correlation}
-de_contrasts = lapply(contrasts, c -> data.frame(Codon = c, Anti = c))
+```{r de-codon-adaptation}
+de_adaptations = adaptations(all_de_test_sets(raw_cu, aa), tai)
 
-de_correlations = base$map(
-    contrast ~ rcu -> do_contrasts(contrast, correlate_contrast, cf,
-                                   rcu, raa), de_contrasts, de_rcu) %>%
-    unlist()
+all_adaptations = rbind(all_adaptations,
+                         data.frame(tAI = de_adaptations, Type = 'DE'))
+all_adaptations$Type = factor(all_adaptations$Type,
+                              c('Matching', 'Mismatching', 'DE'))
 
-all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = de_correlations, Type = 'DE'))
-all_correlations$Type = factor(all_correlations$Type,
-                               c('Matching', 'Mismatching', 'DE'))
-
-de_significance = wilcox.test(matching_correlations,
-                              de_correlations, conf.int = TRUE,
+de_significance = wilcox.test(matching_adaptations,
+                              de_adaptations, conf.int = TRUE,
                               alternative = 'less')
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -359,41 +297,48 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go_associations, fig.width=5}
+```{r go-associations, fig.width=5}
 go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
 go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
-cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
-go_cancer_rcu = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
+go_test_sets = function (cu, aa, condition, genes) {
+    # mRNA and tRNA come from same celltype
+    contrasts = expand_contrast(rep(condition, 2))
+    lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], genes))
+}
 
-healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
-go_healthy_rcu = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
+all_go_test_sets = function (cu, aa) {
+    healthy = go_test_sets(cu, aa, 'Liver-Adult', go_terms$GO0007389)
+    cancer_conditions = setdiff(unique(mrna_design$Celltype), 'Liver-Adult')
+    cancer = lapply(cancer_conditions,
+                    x -> go_test_sets(cu, aa, x, go_terms$GO0000087)) %>%
+        unlist(recursive = FALSE)
+    c(healthy, cancer)
+}
 
-go_rcu = rbind(go_cancer_rcu, go_healthy_rcu)
-go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                               go_rcu, raa_long)
+go_adaptations = adaptations(all_go_test_sets(raw_cu, aa), tai)
 
-all_correlations = rbind(all_correlations,
-                         data.frame(Correlation = go_correlations, Type = 'GO'))
+all_adaptations = rbind(all_adaptations,
+                        data.frame(tAI = go_adaptations, Type = 'GO'))
 
-go_significance = wilcox.test(matching_correlations,
-                              go_correlations, conf.int = TRUE,
+go_significance = wilcox.test(matching_adaptations,
+                              go_adaptations, conf.int = TRUE,
                               alternative = 'less')
-go_inverse_test = wilcox.test(matching_correlations,
-                              go_correlations, conf.int = TRUE,
+go_inverse_test = wilcox.test(matching_adaptations,
+                              go_adaptations, conf.int = TRUE,
                               alternative = 'greater')
 
 go_p = format.pval(go_significance$p.value)
 
-ggplot(all_correlations, aes(Type, Correlation)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = '') +
-    scale_y_continuous(limits = c(0.75, 0.88))
+    scale_x_discrete(name = 'Sample types compared') +
+    ggtitle('Codon–anticodon correlations between different conditions')
 ```
 
 Testing for significant difference between the distribution of matching codon
@@ -411,78 +356,55 @@ account for this, perform simulations for each of the different sizes used. This
 allows us to assess whether a given gene set’s adaptation is explained by its
 gene set size.
 
-“Matching” and “mismatching” reflect the whole transcriptome and have the same
-gene set size. “DE” uses sets of size `r top_n_de`. The GO term sets have sizes
+“DE” uses sets of size `r top_n_de`. The GO term sets have sizes
 `r paste(sapply(go_terms, length), collapse = ' and ')`, of which we’ll take the
 mean to simulate gene sets.
 
-For efficiency’s sake, we’re working with gene indices rather than genes.
-
 ```{r sample-gene-sets}
-transcriptome_size = length(unique(codon_usage$Gene))
+transcriptome = unique(raw_cu$Gene)
+
 simulate_gene_set = function (size)
-    sample.int(transcriptome_size, size)
+    sample(transcriptome, size)
 
 n_simulations = 100
 go_size = mean(sapply(go_terms, length))
 
-transcriptome_samples = replicate(n_simulations, simulate_gene_set(transcriptome_size))
 de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
 go_samples = replicate(n_simulations, simulate_gene_set(go_size))
 ```
 
-Calculate RCU for all samples in all libraries.
+Calculate tAI for all samples in all libraries.
 
 ```{r rcu-simulations}
-stopifnot(length(unique(codon_usage$Codon)) == 61)
+sample_test_sets = go_test_sets
 
-get_gene_indices = function (i)
-    (seq_len(61) - 1) * transcriptome_size + i
-
-gene_sample_rcu = function (gene_set) {
-    gene_indices = unlist(lapply(gene_set, get_gene_indices))
-    codon_usage %>% group_by(DO) %>%
-        slice(gene_indices) %>%
-        group_by(DO, Codon) %>%
-        summarize(CU = sum(CU, na.rm = TRUE)) %>%
-        ungroup() %>%
-        `class<-`(c('codon_usage$cu', class(.))) %>%
-        cu$rcu(DO) %>%
-        select(DO, Codon, RCU)
+all_sample_test_sets = function (cu, aa, samples) {
+    conditions = unique(mrna_design$Celltype)
+    single_sample_test_sets = function (genes)
+        lapply(conditions, x -> sample_test_sets(cu, aa, x, genes)) %>%
+            unlist(recursive = FALSE)
+    lapply(as.data.frame(samples), single_sample_test_sets) %>%
+        unlist(recursive = FALSE)
 }
 
-gene_sample_adaptation = function (contrasts, gene_set) {
-    rcu = gene_sample_rcu(gene_set)
-    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa_long)
-}
-
-all_sample_adaptations = function (contrasts, samples) {
-    # samples is a matrix genes x sample_ids
-    apply(samples, 2, gene_sample_adaptation, contrasts = contrasts) %>%
-        as.numeric()
-}
-
-matching_sample_adaptation = all_sample_adaptations(matching_contrasts,
-                                                    transcriptome_samples)
-mismatching_sample_adaptation = all_sample_adaptations(mismatching_contrasts,
-                                                       transcriptome_samples)
 # DE samples use matching contrasts as well; this works since we’re just
 # interested in sample size, not actual DE gene sets.
-de_sample_adaptation = all_sample_adaptations(matching_contrasts, de_samples)
-go_sample_adaptation = all_sample_adaptations(matching_contrasts, go_samples)
 
-all_sample_adaptation = list(Matching = matching_sample_adaptation,
-                             Mismatching = mismatching_sample_adaptation,
-                             DE = de_sample_adaptation,
-                             GO = go_sample_adaptation) %>%
-    {base$map(x ~ n -> data.frame(Correlation = x, Type = n), ., names(.))} %>%
+de_sample_adaptations =
+    adaptations(all_sample_test_sets(raw_cu, aa, de_samples), tai)
+go_sample_adaptations =
+    adaptations(all_sample_test_sets(raw_cu, aa, go_samples), tai)
+
+all_sample_adaptation = list(DE = de_sample_adaptations,
+                             GO = go_sample_adaptations) %>%
+    {base$map(x ~ n -> data.frame(tAI = x, Type = n), ., names(.))} %>%
     bind_rows()
 
-ggplot(all_correlations, aes(factor(Type), Correlation)) +
+ggplot(all_adaptations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    stat_summary(data = all_sample_adaptation, aes(factor(Type), Correlation),
+    stat_summary(data = all_sample_adaptation, aes(factor(Type), tAI),
                  fun.data = median_hilow,
                  color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
     scale_x_discrete(name = '') +
