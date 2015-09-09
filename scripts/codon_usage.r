@@ -90,6 +90,13 @@ adaptation_no_wobble = function (rcu, raa)
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
 tai = import('tai')
 
+#' Calculate the tRNA adaptation index
+#'
+#' @param cu per-gene codon usage as given by \code{cu}
+#' @param aa amino acid abundance, with \code{Codon} column
+#' @param cds coding sequences
+#' @param s tAI s-values
+#' @return Returns the tAI for each gene.
 adaptation_tai = function (cu, aa, cds, s = tai$naive_s) {
     lengths = setNames(cds$Length, cds$Gene)[unique(cu$Gene)]
     cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
