@@ -101,7 +101,7 @@ adaptation_wobble = function (cu, aa, cds)
 
 # Calculate outside function for speed — `adaptation` is called very frequently.
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
-tai = import('tai')
+tai = import('./tai')
 
 #' \code{adaptation_tai} computes the tRNA adaptation index.
 #' @param s tAI s-values
