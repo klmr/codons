@@ -383,7 +383,7 @@ go_healthy_rcu = rcu_for_condition(healthy_mrna_samples, go_terms$GO0007389)
 
 go_rcu = rbind(go_cancer_rcu, go_healthy_rcu)
 go_correlations = do_contrasts(matching_contrasts, correlate_contrast, cf,
-                               go_rcu, raa_long)
+                               go_rcu, raa)
 
 all_correlations = rbind(all_correlations,
                          data.frame(Correlation = go_correlations, Type = 'GO'))
@@ -462,7 +462,7 @@ gene_sample_rcu = function (gene_set) {
 
 gene_sample_adaptation = function (contrasts, gene_set) {
     rcu = gene_sample_rcu(gene_set)
-    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa_long)
+    do_contrasts(contrasts, correlate_contrast, cf, rcu, raa)
 }
 
 all_sample_adaptations = function (contrasts, samples) {
