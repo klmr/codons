@@ -126,12 +126,14 @@ canonical_cds = cache %@% function (config) {
         ungroup()
 }
 
-go_genes = cache %@% function (config)
+go_genes = cache %@% function (config) {
+    mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
     io$read_table('data/gene_association.goa_human', header = FALSE,
                          comment.char = '!', quote = '', sep = '\t') %>%
     select(Name = 3, GO = 5, Aspect = 9) %>%
     filter(Aspect == 'P') %>%
-    inner_join(mrna_annotation(config), by = 'Name') %>%
+    mutate(Name = toupper(Name)) %>%
+    inner_join(mrna_annotation, by = 'Name') %>%
     select(Gene, GO = GO.x) %>%
     distinct(GO, Gene) %>%
     group_by(GO) %>%
@@ -140,3 +142,4 @@ go_genes = cache %@% function (config)
     filter(Size >= 40) %>%
     select(-Size) %>%
     tbl_df()
+}
