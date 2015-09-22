@@ -309,6 +309,15 @@ rcu_for_contrast = function (de_genes, contrast) {
 
     up = base$map(get_top_n, up)
 
+    # Save gene lists. Filename: A-vs-B.tsv: upregulated in B
+    save_list = function (data, from, to) {
+        filename = sprintf('results/de-up-genes-%s-%s-vs-%s.tsv',
+                           config$species, from, to)
+        io$write_table(data, filename, col.names = FALSE)
+    }
+    save_list(up[[1]], contrast[2], contrast[1])
+    save_list(up[[2]], contrast[1], contrast[2])
+
     sample_ids = sapply(contrast, x -> filter(mrna_design, Celltype == x)$DO,
                         simplify = FALSE)
 
