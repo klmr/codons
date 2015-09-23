@@ -1,0 +1,83 @@
+```{r}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/pca-versus-adaptation-<%= species %>-',
+               cache.path = 'cache/pca-versus-adaptations-<%= species %>-',
+               dev = c('png', 'pdf'))
+
+config = import('./config_<%= species %>')
+```
+
+Compute the PCA of the codon usage.
+
+
+```{r load-data}
+cu = import('codon_usage')
+tidyr = import_package('tidyr')
+data = import('./data')
+go_genes = data$go_genes(config)
+canonical_cds = data$canonical_cds(config)
+```
+
+```{r pca}
+pca = function (go_cu) {
+    table = tidyr$spread(go_cu, Codon, CU)
+    table = `rownames<-`(select(table, -GO), table$GO)
+    prcomp(table, scale. = TRUE)
+}
+```
+
+```{r plot-pca}
+plot_pca = function (pca, categories) {
+    ve = sprintf('(%.0f%% variance explained)',
+                 summary(pca)$importance['Proportion of Variance', 1 : 2] * 100)
+    data = cbind(as.data.frame(pca$x), Category = categories)
+    ggplot(data, aes(x = PC1, y = PC2, color = Category)) +
+        geom_point() +
+        xlab(paste('PC1', ve[1])) +
+        ylab(paste('PC2', ve[2])) +
+        scale_color_manual(values = c(none = '#00000080',
+                                      `cell autonomous` = 'red',
+                                      multicellular = 'blue'))
+}
+```
+
+```{r go-cu-pca}
+go_cu = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup()
+
+pca = pca(go_cu)
+```
+
+Ensure that “cell autonomous” and “multicellular” cluster separately.
+
+```{r go-categories}
+go_categories = list(
+    multicellular = c('Development', 'Differentiation', 'Cell adhesion',
+                      'Pattern specification', 'Multicellular organism growth',
+                      'Angiogenesis'),
+    cell_autonomous = c('Mitotic cell cycle', 'Nucleosome assembly',
+                        'Chromatin remodeling', 'Chromatin modification',
+                        'Translation', 'mRNA metabolic process',
+                        'Negative regulation of cell cycle')
+)
+
+go_names = io$read_table('./data/go-descriptions.tsv',
+                         col.names = c('GO', 'Name'), quote = '')
+reduce = f ~ x -> Reduce(f, x[-1], x[[1]])
+grepl_any = function (patterns, x, ...)
+    reduce(`|`, lapply(patterns, grepl, x = x, ...))
+
+go_groups = sapply(go_categories,
+                   x -> filter(go_names, grepl_any(x, Name, ignore.case = TRUE))$GO,
+                   simplify = FALSE)
+```
+
+```{r go-cu-pca-plot, fig.width=10}
+plot_pca(pca, with(list(x = rownames(pca$x)),
+                   ifelse(x %in% go_groups$multicellular, 'multicellular',
+                   ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
+                   'none'))))
+```
