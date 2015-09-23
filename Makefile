@@ -3,9 +3,21 @@ BIN := ./scripts
 species := mouse human
 
 .PHONY: all
-all:
+all: go
 	@echo >&2 No default rule. Please run \`make rule\`
 	exit 1
+
+.PHONY: go
+go: data/go-descriptions.tsv
+
+data/go-descriptions.tsv: data/go-basic.obo
+	./scripts/write-go-descriptions $< $@
+
+data/go-basic.obo:
+	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
+		--output-document data/go-basic.obo
+
+$(foreach i,${species},pca-versus-adaptation-$i.html): go
 
 .PHONY: supplements
 supplements:
