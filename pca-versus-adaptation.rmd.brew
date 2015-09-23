@@ -136,11 +136,12 @@ plot_adaptation_pc1 = function (celltype, pca, adaptation) {
     escape_name = function (name) sprintf('`%s`', name)
     pcax = as.data.frame(pca$x) %>% add_rownames('GO')
     data = inner_join(pcax, adaptation, by = 'GO')
-    ggplot(data, aes_string(x = 'PC1', y = escape_name(celltype))) +
+    ggplot(data, aes_string(x = as.name('PC1'), y = escape_name(celltype))) +
         geom_line()
 }
 ```
 
 ```{r adaptation-pc1-plot}
-lapply(unique(raa$Celltype), plot_adaptation_pc1, pca, adaptation)
+print(sapply(unique(raa$Celltype), plot_adaptation_pc1, pca, adaptation,
+             simplify = FALSE))
 ```
