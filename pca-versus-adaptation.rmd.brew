@@ -9,7 +9,6 @@ config = import('./config_<%= species %>')
 
 Compute the PCA of the codon usage.
 
-
 ```{r load-data}
 cu = import('codon_usage')
 tidyr = import_package('tidyr')
@@ -80,4 +79,68 @@ plot_pca(pca, with(list(x = rownames(pca$x)),
                    ifelse(x %in% go_groups$multicellular, 'multicellular',
                    ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
                    'none'))))
+```
+
+Next, compute adaptation for each GO term. For this, we first need to load tRNA
+abundance estimates.
+
+```{r trna-abundance}
+# Normalised by library size to be comparable across conditions.
+trna_design = data$trna_design(config)
+trna_sf_counts = data$trna_sf_counts(config) %>%
+    tidyr$gather(DO, Count, starts_with('do')) %>%
+    inner_join(trna_design, by = 'DO') %>%
+    group_by(Celltype, Gene, AA, Anticodon) %>%
+    summarize(Count = mean(Count)) %>%
+    ungroup()
+```
+
+Now calculate relative anticodon abundance.
+
+```{r raa}
+raa = trna_sf_counts %>%
+    group_by(Celltype, AA, Anticodon) %>%
+    summarize(Count = sum(Count)) %>%
+    mutate(RAA = Count / sum(Count)) %>%
+    ungroup() %>%
+    mutate(Codon = cu$revcomp(Anticodon))
+```
+
+And the GO term relative codon usage.
+
+```{r go-cub}
+go_rcu = inner_join(cu$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    ungroup() %>%
+    base$add_class('codon_usage$cu') %>%
+    cu$rcu(GO)
+```
+
+To calculate GO term adaptation to all cell type specific tRNA transcriptomes.
+
+```{r adaptation}
+go_terms_in_order = group_by(go_rcu, GO) %>% summarize(TRUE) %>% .$GO
+adaptation = sapply(unique(raa$Celltype),
+                    x -> cu$adaptation(group_by(go_rcu, GO),
+                                       filter(raa, Celltype == x))) %>%
+    as.data.frame() %>%
+    `rownames<-`(go_terms_in_order) %>%
+    add_rownames('GO')
+```
+
+Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
+
+```{r plot-adaptation-pc1}
+plot_adaptation_pc1 = function (celltype, pca, adaptation) {
+    escape_name = function (name) sprintf('`%s`', name)
+    pcax = as.data.frame(pca$x) %>% add_rownames('GO')
+    data = inner_join(pcax, adaptation, by = 'GO')
+    ggplot(data, aes_string(x = 'PC1', y = escape_name(celltype))) +
+        geom_line()
+}
+```
+
+```{r adaptation-pc1-plot}
+lapply(unique(raa$Celltype), plot_adaptation_pc1, pca, adaptation)
 ```
