@@ -126,22 +126,26 @@ adaptation = sapply(unique(raa$Celltype),
                                        filter(raa, Celltype == x))) %>%
     as.data.frame() %>%
     `rownames<-`(go_terms_in_order) %>%
-    add_rownames('GO')
+    add_rownames('GO') %>%
+    tidyr$gather(Celltype, Adaptation, -GO)
 ```
 
 Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
 
 ```{r plot-adaptation-pc1}
-plot_adaptation_pc1 = function (celltype, pca, adaptation) {
-    escape_name = function (name) sprintf('`%s`', name)
+plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line) {
     pcax = as.data.frame(pca$x) %>% add_rownames('GO')
     data = inner_join(pcax, adaptation, by = 'GO')
-    ggplot(data, aes_string(x = as.name('PC1'), y = escape_name(celltype))) +
-        geom_line()
+    ggplot(data, aes(x = PC1, y = Adaptation, color = Celltype)) +
+        geom_type() +
+        scale_y_continuous(limits = c(0.7, 0.9))
 }
 ```
 
-```{r adaptation-pc1-plot}
-print(sapply(unique(raa$Celltype), plot_adaptation_pc1, pca, adaptation,
-             simplify = FALSE))
+```{r adaptation-pc1-plot-line, fig.width=10}
+plot_adaptation_pc1(pca, adaptation)
+```
+
+```{r adaptation-pc1-plot-scatter, fig.width=10}
+plot_adaptation_pc1(pca, adaptation, geom_point)
 ```
