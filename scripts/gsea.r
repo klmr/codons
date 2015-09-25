@@ -40,6 +40,9 @@ untidy = function (tidy_data, rownames = 1)
 deseq_test = function (data, col_data, contrast) {
     cols = col_data[[1]] %in% contrast
     col_data = col_data[cols, , drop = FALSE]
+    # Ensure that the conditions are in the same order as `contrast`; that is,
+    # the reference level corresponds to `contrast[1]`.
+    col_data[[1]] = factor(col_data[[1]], col_data[[1]], ordered = TRUE)
     data = data[, cols]
     design = eval(bquote(~ .(as.name(colnames(col_data)[1]))))
     dds = deseq$DESeqDataSetFromMatrix(data, col_data, design)
