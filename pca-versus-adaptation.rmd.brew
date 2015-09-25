@@ -133,12 +133,13 @@ adaptation = sapply(unique(raa$Celltype),
 Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
 
 ```{r plot-adaptation-pc1}
-plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line) {
-    pcax = as.data.frame(pca$x) %>% add_rownames('GO')
+plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line, wrap = FALSE) {
+    pcax = as.data.frame(pca$x) %>% add_rownames('GO') %>% select(1 : 2)
     data = inner_join(pcax, adaptation, by = 'GO')
     ggplot(data, aes(x = PC1, y = Adaptation, color = Celltype)) +
         geom_type() +
-        scale_y_continuous(limits = c(0.7, 0.9))
+        scale_y_continuous(limits = c(0.7, 0.9)) +
+        if (wrap) facet_wrap(~ Celltype, ncol = 1)
 }
 ```
 
@@ -146,6 +147,6 @@ plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line) {
 plot_adaptation_pc1(pca, adaptation)
 ```
 
-```{r adaptation-pc1-plot-scatter, fig.width=10}
-plot_adaptation_pc1(pca, adaptation, geom_point)
+```{r adaptation-pc1-plot-scatter, fig.width=10, fig.height=9 * (ncol(adaptation) - 1)}
+plot_adaptation_pc1(pca, adaptation, geom_point, wrap = TRUE)
 ```
