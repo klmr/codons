@@ -71,6 +71,13 @@ mrna_counts = cache %@% function (config) {
     counts[! zero_rows, ]
 }
 
+mrna_sf_counts = cache %@% function (config) {
+    norm = modules::import('norm')
+    counts = mrna_counts(config)
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+}
+
 trna_tpm_counts = cache %@% function (config) {
     # Required by dplyr::funs: norm$tpm wouldn’t work
     # TODO: Report as bug in dplyr
@@ -126,12 +133,14 @@ canonical_cds = cache %@% function (config) {
         ungroup()
 }
 
-go_genes = cache %@% function (config)
+go_genes = cache %@% function (config) {
+    mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
     io$read_table('data/gene_association.goa_human', header = FALSE,
                          comment.char = '!', quote = '', sep = '\t') %>%
     select(Name = 3, GO = 5, Aspect = 9) %>%
     filter(Aspect == 'P') %>%
-    inner_join(mrna_annotation(config), by = 'Name') %>%
+    mutate(Name = toupper(Name)) %>%
+    inner_join(mrna_annotation, by = 'Name') %>%
     select(Gene, GO = GO.x) %>%
     distinct(GO, Gene) %>%
     group_by(GO) %>%
@@ -140,3 +149,4 @@ go_genes = cache %@% function (config)
     filter(Size >= 40) %>%
     select(-Size) %>%
     tbl_df()
+}

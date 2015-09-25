@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+infile="$1"
+outfile="$2"
+
+< "$infile" > "$outfile" \
+sed -n '
+    # Within a [Term] definition …
+    /^\[Term\]$/,/^[[:space:]]*$/ {
+        # Match the “id” …
+        /^id:/ {
+            :a
+            N
+
+            # … and delete all intermediate lines, and loop …
+            /\nname:/! {
+                s/\n.*//
+                ta
+            }
+
+            # … until we find the “name”. Then print the ID and name.
+            /\nname:/ s/id: \(.*\)\nname: /\1	/ p
+        }
+    }
+'

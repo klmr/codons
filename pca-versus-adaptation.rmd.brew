@@ -1,0 +1,163 @@
+```{r}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/pca-versus-adaptation-<%= species %>-',
+               cache.path = 'cache/pca-versus-adaptations-<%= species %>-',
+               dev = c('png', 'pdf'))
+
+config = import('./config_<%= species %>')
+```
+
+Compute the PCA of the codon usage.
+
+```{r load-data}
+cu_ = import('codon_usage')
+tidyr = import_package('tidyr')
+data = import('./data')
+go_genes = data$go_genes(config)
+canonical_cds = data$canonical_cds(config)
+```
+
+```{r pca}
+pca = function (go_cu) {
+    table = tidyr$spread(go_cu, Codon, CU)
+    table = `rownames<-`(select(table, -GO), table$GO)
+    prcomp(table, scale. = TRUE)
+}
+```
+
+```{r plot-pca}
+plot_pca = function (pca, categories) {
+    ve = sprintf('(%.0f%% variance explained)',
+                 summary(pca)$importance['Proportion of Variance', 1 : 2] * 100)
+    data = cbind(as.data.frame(pca$x), Category = categories)
+    ggplot(data, aes(x = PC1, y = PC2, color = Category)) +
+        geom_point() +
+        xlab(paste('PC1', ve[1])) +
+        ylab(paste('PC2', ve[2])) +
+        scale_color_manual(values = c(none = '#00000080',
+                                      `cell autonomous` = 'red',
+                                      multicellular = 'blue'))
+}
+```
+
+```{r go-cu-pca}
+go_cu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    mutate(CU = CU / sum(CU)) %>%
+    ungroup()
+
+pca = pca(go_cu)
+```
+
+Ensure that “cell autonomous” and “multicellular” cluster separately.
+
+```{r go-categories}
+go_categories = list(
+    multicellular = c('Development', 'Differentiation', 'Cell adhesion',
+                      'Pattern specification', 'Multicellular organism growth',
+                      'Angiogenesis'),
+    cell_autonomous = c('Mitotic cell cycle', 'Nucleosome assembly',
+                        'Chromatin remodeling', 'Chromatin modification',
+                        'Translation', 'mRNA metabolic process',
+                        'Negative regulation of cell cycle')
+)
+
+go_names = io$read_table('./data/go-descriptions.tsv',
+                         col.names = c('GO', 'Name'), quote = '')
+reduce = f ~ x -> Reduce(f, x[-1], x[[1]])
+grepl_any = function (patterns, x, ...)
+    reduce(`|`, lapply(patterns, grepl, x = x, ...))
+
+go_groups = sapply(go_categories,
+                   x -> filter(go_names, grepl_any(x, Name, ignore.case = TRUE))$GO,
+                   simplify = FALSE)
+```
+
+```{r go-cu-pca-plot, fig.width=10}
+plot_pca(pca, with(list(x = rownames(pca$x)),
+                   ifelse(x %in% go_groups$multicellular, 'multicellular',
+                   ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
+                   'none'))))
+```
+
+Next, compute adaptation for each GO term. For this, we first need to load mRNA
+and tRNA abundance estimates.
+
+```{r mrna-abundance}
+mrna_design = data$mrna_design(config)
+mrna_sf_counts = data$mrna_sf_counts(config) %>%
+    tidyr$gather(DO, Count, starts_with('do')) %>%
+    inner_join(mrna_design, by = 'DO') %>%
+    group_by(Celltype, Gene) %>%
+    summarize(Count = mean(Count)) %>%
+    ungroup() %>%
+    inner_join(canonical_cds, by = 'Gene')
+```
+
+```{r trna-abundance}
+# Normalised by library size to be comparable across conditions.
+trna_design = data$trna_design(config)
+trna_sf_counts = data$trna_sf_counts(config) %>%
+    tidyr$gather(DO, Count, starts_with('do')) %>%
+    inner_join(trna_design, by = 'DO') %>%
+    group_by(Celltype, Gene, AA, Anticodon) %>%
+    summarize(Count = mean(Count)) %>%
+    ungroup()
+```
+
+Now calculate the GO term relative codon usage and relative anticodon abundance.
+
+```{r rcu}
+go_rcu = inner_join(cu_$cu(canonical_cds), mrna_sf_counts, by = 'Gene') %>%
+    mutate(CU = CU * Count / Length) %>%
+    inner_join(go_genes, by = 'Gene') %>%
+    group_by(Celltype, GO, Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    base$add_class('codon_usage$cu') %>%
+    cu_$rcu_(c('Celltype', 'GO'))
+```
+
+```{r raa}
+raa = trna_sf_counts %>%
+    group_by(Celltype, AA, Anticodon) %>%
+    summarize(Count = sum(Count)) %>%
+    mutate(RAA = Count / sum(Count)) %>%
+    ungroup() %>%
+    mutate(Codon = cu_$revcomp(Anticodon))
+```
+
+To calculate GO term adaptation to all cell type specific tRNA transcriptomes.
+
+```{r adaptation}
+go_terms_in_order = group_by(go_rcu, GO) %>% summarize(TRUE) %>% .$GO
+
+adaptation = sapply(unique(raa$Celltype),
+                    x -> cu_$adaptation(group_by(filter(go_rcu, Celltype == x), GO),
+                                        filter(raa, Celltype == x))) %>%
+    as.data.frame() %>%
+    `rownames<-`(go_terms_in_order) %>%
+    add_rownames('GO') %>%
+    tidyr$gather(Celltype, Adaptation, -GO)
+```
+
+Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
+
+```{r plot-adaptation-pc1}
+plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line, wrap = FALSE) {
+    pcax = as.data.frame(pca$x) %>% add_rownames('GO') %>% select(1 : 2)
+    data = inner_join(pcax, adaptation, by = 'GO')
+    ggplot(data, aes(x = PC1, y = Adaptation, color = Celltype)) +
+        geom_type() +
+        scale_y_continuous(limits = c(0.7, 0.9)) +
+        if (wrap) facet_wrap(~ Celltype, ncol = 1)
+}
+```
+
+```{r adaptation-pc1-plot-line, fig.width=10}
+plot_adaptation_pc1(pca, adaptation)
+```
+
+```{r adaptation-pc1-plot-scatter, fig.width=10, fig.height=9 * (ncol(adaptation) - 1)}
+plot_adaptation_pc1(pca, adaptation, geom_point, wrap = TRUE)
+```
