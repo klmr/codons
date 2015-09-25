@@ -9,4 +9,7 @@ mrna_design = './data/libraries-rna-seq-mm10.tsv'
 norm_counts = './results/trna-norm-counts-mm10.tsv'
 contrasts = list(c('Liver-Adult', 'Hepa1-6'),
                  c('Liver-Adult', 'Hepa1c1c7'),
-                 c('Hepa1-6', 'Hepa1c1c7'))
+                 c('Hepa1-6', 'Hepa1c1c7'),
+                 c('Liver-Adult', 'E15.5'),
+                 c('E15.5', 'Hepa1-6'),
+                 c('E15.5', 'Hepa1c1c7'))
