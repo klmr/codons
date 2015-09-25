@@ -2,13 +2,30 @@ BIN := ./scripts
 
 species := mouse human
 
+load-contrasts = \
+	$(shell Rscript -e 'modules::import("./config_$1", attach = TRUE); cat(sapply(contrasts, function (x) sprintf("%s-vs-%s", x[1], x[2])))')
+
+contrasts/mouse := $(call load-contrasts,mouse)
+contrasts/human := $(call load-contrasts,human)
+
 .PHONY: all
 all: go
 	@echo >&2 No default rule. Please run \`make rule\`
 	exit 1
 
 .PHONY: go
-go: data/go-descriptions.tsv
+go: data/go-descriptions.tsv go-enrichment
+
+.PHONY: go-enrichment
+go-enrichment: \
+		results/gsea/mouse-$(firstword ${contrasts/mouse}).tsv \
+		results/gsea/human-$(firstword ${contrasts/human}).tsv
+
+results/gsea/mouse-%:
+	./scripts/go-enrichment mouse resuts/gsea/
+
+results/gsea/human-%:
+	./scripts/go-enrichment human resuts/gsea/
 
 data/go-descriptions.tsv: data/go-basic.obo
 	./scripts/write-go-descriptions $< $@
@@ -16,6 +33,9 @@ data/go-descriptions.tsv: data/go-basic.obo
 data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
+
+.PHONY: go-enrichment
+go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
