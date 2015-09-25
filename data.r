@@ -71,6 +71,13 @@ mrna_counts = cache %@% function (config) {
     counts[! zero_rows, ]
 }
 
+mrna_sf_counts = cache %@% function (config) {
+    norm = modules::import('norm')
+    counts = mrna_counts(config)
+    size_factors = counts %>% select(starts_with('do')) %>% norm$size_factors()
+    norm$transform_counts(counts, . / size_factors$., starts_with('do'))
+}
+
 trna_tpm_counts = cache %@% function (config) {
     # Required by dplyr::funs: norm$tpm wouldn’t work
     # TODO: Report as bug in dplyr
