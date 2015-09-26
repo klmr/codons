@@ -22,10 +22,12 @@ go-enrichment: \
 		results/gsea/human-$(firstword ${contrasts/human}).tsv
 
 results/gsea/mouse-%:
-	./scripts/go-enrichment mouse resuts/gsea/
+	mkdir -p results/gsea
+	./scripts/go-enrichment mouse results/gsea/
 
 results/gsea/human-%:
-	./scripts/go-enrichment human resuts/gsea/
+	mkdir -p results/gsea
+	./scripts/go-enrichment human results/gsea/
 
 data/go-descriptions.tsv: data/go-basic.obo
 	./scripts/write-go-descriptions $< $@
