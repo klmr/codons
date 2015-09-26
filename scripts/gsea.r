@@ -38,13 +38,16 @@ untidy = function (tidy_data, rownames = 1)
     `rownames<-`(as.data.frame(tidy_data[-rownames]), tidy_data[[rownames]])
 
 deseq_test = function (data, col_data, contrast) {
-    cols = col_data[[1]] %in% contrast
+    cols = rownames(col_data)[col_data[[1]] %in% contrast]
     col_data = col_data[cols, , drop = FALSE]
     # Ensure that the conditions are in the same order as `contrast`; that is,
     # the reference level corresponds to `contrast[1]`.
-    col_data[[1]] = factor(col_data[[1]], col_data[[1]], ordered = TRUE)
+    # FIXME: DESeq2 bug causes this not to work, need to use relevel instead.
+    #col_data[[1]] = factor(col_data[[1]], unique(col_data[[1]]), ordered = TRUE)
     data = data[, cols]
     design = eval(bquote(~ .(as.name(colnames(col_data)[1]))))
     dds = deseq$DESeqDataSetFromMatrix(data, col_data, design)
+    GenomicRanges::colData(dds)[[1]] = relevel(GenomicRanges::colData(dds)[[1]],
+                                               contrast[1])
     deseq$DESeq(dds, quiet = TRUE)
 }
