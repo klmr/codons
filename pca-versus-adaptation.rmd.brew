@@ -144,13 +144,16 @@ adaptation = sapply(unique(raa$Celltype),
 Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
 
 ```{r plot-adaptation-pc1}
-plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line, wrap = FALSE) {
+prepare_plot_data = function (pca, adaptation) {
     pcax = as.data.frame(pca$x) %>% add_rownames('GO') %>% select(1 : 2)
-    data = inner_join(pcax, adaptation, by = 'GO')
-    ggplot(data, aes(x = PC1, y = Adaptation, color = Celltype)) +
-        geom_type() +
-        scale_y_continuous(limits = c(0.7, 0.9)) +
-        if (wrap) facet_wrap(~ Celltype, ncol = 1)
+    inner_join(pcax, adaptation, by = 'GO')
+}
+
+plot_adaptation_pc1 = function (pca, adaptation) {
+    ggplot(prepare_plot_data(pca, adaptation)) +
+        aes(x = PC1, y = Adaptation, color = Celltype) +
+        geom_line() +
+        scale_y_continuous(limits = c(0.7, 0.9))
 }
 ```
 
@@ -158,6 +161,41 @@ plot_adaptation_pc1 = function (pca, adaptation, geom_type = geom_line, wrap = F
 plot_adaptation_pc1(pca, adaptation)
 ```
 
+Highlight GO term enriched in each condition, compared to healthy liver.
+
+```{r gsa}
+gsa_filename = function (contrast)
+    sprintf('results/gsa/%s-%s-vs-%s.tsv',
+            config$species, contrast[1], contrast[2])
+
+read_gsa = function (contrast)
+    io$read_table(gsa_filename(contrast), header = TRUE) %>%
+    mutate(Celltype = contrast[2]) %>%
+    rename(GO = Name)
+
+gsa = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
+             read_gsa) %>% bind_rows()
+```
+
+```{r plot-adaptation-pc1-with-go-enrichment, fig.width=10}
+plot_adaptation_pc1_with_go = function (pca, adaptation, gsa) {
+    data = prepare_plot_data(pca, adaptation) %>%
+        left_join(gsa, by = c('GO', 'Celltype')) %>%
+        mutate(Enriched = ! is.na(padj))
+    p = ggplot(data) +
+        aes(x = PC1, y = Adaptation, color = Celltype, alpha = Enriched) +
+        geom_point() +
+        scale_y_continuous(limits = c(0.7, 0.9)) +
+        facet_wrap(~ Celltype, ncol = 1)
+    gt = ggplotGrob(p)
+    panels = grep('panel', gt$layout$name)
+    top = unique(gt$layout$t[panels])
+    gt = gt[-(top - 1), ]
+    grid::grid.newpage()
+    grid::grid.draw(gt)
+}
+```
+
 ```{r adaptation-pc1-plot-scatter, fig.width=10, fig.height=9 * (ncol(adaptation) - 1)}
-plot_adaptation_pc1(pca, adaptation, geom_point, wrap = TRUE)
+plot_adaptation_pc1_with_go(pca, adaptation, gsa)
 ```
