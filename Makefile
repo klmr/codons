@@ -18,16 +18,16 @@ go: data/go-descriptions.tsv go-enrichment
 
 .PHONY: go-enrichment
 go-enrichment: \
-		results/gsea/mouse-$(firstword ${contrasts/mouse}).tsv \
-		results/gsea/human-$(firstword ${contrasts/human}).tsv
+		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
+		results/gsa/human-$(firstword ${contrasts/human}).tsv
 
-results/gsea/mouse-%:
-	mkdir -p results/gsea
-	./scripts/go-enrichment mouse results/gsea/
+results/gsa/mouse-%:
+	mkdir -p results/gsa
+	./scripts/go-enrichment mouse results/gsa/
 
-results/gsea/human-%:
-	mkdir -p results/gsea
-	./scripts/go-enrichment human results/gsea/
+results/gsa/human-%:
+	mkdir -p results/gsa
+	./scripts/go-enrichment human results/gsa/
 
 data/go-descriptions.tsv: data/go-basic.obo
 	./scripts/write-go-descriptions $< $@

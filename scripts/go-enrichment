@@ -16,18 +16,18 @@ sys$run({
     mrna_design = data$mrna_design(config)
     go_genes = data$go_genes(config)
 
-    gsea = import('./gsea')
-    go_genes_piano = gsea$prepare_gene_set(go_genes)
+    gsa = import('./gsa')
+    go_genes_piano = gsa$prepare_gene_set(go_genes)
 
     parallel = import_package('parallel')
-    result = parallel$mclapply(config$contrasts, gsea$gsea_de,
+    result = parallel$mclapply(config$contrasts, gsa$gsa_de,
                                data = mrna_counts,
                                col_data = mrna_design,
                                go_genes = go_genes_piano,
                                mc.cores = parallel$detectCores())
 
     get_top_genes = function (result, direction)
-        gsea$enriched_terms(result, direction, alpha = args$alpha)
+        gsa$enriched_terms(result, direction, alpha = args$alpha)
 
     get_enrichment = function (result, contrast) {
         names = sapply(c(identity, rev),

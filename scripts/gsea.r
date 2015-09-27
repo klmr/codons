@@ -7,7 +7,7 @@ prepare_gene_set = function (gene_set)
     piano$loadGSC(gene_set, 'data.frame')
 
 #' @export
-gsea_de = function (data, col_data, contrast, go_genes) {
+gsa_de = function (data, col_data, contrast, go_genes) {
     stopifnot(inherits(go_genes, 'GSC'))
     data = untidy(select(data, Gene, starts_with('do')))
     col_data = untidy(col_data)
