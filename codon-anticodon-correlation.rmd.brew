@@ -368,7 +368,23 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go_associations, fig.width=5}
+```{r go-association}
+run_go_analysis = function (go_enriched, n = 2) {
+    cancer_sample_names = c('Hepa1-6', 'Hepa1c1c7', 'HepG2', 'Huh7')
+    dev_sample_names = 'E15.5'
+
+    cancer_mrna_samples = filter(mrna_design, Celltype %in% cancer_sample_names)$DO
+    cancer_go_terms = go_enriched %>%
+        filter(grepl('Liver-Adult-vs-', Condition) &
+               ! grepl('E15.5', Condition)) %>%
+        top_n(n)
+
+    go_cancer_rcu = sapply(samples…,
+                           rcu_for_condition(cancer_mrna_samples, cancer_go_terms))
+}
+```
+
+```{r simple-go-association, fig.width=5}
 go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
            GO0007389 = 'Pattern specification process')
 
@@ -411,6 +427,9 @@ from condition-specific GO terms yields $p(\text{observation | GO = Matching})
 = `r go_p`$, where $H_1$: “specific GO term gene set RCU correlates *better*
 with matching RAA than whole-transcriptome codon usage”. For the inverted
 hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.<!-- ` -->
+
+## Enriched GO terms
+
 
 ## Account for sample size
 
