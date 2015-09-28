@@ -215,3 +215,20 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa) {
 ```{r adaptation-pc1-plot-scatter, fig.width=10, fig.height=9 * (ncol(adaptation) - 1)}
 plot_adaptation_pc1_with_go(pca, adaptation, gsa)
 ```
+
+Check for difference in adaptation between enriched and non-enriched GO terms
+in each condition.
+
+```{r test-diff-enrichment}
+enrichment_test_set = gsa %>%
+    right_join(adaptation, by = c('GO', 'Celltype')) %>%
+    mutate(Enriched = ! is.na(padj))
+
+enrichment_test = enrichment_test_set %>%
+    group_by(Celltype) %>%
+    summarize_each(funs(t.test(.[Enriched], .[! Enriched],
+                               alternative = 'greater')$p.value),
+                   p = Adaptation)
+
+enrichment_test
+```
