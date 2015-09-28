@@ -369,19 +369,56 @@ We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
 ```{r go-association}
-run_go_analysis = function (go_enriched, n = 2) {
-    cancer_sample_names = c('Hepa1-6', 'Hepa1c1c7', 'HepG2', 'Huh7')
-    dev_sample_names = 'E15.5'
+gsa_filename = function (contrast)
+    sprintf('results/gsa/%s-%s-vs-%s.tsv',
+            config$species, contrast[1], contrast[2])
 
-    cancer_mrna_samples = filter(mrna_design, Celltype %in% cancer_sample_names)$DO
-    cancer_go_terms = go_enriched %>%
-        filter(grepl('Liver-Adult-vs-', Condition) &
-               ! grepl('E15.5', Condition)) %>%
-        top_n(n)
+read_gsa = function (contrast)
+    io$read_table(gsa_filename(contrast), header = TRUE) %>%
+    mutate(Base = contrast[1], Celltype = contrast[2]) %>%
+    rename(GO = Name)
 
-    go_cancer_rcu = sapply(samples…,
-                           rcu_for_condition(cancer_mrna_samples, cancer_go_terms))
-}
+gsa = lapply(config$contrasts, read_gsa) %>% bind_rows()
+go_genes = data$go_genes(config)
+
+non_base_names = setdiff(unique(mrna_design$Celltype), 'Liver-Adult')
+enriched_go_terms = gsa %>%
+    filter(Base == 'Liver-Adult', Celltype %in% non_base_names) %>%
+    group_by(Celltype) %>%
+    arrange(padj) %>%
+    slice(1 : 2)
+
+enriched_go_genes = enriched_go_terms %>%
+    inner_join(go_genes, by = 'GO') %>%
+    summarize(Genes = list(Gene)) %>%
+    {setNames(.$Genes, .$Celltype)}
+
+enriched_go_samples = lapply(names(enriched_go_genes),
+                             x -> filter(mrna_design, Celltype == x)$DO)
+enriched_go_rcu = Map(rcu_for_condition, enriched_go_samples, enriched_go_genes) %>%
+    bind_rows()
+
+enriched_go_correlations = do_contrasts(matching_contrasts,
+                                        correlate_contrast, cf,
+                                        enriched_go_rcu, raa)
+
+all_correlations = rbind(all_correlations,
+                         data.frame(Correlation = enriched_go_correlations,
+                                    Type = 'Enriched GO'))
+
+enriched_go_significance = wilcox.test(matching_correlations,
+                                       enriched_go_correlations, conf.int = TRUE,
+                                       alternative = 'less')
+enriched_go_inverse_test = wilcox.test(matching_correlations,
+                                       enriched_go_correlations, conf.int = TRUE,
+                                       alternative = 'greater')
+
+ggplot(all_correlations, aes(Type, Correlation)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    scale_x_discrete(name = '') +
+    scale_y_continuous(limits = c(0.75, 0.88))
 ```
 
 ```{r simple-go-association, fig.width=5}
@@ -391,7 +428,7 @@ go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
 go_terms = sapply(names(go_ids),
                   function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
 
-cancer_mrna_samples = filter(mrna_design, Celltype != 'Liver-Adult')$DO
+cancer_mrna_samples = filter(mrna_design, Celltype %in% cancer_sample_names)$DO
 go_cancer_rcu = rcu_for_condition(cancer_mrna_samples, go_terms$GO0000087)
 
 healthy_mrna_samples = filter(mrna_design, Celltype == 'Liver-Adult')$DO
