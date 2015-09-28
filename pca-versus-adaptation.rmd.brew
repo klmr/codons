@@ -181,8 +181,14 @@ read_gsa = function (contrast)
     mutate(Celltype = contrast[2]) %>%
     rename(GO = Name)
 
+gsa_adult = lapply(base$filter(x -> x[1] == 'Liver-Adult' &
+                                    x[2] != 'E15.5', config$contrasts),
+                   x -> read_gsa(rev(x))) %>%
+    bind_rows() %>%
+    mutate(Celltype = 'Liver-Adult')
+
 gsa = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
-             read_gsa) %>% bind_rows()
+             read_gsa) %>% bind_rows() %>% bind_rows(gsa_adult)
 ```
 
 ```{r plot-adaptation-pc1-with-go-enrichment, fig.width=10}
