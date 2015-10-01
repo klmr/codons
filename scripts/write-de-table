@@ -24,12 +24,7 @@ sys$run({
 
     de = import('de')
     de_genes = de$de_genes(counts, design, config$contrasts)
-    names = paste0(args$prefix,
-                   'de-genes-',
-                   args$species,
-                   '-',
-                   args$type,
-                   '-',
+    names = paste0(args$prefix, 'de-genes-', args$species, '-', args$type, '-',
                    gsub('/', '-vs-', names(de_genes)),
                    '.tsv')
 
