@@ -23,7 +23,7 @@ de_genes = function (counts, design, contrasts, alpha = 0.001) {
     # Ensure Liver-Adult is condition A in the contrast
     dds_col_data$Celltype = factor(dds_col_data$Celltype)
     dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
-    contrasts = contrasts[grep('Liver-Adult', contrasts)]
+    #contrasts = contrasts[grep('Liver-Adult', contrasts)]
     dds = lapply(contrasts, .deseq_test,
                  data = dds_data, col_data = dds_col_data)
     lapply(dds, dds -> subset(as.data.frame(.deseq$results(dds)),
