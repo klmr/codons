@@ -22,7 +22,7 @@ sys$run({
     counts = load_data('counts')
     design = load_data('design')
 
-    de = import('../de')
+    de = import('de')
     de_genes = de$de_genes(counts, design, config$contrasts)
     names = paste0(args$prefix,
                    'de-genes-',
