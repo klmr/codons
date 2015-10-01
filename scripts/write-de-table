@@ -30,7 +30,7 @@ sys$run({
                    '-',
                    args$type,
                    '-',
-                   tolower(gsub('/', '-vs-', names(de_genes))),
+                   gsub('/', '-vs-', names(de_genes)),
                    '.tsv')
 
     for (i in seq_along(de_genes))
