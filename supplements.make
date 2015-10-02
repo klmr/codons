@@ -11,7 +11,7 @@ gene-expression: ${combinations}
 
 ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
-	./scripts/write-supp-table $(call split-args,$*) > $@
+	./scripts/write-expression-table $(call split-args,$*) > $@
 
 .PHONY: de-genes
 de-genes: ${de_genes_combinations}
