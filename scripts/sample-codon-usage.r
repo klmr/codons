@@ -2,20 +2,24 @@
 
 library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
+import_package('dplyr', attach = TRUE)
+base = import('ebits/base')
 
-sys$run({
-    args = sys$cmdline$parse(arg('filename', 'the filename of the RDS output'))
+data = new.env()
 
-    import_package('dplyr', attach = TRUE)
-    base = import('ebits/base')
+make_global = function (variable, global_env = parent.env(parent.frame())) {
+    variable = substitute(variable)
+    assign(deparse(variable), eval.parent(variable), global_env)
+}
 
+load_codon_usage_data = function () {
     config = modules::import('../config_human')
-    data = import('../data')
-    mrna_annotation = data$mrna_annotation(config) %>% select(-GO)
-    go_genes = inner_join(data$go_genes(config), mrna_annotation, by = 'Gene')
-    canonical_cds = data$canonical_cds(config)
+    data_ = import('../data')
+    mrna_annotation = data_$mrna_annotation(config) %>% select(-GO)
+    canonical_cds = data_$canonical_cds(config)
 
-    go_genes = go_genes %>%
+    go_genes = data_$go_genes(config) %>%
+        inner_join(mrna_annotation, by = 'Gene') %>%
         filter(Gene %in% canonical_cds$Gene) %>%
         group_by(GO) %>%
         distinct(Gene) %>%
@@ -23,13 +27,11 @@ sys$run({
         filter(Size >= 40) %>%
         ungroup()
 
-    distinct_go_sizes = go_genes$Size %>% unique() %>% sort()
-
     cu_ = import('codon_usage')
     codon_usage = cu_$cu(canonical_cds) %>%
         inner_join(cu_$genetic_code, by = 'Codon')
 
-    background_cu = codon_usage %>%
+    background = codon_usage %>%
         group_by(AA, Codon) %>%
         summarize(CU = sum(CU)) %>%
         ungroup() %>%
@@ -43,30 +45,41 @@ sys$run({
     stopifnot(stride * 61 == nrow(codon_usage))
     stopifnot(all(codon_usage[1 : stride, ]$Codon == codon_usage$Codon[1]))
 
-    cu_fit = function (gene_index_set) {
-        translated_index = unlist(lapply(gene_index_set, i -> 0 : 60 * stride + i))
-        codon_usage[translated_index, ] %>%
-            group_by(AA, Codon) %>%
-            summarize(CU = sum(CU)) %>%
-            ungroup() %>%
-            mutate(Prop = CU / sum(CU)) %>%
-            arrange(Codon) %>%
-            {cor(.$Prop, background_cu$Prop)}
-    }
+    make_global(go_genes, data)
+    make_global(canonical_cds, data)
+    make_global(codon_usage, data)
+    make_global(background, data)
+    make_global(stride, data)
+}
 
+cu_fit = function (gene_index_set) {
+    translated_index = unlist(lapply(gene_index_set, i -> 0 : 60 * data$stride + i))
+    data$codon_usage[translated_index, ] %>%
+        group_by(AA, Codon) %>%
+        summarize(CU = sum(CU)) %>%
+        ungroup() %>%
+        mutate(Prop = CU / sum(CU)) %>%
+        arrange(Codon) %>%
+        {cor(.$Prop, data$background$Prop)}
+}
+
+sample_cu_fit = function (size)
+    cu_fit(sample.int(nrow(data$canonical_cds), size))
+
+sample_cu_fit_rep = function (size, repetitions = 2) {
+    # Ensure that all simulations are using different seed, as otherwise the
+    # parallel jobs will start off with the same sequence of random samples.
+    set.seed(rng_seed + size)
+    on.exit(cat('.', file = stderr()))
+    replicate(repetitions, sample_cu_fit(size))
+}
+
+sys$run({
+    args = sys$cmdline$parse(arg('filename', 'the filename of the RDS output'))
+
+    load_codon_usage_data()
+    distinct_go_sizes = data$go_genes$Size %>% unique() %>% sort()
     rng_seed = 1428079834
-
-    sample_cu_fit = function (size)
-        cu_fit(sample.int(nrow(canonical_cds), size))
-
-    sample_cu_fit_rep = function (size, repetitions = 2) {
-        # Ensure that all simulations are using different seed, as otherwise the
-        # parallel jobs will start off with the same sequence of random samples.
-        set.seed(rng_seed + size)
-        on.exit(cat('.', file = stderr()))
-        replicate(repetitions, sample_cu_fit(size))
-    }
-
     cores = parallel::detectCores()
     sampled_cu_fit = parallel::mclapply(distinct_go_sizes, sample_cu_fit_rep,
                                         repetitions = 10000,
