@@ -28,7 +28,7 @@ amino acids, codons with many synonymous codons will have lower values compared
 to codons with few synonymous codons (simply because usage of synonymous codons
 sums to 1).
 
-```{r load_sampled_data, echo=FALSE}
+```{r load-sampled-data, echo=FALSE}
 # The sampling is *hellishly* slow – it took 230 CPU hours to complete.
 # Consequently, we ran it on a cluster and load the results here, instead of
 # actually recomputing them.
@@ -40,7 +40,7 @@ sampled_cu_fit = readRDS('./results/sampled-cu-fit.rds') %>%
 Plot histograms for the distribution. Take out highest observations because they
 are useless and skew everything.
 
-```{r sampled_data_plot, fig.width=10, fig.height=6}
+```{r sampled-data-plot, fig.width=10, fig.height=6}
 sampled_summary = sampled_cu_fit %>%
     group_by(Size) %>%
     do(.$Correlation %>% quantile(c(0, 0.02, 0.05, 0.25, 0.5, 0.75, 0.98, 1)) %>%
@@ -66,7 +66,7 @@ ggplot(sampled_summary) +
 
 Now calculate the GO term CU and its correlation with the genomic CU.
 
-```{r go_cu_cor}
+```{r go-cu-cor}
 sampling = import('sample-codon-usage')
 sampling$load_codon_usage_data()
 data = sampling$data
@@ -101,7 +101,7 @@ go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
     tbl_df()
 ```
 
-```{r go_cu_fit_plot, fig.width=10, fig.height=6}
+```{r go-cu-fit-plot, fig.width=10, fig.height=6}
 ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
     geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.1) +
     geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.1) +
