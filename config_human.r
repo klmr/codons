@@ -10,3 +10,6 @@ norm_counts = './results/trna-norm-counts-hs19.tsv'
 contrasts = list(c('Liver-Adult', 'Huh7'),
                  c('Liver-Adult', 'HepG2'),
                  c('Huh7', 'HepG2'))
+celltype_colors = c(`Liver-Adult` = 'black',
+                    HepG2 = '#E69F00',
+                    Huh7 = '#D55E00')

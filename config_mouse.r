@@ -13,3 +13,7 @@ contrasts = list(c('Liver-Adult', 'Hepa1-6'),
                  c('Liver-Adult', 'E15.5'),
                  c('E15.5', 'Hepa1-6'),
                  c('E15.5', 'Hepa1c1c7'))
+celltype_colors = c(`Liver-Adult` = 'black',
+                    `Hepa1-6` = '#E69F00',
+                    Hepa1c1c7 = '#D55E00',
+                    E15.5 = '#56B4E9')
