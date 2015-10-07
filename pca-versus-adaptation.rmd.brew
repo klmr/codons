@@ -149,18 +149,11 @@ prepare_plot_data = function (pca, adaptation) {
     inner_join(pcax, adaptation, by = 'GO')
 }
 
-celltype_colors = c(`Liver-Adult` = 'black',
-                    `Hepa1-6` = '#E69F00',
-                    HepG2 = '#E69F00',
-                    Hepa1c1c7 = '#D55E00',
-                    Huh7 = '#D55E00',
-                    E15.5 = '#56B4E9')
-
 plot_adaptation_pc1 = function (pca, adaptation) {
     ggplot(prepare_plot_data(pca, adaptation)) +
         aes(x = PC1, y = Adaptation, color = Celltype) +
         geom_line() +
-        scale_color_manual(values = celltype_colors) +
+        scale_color_manual(values = config$celltype_colors) +
         scale_y_continuous(limits = c(0.7, 0.9))
 }
 ```
@@ -201,7 +194,7 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa) {
         geom_point() +
         scale_y_continuous(limits = c(0.7, 0.9)) +
         scale_alpha_discrete(range = c(0.3, 1)) +
-        scale_color_manual(values = celltype_colors) +
+        scale_color_manual(values = config$celltype_colors) +
         facet_wrap(~ Celltype, ncol = 1)
     gt = ggplotGrob(p)
     panels = grep('panel', gt$layout$name)
