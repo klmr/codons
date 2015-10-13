@@ -18,8 +18,18 @@ canonical_cds = data$canonical_cds(config)
 ```
 
 ```{r pca}
-pca = function (go_cu) {
-    table = tidyr$spread(go_cu, Codon, CU)
+pca = function (go_rcu) {
+    # Exclude amino acids with only one isoacceptor
+    singular_codons = cu_$genetic_code %>%
+        group_by(AA) %>%
+        mutate(Count = n()) %>%
+        ungroup() %>%
+        filter(Count == 1) %>%
+        .$Codon
+    table = go_rcu %>%
+        filter(! Codon %in% singular_codons) %>%
+        select(GO, Codon, RCU) %>%
+        tidyr$spread(Codon, RCU)
     table = `rownames<-`(select(table, -GO), table$GO)
     prcomp(table, scale. = TRUE)
 }
@@ -41,13 +51,14 @@ plot_pca = function (pca, categories) {
 ```
 
 ```{r go-cu-pca}
-go_cu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
+go_rcu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
     group_by(GO, Codon) %>%
     summarize(CU = mean(CU)) %>%
-    mutate(CU = CU / sum(CU)) %>%
-    ungroup()
+    ungroup() %>%
+    base$add_class('codon_usage$cu') %>%
+    cu_$rcu(GO)
 
-pca = pca(go_cu)
+pca = pca(go_rcu)
 ```
 
 Ensure that “cell autonomous” and “multicellular” cluster separately.
