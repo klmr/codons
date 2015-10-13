@@ -74,7 +74,7 @@ go_groups = sapply(go_categories,
                    simplify = FALSE)
 ```
 
-```{r go-cu-pca-plot, fig.width=10}
+```{r go-cu-pca-plot}
 plot_pca(pca, with(list(x = rownames(pca$x)),
                    ifelse(x %in% go_groups$multicellular, 'multicellular',
                    ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
@@ -185,28 +185,24 @@ gsa = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
 ```
 
 ```{r plot-adaptation-pc1-with-go-enrichment, fig.width=10}
-plot_adaptation_pc1_with_go = function (pca, adaptation, gsa) {
+plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
     data = prepare_plot_data(pca, adaptation) %>%
         left_join(gsa, by = c('GO', 'Celltype')) %>%
-        mutate(Enriched = ! is.na(padj))
-    p = ggplot(data) +
+        mutate(Enriched = ! is.na(padj)) %>%
+        filter(Celltype == celltype)
+    ggplot(data) +
         aes(x = PC1, y = Adaptation, color = Celltype, alpha = Enriched) +
         geom_point(show_guide = FALSE) +
         scale_y_continuous(limits = c(0.7, 0.9)) +
         scale_alpha_discrete(range = c(0.3, 1)) +
         scale_color_manual(values = config$celltype_colors) +
         facet_wrap(~ Celltype, ncol = 1)
-    gt = ggplotGrob(p)
-    panels = grep('panel', gt$layout$name)
-    top = unique(gt$layout$t[panels])
-    gt = gt[-(top - 1), ]
-    grid::grid.newpage()
-    grid::grid.draw(gt)
 }
 ```
 
-```{r adaptation-pc1-plot-scatter, fig.width=10, fig.height=9 * (ncol(adaptation) - 1)}
-plot_adaptation_pc1_with_go(pca, adaptation, gsa)
+```{r adaptation-pc1-plot-scatter}
+for (celltype in unique(adaptation$Celltype))
+    plot(plot_adaptation_pc1_with_go(pca, adaptation, gsa, celltype))
 ```
 
 Check for difference in adaptation between enriched and non-enriched GO terms
