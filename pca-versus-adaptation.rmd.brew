@@ -46,7 +46,8 @@ plot_pca = function (pca, categories) {
         ylab(paste('PC2', ve[2])) +
         scale_color_manual(values = c(none = '#00000080',
                                       `cell autonomous` = 'red',
-                                      multicellular = 'blue'))
+                                      multicellular = 'blue')) +
+        geom_rug(sides = 'b', size = 0.5, alpha = 0.5, show_guide = FALSE)
 }
 ```
 
@@ -224,6 +225,7 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
         aes(x = PC1, y = Adaptation, color = Enriched, shape = Enriched,
             size = Enriched) +
         geom_point(show_guide = FALSE) +
+        geom_rug(sides = 't', alpha = 0.5, size = 0.5, show_guide = FALSE) +
         scale_y_continuous('Translation efficiency', limits = c(0.7, 0.9)) +
         scale_color_manual(limits = c(FALSE, TRUE), values = colors) +
         scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 18)) +
