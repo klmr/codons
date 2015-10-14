@@ -61,7 +61,7 @@ ggplot(sampled_summary) +
     scale_x_log10(name = 'Gene set size',
                   breaks = c(50, 100, 500, 1000, 5000, 10000)) +
     scale_y_log10(name = 'Codon usage correlation',
-                  breaks = seq(0.7, 1, by = 0.05), limits = c(0.7, 1))
+                  breaks = seq(0.7, 1, by = 0.1), limits = c(0.7, 1))
 ```
 
 Now calculate the GO term CU and its correlation with the genomic CU.
@@ -102,16 +102,20 @@ go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
 ```
 
 ```{r go-cu-fit-plot}
-ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
+go_cu_cor %>%
+    mutate(Truncated = Correlation < 0.7) %>%
+ggplot(aes(x = Size, y = pmax(Correlation, 0.7))) +
     geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.2) +
     geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.2) +
-    geom_point(aes(color = Significant), size = 2) +
+    geom_point(aes(color = Significant, shape = Truncated), size = 2,
+               show_guide = FALSE) +
+    scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 6)) +
     scale_x_log10(name = 'GO term gene set size',
                   breaks = c(50, 100, 500, 1000, 5000, 10000)) +
     scale_y_continuous(name = 'Codon usage correlation',
                        breaks = seq(0.7, 1, 0.1), limits = c(0.7, 1)) +
-    scale_color_manual(values = c(`FALSE` = 'black', `TRUE` = 'brown1'),
-                       guide = FALSE)
+    scale_color_manual(limits = c(FALSE, TRUE),
+                       values = c('black', 'firebrick3'))
 ```
 
 In total, `r sum(go_cu_cor$Significant)` out of `r nrow(go_cu_cor)` GO terms
