@@ -165,8 +165,11 @@ prepare_plot_data = function (pca, adaptation) {
 plot_adaptation_pc1 = function (pca, adaptation) {
     ggplot(prepare_plot_data(pca, adaptation)) +
         aes(x = PC1, y = Adaptation, color = Celltype) +
-        geom_line() +
+        geom_line(alpha = 0.5, show_guide = FALSE) +
+        stat_smooth(method = loess, aes(fill = Celltype), alpha = 0.3,
+                    size = 1.5, show_guide = FALSE) +
         scale_color_manual(values = config$celltype_colors) +
+        scale_fill_manual(values = config$celltype_colors) +
         scale_y_continuous('Translation efficiency', limits = c(0.7, 0.9))
 }
 ```
