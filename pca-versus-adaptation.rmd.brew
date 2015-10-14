@@ -36,11 +36,13 @@ pca = function (go_rcu) {
 ```
 
 ```{r plot-pca}
+ge = import_package('gridExtra')
+
 plot_pca = function (pca, categories) {
     ve = sprintf('(%.0f%% variance explained)',
                  summary(pca)$importance['Proportion of Variance', 1 : 2] * 100)
     data = cbind(as.data.frame(pca$x), Category = categories)
-    ggplot(data, aes(x = PC1, y = PC2, color = Category)) +
+    scatter = ggplot(data, aes(x = PC1, y = PC2, color = Category)) +
         geom_point(show_guide = FALSE) +
         xlab(paste('PC1', ve[1])) +
         ylab(paste('PC2', ve[2])) +
@@ -48,6 +50,17 @@ plot_pca = function (pca, categories) {
                                       `cell autonomous` = 'red',
                                       multicellular = 'blue')) +
         geom_rug(sides = 'b', size = 0.5, alpha = 0.5, show_guide = FALSE)
+
+    # Add empty density plot on side to attain width with later plots.
+    empty = plot_empty()
+    ge$grid.arrange(scatter, empty, ncol = 2, nrow = 1, widths = c(4, 1))
+}
+
+
+plot_empty = function () {
+    ggplot() + aes(1, 1) + geom_point(color = 'white') +
+        theme(axis.line = element_blank(), axis.ticks = element_blank(),
+              axis.text.y = element_blank(), axis.title.y = element_blank())
 }
 ```
 
@@ -86,7 +99,7 @@ go_groups = sapply(go_categories,
                    simplify = FALSE)
 ```
 
-```{r go-cu-pca-plot}
+```{r go-cu-pca-plot, fig.width=9}
 plot_pca(pca, 'none')
 plot_pca(pca, with(list(x = rownames(pca$x)),
                    ifelse(x %in% go_groups$multicellular, 'multicellular',
@@ -208,18 +221,21 @@ darken = function (colors, factor = 0.5) {
     rgb(d(c['red', ]), d(c['green', ]), d(c['blue', ]), maxColorValue = 255)
 }
 
-plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
-    data = prepare_plot_data(pca, adaptation) %>%
-        left_join(gsa, by = c('GO', 'Celltype')) %>%
-        mutate(Enriched = ! is.na(padj)) %>%
-        filter(Celltype == celltype) %>%
-        arrange(Enriched)
+enrichment_colors = function (celltype) {
     is_black = function (col) sum(col2rgb(col)) == 0
     celltype_color = unname(config$celltype_colors[celltype])
     colors = if (is_black(celltype_color))
         c('#606060', 'black')
     else
         c(celltype_color, darken(celltype_color, 0.3))
+}
+
+plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
+    data = prepare_plot_data(pca, adaptation) %>%
+        left_join(gsa, by = c('GO', 'Celltype')) %>%
+        mutate(Enriched = ! is.na(padj)) %>%
+        filter(Celltype == celltype) %>%
+        arrange(Enriched)
 
     ggplot(data) +
         aes(x = PC1, y = Adaptation, color = Enriched, shape = Enriched,
@@ -227,15 +243,35 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
         geom_point(show_guide = FALSE) +
         geom_rug(sides = 't', alpha = 0.5, size = 0.5, show_guide = FALSE) +
         scale_y_continuous('Translation efficiency', limits = c(0.7, 0.9)) +
-        scale_color_manual(limits = c(FALSE, TRUE), values = colors) +
+        scale_color_manual(limits = c(FALSE, TRUE),
+                           values = enrichment_colors(celltype)) +
         scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 18)) +
         scale_size_manual(limits = c(FALSE, TRUE), values = c(2, 4))
 }
+
+plot_densities = function (adaptation, gsa, celltype) {
+    data = left_join(adaptation, gsa, by = c('GO', 'Celltype')) %>%
+        mutate(Enriched = ! is.na(padj)) %>%
+        filter(Celltype == celltype)
+
+    ggplot(data, aes(x = Adaptation, fill = Enriched)) +
+        geom_density(alpha = 0.5, show_guide = FALSE) +
+        scale_fill_manual(limits = c(FALSE, TRUE),
+                          values = enrichment_colors(celltype)) +
+        scale_x_continuous(limits = c(0.7, 0.9)) +
+        coord_flip() +
+        theme(axis.line = element_blank(), axis.ticks = element_blank(),
+              axis.text.y = element_blank(), axis.title.y = element_blank())
+}
 ```
 
-```{r adaptation-pc1-plot-scatter}
-for (celltype in unique(adaptation$Celltype))
-    plot(plot_adaptation_pc1_with_go(pca, adaptation, gsa, celltype))
+```{r adaptation-pc1-plot-scatter, fig.width = 9}
+for (celltype in unique(adaptation$Celltype)) {
+    scatter = plot_adaptation_pc1_with_go(pca, adaptation, gsa, celltype)
+    density = plot_densities(adaptation, gsa, celltype)
+    ge$grid.arrange(scatter, density, ncol = 2, nrow = 1,
+                    widths = c(4, 1))
+}
 ```
 
 Check for difference in adaptation between enriched and non-enriched GO terms
