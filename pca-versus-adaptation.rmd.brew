@@ -250,7 +250,8 @@ enrichment_test = enrichment_test_set %>%
     group_by(Celltype) %>%
     summarize_each(funs(t.test(.[Enriched], .[! Enriched],
                                alternative = 'greater')$p.value),
-                   p = Adaptation)
+                   p = Adaptation) %>%
+    mutate(q = p.adjust(p, method = 'fdr'))
 
 enrichment_test
 ```
