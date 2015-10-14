@@ -197,18 +197,33 @@ gsa = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
 ```
 
 ```{r plot-adaptation-pc1-with-go-enrichment, fig.width=10}
+darken = function (colors, factor = 0.5) {
+    c = col2rgb(colors)
+    d = function (c) c * (1 - factor)
+    rgb(d(c['red', ]), d(c['green', ]), d(c['blue', ]), maxColorValue = 255)
+}
+
 plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
     data = prepare_plot_data(pca, adaptation) %>%
         left_join(gsa, by = c('GO', 'Celltype')) %>%
         mutate(Enriched = ! is.na(padj)) %>%
-        filter(Celltype == celltype)
+        filter(Celltype == celltype) %>%
+        arrange(Enriched)
+    is_black = function (col) sum(col2rgb(col)) == 0
+    celltype_color = unname(config$celltype_colors[celltype])
+    colors = if (is_black(celltype_color))
+        c('#606060', 'black')
+    else
+        c(celltype_color, darken(celltype_color, 0.3))
+
     ggplot(data) +
-        aes(x = PC1, y = Adaptation, color = Celltype, alpha = Enriched) +
+        aes(x = PC1, y = Adaptation, color = Enriched, shape = Enriched,
+            size = Enriched) +
         geom_point(show_guide = FALSE) +
         scale_y_continuous(limits = c(0.7, 0.9)) +
-        scale_alpha_discrete(range = c(0.3, 1)) +
-        scale_color_manual(values = config$celltype_colors) +
-        facet_wrap(~ Celltype, ncol = 1)
+        scale_color_manual(limits = c(FALSE, TRUE), values = colors) +
+        scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 18)) +
+        scale_size_manual(limits = c(FALSE, TRUE), values = c(2, 4))
 }
 ```
 
