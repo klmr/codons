@@ -40,7 +40,7 @@ sampled_cu_fit = readRDS('./results/sampled-cu-fit.rds') %>%
 Plot histograms for the distribution. Take out highest observations because they
 are useless and skew everything.
 
-```{r sampled-data-plot, fig.width=10, fig.height=6}
+```{r sampled-data-plot}
 sampled_summary = sampled_cu_fit %>%
     group_by(Size) %>%
     do(.$Correlation %>% quantile(c(0, 0.02, 0.05, 0.25, 0.5, 0.75, 0.98, 1)) %>%
@@ -55,9 +55,9 @@ ggplot(sampled_summary) +
     geom_segment(aes(x = Size, y = `25%`,
                      xend = Size, yend = `75%`),
                  color = '#808080') +
-    geom_point(aes(x = Size, y = `2%`), size = 0.5)  +
-    geom_point(aes(x = Size, y = `50%`), size = 1) +
-    geom_point(aes(x = Size, y = `98%`), size = 0.5)  +
+    geom_point(aes(x = Size, y = `2%`), size = 1)  +
+    geom_point(aes(x = Size, y = `50%`), size = 1.5) +
+    geom_point(aes(x = Size, y = `98%`), size = 1)  +
     scale_x_log10(name = 'Gene set size',
                   breaks = c(50, 100, 500, 1000, 5000, 10000)) +
     scale_y_log10(name = 'Codon usage correlation',
@@ -101,11 +101,11 @@ go_cu_cor = parallel::mclapply(go_gene_ids, go_cu_fit, mc.cores = cores) %>%
     tbl_df()
 ```
 
-```{r go-cu-fit-plot, fig.width=10, fig.height=6}
+```{r go-cu-fit-plot}
 ggplot(go_cu_cor, aes(x = Size, y = Correlation)) +
-    geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.1) +
-    geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.1) +
-    geom_point(aes(color = Significant), size = 1) +
+    geom_line(aes(x = Size, y = `2%`), data = sampled_summary, size = 0.2) +
+    geom_line(aes(x = Size, y = `98%`), data = sampled_summary, size = 0.2) +
+    geom_point(aes(color = Significant), size = 2) +
     scale_x_log10(name = 'GO term gene set size',
                   breaks = c(50, 100, 500, 1000, 5000, 10000)) +
     scale_y_continuous(name = 'Codon usage correlation',
