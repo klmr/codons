@@ -86,6 +86,7 @@ go_groups = sapply(go_categories,
 ```
 
 ```{r go-cu-pca-plot}
+plot_pca(pca, 'none')
 plot_pca(pca, with(list(x = rownames(pca$x)),
                    ifelse(x %in% go_groups$multicellular, 'multicellular',
                    ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
