@@ -93,8 +93,8 @@ plot_pca(pca, with(list(x = rownames(pca$x)),
                    'none'))))
 ```
 
-Next, compute adaptation for each GO term. For this, we first need to load mRNA
-and tRNA abundance estimates.
+Next, compute translation efficiency for each GO term. For this, we first need
+to load mRNA and tRNA abundance estimates.
 
 ```{r mrna-abundance}
 mrna_design = data$mrna_design(config)
@@ -139,7 +139,8 @@ raa = trna_sf_counts %>%
     mutate(Codon = cu_$revcomp(Anticodon))
 ```
 
-To calculate GO term adaptation to all cell type specific tRNA transcriptomes.
+To calculate GO term adaptation (translation efficiency) to all cell type
+specific tRNA transcriptomes.
 
 ```{r adaptation}
 go_terms_in_order = group_by(go_rcu, GO) %>% summarize(TRUE) %>% .$GO
@@ -166,7 +167,7 @@ plot_adaptation_pc1 = function (pca, adaptation) {
         aes(x = PC1, y = Adaptation, color = Celltype) +
         geom_line() +
         scale_color_manual(values = config$celltype_colors) +
-        scale_y_continuous(limits = c(0.7, 0.9))
+        scale_y_continuous('Translation efficiency', limits = c(0.7, 0.9))
 }
 ```
 
@@ -220,7 +221,7 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
         aes(x = PC1, y = Adaptation, color = Enriched, shape = Enriched,
             size = Enriched) +
         geom_point(show_guide = FALSE) +
-        scale_y_continuous(limits = c(0.7, 0.9)) +
+        scale_y_continuous('Translation efficiency', limits = c(0.7, 0.9)) +
         scale_color_manual(limits = c(FALSE, TRUE), values = colors) +
         scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 18)) +
         scale_size_manual(limits = c(FALSE, TRUE), values = c(2, 4))
