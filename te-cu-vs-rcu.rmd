@@ -80,9 +80,22 @@ te_rcu = inner_join(rcu, raa, by = 'Codon') %>%
 
 Plot the distributions
 
-```{r plot-te}
+```{r boxplot-te}
 te = bind_rows(mutate(te_cu, Mode = 'CU vs AA'),
                mutate(te_rcu, Mode = 'RCU vs RAA'))
 
 ggplot(te) + geom_boxplot(aes(Mode, TE))
+```
+
+Examine correlation
+
+```{r correlate-te}
+te_cor = inner_join(te_cu, te_rcu, by = 'GO') %>%
+    rename(`CU vs AA` = TE.x, `RCU vs RAA` = TE.y)
+
+ggplot(te_cor, aes(x = `CU vs AA`, y = `RCU vs RAA`)) +
+    geom_point() +
+    geom_smooth(method = lm)
+
+cor(te_cu$TE, te_rcu$TE, method = 'spearman')
 ```
