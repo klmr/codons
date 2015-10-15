@@ -1,24 +1,30 @@
-# Measures of translation efficiency
+```{r config, echo=FALSE, message=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/te-cu-vs-rcu-', cache = FALSE)
+species = 'mouse'
+celltype = 'E15.5'
+```
+
+# Measures of translation efficiency in `r species` `r celltype`
 
 The following uses expression data from human liver. We will look at codon
 usage of GO terms.
 
-```{r load-data}
-modules::import('./scripts/knit', attach = TRUE)
-config = import('./config_human')
+```{r load-data, echo=FALSE, message=FALSE, warning=FALSE}
+config = import(paste0('./config_', species))
 data = import('./data')
 
 go_genes = data$go_genes(config)
 canonical_cds = data$canonical_cds(config)
 
 mrna_library = data$mrna_design(config) %>%
-    filter(Celltype == 'Liver-Adult') %>% .$DO %>% first()
+    filter(Celltype == celltype) %>% .$DO %>% first()
 mrna_counts = data$mrna_counts(config) %>%
     select_(~Gene, ~Name, Count = mrna_library) %>%
     inner_join(canonical_cds, by = 'Gene')
 
 trna_library = data$trna_design(config) %>%
-    filter(Celltype == 'Liver-Adult') %>% .$DO %>% first()
+    filter(Celltype == celltype) %>% .$DO %>% first()
 trna_counts = data$trna_counts(config) %>%
     select_(~Gene, AminoAcid = ~AA, ~Anticodon, Count = trna_library)
 ```
