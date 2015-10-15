@@ -43,7 +43,7 @@ gg_boxplot(select(counts, starts_with('do')), design, config$celltype_colors)
 
 PCA of raw counts.
 
-```{r raw-counts-pca, fig.width=10, fig.height=4}
+```{r raw-counts-pca}
 pcplot_by_do = function (pcs) {
     v = summary(pcs)$importance[2, ] * 100
     pcs = pcs$x %>%
@@ -72,7 +72,7 @@ gg_boxplot(select(sf_counts, starts_with('do')), design, config$celltype_colors)
 
 PCA of library size normalised counts.
 
-```{r sf-counts-pca, fig.width=10, fig.height=4}
+```{r sf-counts-pca}
 pcplot_by_do(count_prcomp(sf_counts))
 ```
 
@@ -96,7 +96,7 @@ gg_boxplot(select(q_counts, starts_with('do')), design, config$celltype_colors)
 
 Again, here’s the PCA of the quantile normalised data.
 
-```{r q-counts-pca, fig.width=10, fig.height=4}
+```{r q-counts-pca}
 pcplot_by_do(count_prcomp(q_counts))
 ```
 
@@ -147,7 +147,7 @@ ggplot(mean_codon_hist, aes(factor(DO), CU, color = Celltype)) +
 Perform PCA on the codon usage bias, i.e. the relative codon usage as a
 fraction of its amino acid.
 
-```{r codon-usage-pca, fig.width=10, fig.height=4}
+```{r codon-usage-pca}
 tidyr = import_package('tidyr')
 rel_cu = mean_codon_hist %>%
     inner_join(cu_$genetic_code, by = 'Codon') %>%
@@ -220,7 +220,7 @@ with(top_1000_gene_lengths, setNames(Length, DO))
 
 Plot the gene length versus gene expression.
 
-```{r gene-lenth-scatter, fig.width=12}
+```{r gene-length-scatter, fig.width=12}
 transparent = function (colors, alpha = 0.5) {
     c = col2rgb(colors)
     setNames(rgb(c['red', ], c['green', ], c['blue', ],
