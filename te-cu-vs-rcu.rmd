@@ -76,8 +76,10 @@ background_cor = inner_join(cu, background_cu, by = 'Codon') %>%
     inner_join(group_by(go_genes, GO) %>% summarize(Size = n()), by = 'GO')
 
 ggplot(background_cor, aes(x = Size, y = Correlation)) +
+    ggtitle('GO term CU against genomic background') +
     geom_point() +
-    scale_x_log10()
+    scale_x_log10() +
+    scale_y_continuous('Correlation to genomic background')
 ```
 
 Next, we calculate the whole-transcriptome TE (tRNA abundance against codon
@@ -135,7 +137,9 @@ Let’s plot the distributions.
 te = bind_rows(mutate(te_cu, Mode = 'CU vs AA'),
                mutate(te_rcu, Mode = 'RCU vs RAA'))
 
-ggplot(te) + geom_boxplot(aes(Mode, TE))
+ggplot(te) +
+    geom_boxplot(aes(Mode, TE)) +
+    ggtitle('Distribution of TE for all GO terms')
 ```
 
 We then calculate the correlation between CU-TE and RCU-TE:
@@ -146,7 +150,10 @@ te_cor = inner_join(te_cu, te_rcu, by = 'GO') %>%
 
 ggplot(te_cor, aes(x = `CU vs AA`, y = `RCU vs RAA`)) +
     geom_point() +
-    geom_smooth(method = lm)
+    geom_smooth(method = lm) +
+    ggtitle('RCU-TE vs CU-TE')
 
-cor(te_cu$TE, te_rcu$TE, method = 'spearman')
+cu_rcu_te_cor = cor(te_cu$TE, te_rcu$TE, method = 'spearman')
 ```
+
+> **Correlation between CU and RCU for TE method: `r cu_rcu_te_cor`**
