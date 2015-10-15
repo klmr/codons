@@ -80,6 +80,24 @@ ggplot(background_cor, aes(x = Size, y = Correlation)) +
     scale_x_log10()
 ```
 
+Next, we calculate the whole-transcriptome TE (tRNA abundance against codon
+usage weighted by gene expression):
+
+```{r transcriptome-te}
+transcriptome_cu = canonical_cds %>%
+    cu_$cu() %>%
+    inner_join(mrna_counts, by = 'Gene') %>%
+    mutate(CU = CU * Count / Length) %>%
+    group_by(Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    mutate(CU = CU / sum(CU))
+
+transcription_te = inner_join(transcriptome_cu, aa, by = 'Codon') %>%
+    summarize(TE = cor(CU, AA, method = 'spearman')) %>%
+    .$TE
+```
+
+> **TE of whole transcriptome: `r transcription_te`.**
 
 ## Relative codon usage (RCU)
 
