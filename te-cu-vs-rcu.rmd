@@ -38,7 +38,8 @@ ribosome. This requires the tRNA to be abundant in just the right ratio — that
 dictated by codon usage, relative to the usage of other codons.
 
 We therefore scale codon usage (CU) and anticodon abundance (AA) by the total
-codon usage and anticodon abundance.
+codon usage and anticodon abundance. The TE is then defined as the simple (rank)
+correlation of scaled CU and AA.
 
 ```{r cu}
 cu_ = import('codon_usage')
@@ -59,8 +60,8 @@ te_cu = inner_join(cu, aa, by = 'Codon') %>%
     summarize(TE = cor(CU, AA, method = 'spearman'))
 ```
 
-First off, for comparison, calculate the genomic background CU and correlate
-GO CUs — this corresponds to the size factor effect plot.
+We now calculate calculate the genomic background CU and correlate it with the
+GO term CUs (this corresponds to the “size factor effect” plot).
 
 ```{r background-cu}
 background_cu = canonical_cds %>%
@@ -110,7 +111,7 @@ te_rcu = inner_join(rcu, raa, by = 'Codon') %>%
     summarize(TE = cor(RCU, RAA, method = 'spearman'))
 ```
 
-Plot the distributions
+Let’s plot the distributions.
 
 ```{r boxplot-te}
 te = bind_rows(mutate(te_cu, Mode = 'CU vs AA'),
@@ -119,7 +120,7 @@ te = bind_rows(mutate(te_cu, Mode = 'CU vs AA'),
 ggplot(te) + geom_boxplot(aes(Mode, TE))
 ```
 
-Examine correlation
+We then calculate the correlation between CU-TE and RCU-TE:
 
 ```{r correlate-te}
 te_cor = inner_join(te_cu, te_rcu, by = 'GO') %>%
