@@ -43,7 +43,7 @@ $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
-results/sampled-cu-fit.rds:
+results/sampled-cu-fit.rds: scripts/sample-codon-usage
 	./scripts/sample-codon-usage $@
 
 .PHONY: supplements
