@@ -29,6 +29,8 @@ trna_counts = data$trna_counts(config) %>%
     select_(~Gene, AminoAcid = ~AA, ~Anticodon, Count = trna_library)
 ```
 
+## Total codon usage (CU)
+
 “Translation efficiency” (TE) measures how well codon usage and anticodon
 abundance are adapted. Specifically, whether a given codon can be efficiently
 translated because its concomitant tRNA anticodon is efficiently found by the
@@ -77,11 +79,15 @@ ggplot(background_cor, aes(x = Size, y = Correlation)) +
     scale_x_log10()
 ```
 
-A different approach is to look at the selective pressure exerted on the codon
-deployment: that is, how abundant a given codon is compared to synonymous codons
-(ignoring wobble base pairing for now). This compels us to look at relative
-codon usage (RCU) within a synonymous codon family and, conversely, at the
-relative anticodon abundance (RAA) within a tRNA anticodon isoacceptor family.
+
+## Relative codon usage (RCU)
+
+A different approach to calculating the TE is to look at the selective
+pressure exerted on the codon deployment: that is, how abundant a given codon
+is compared to synonymous codons (ignoring wobble base pairing). This compels
+us to look at relative codon usage (RCU) within a synonymous codon family and,
+conversely, at the relative anticodon abundance (RAA) within a tRNA anticodon
+isoacceptor family.
 
 ```{r rcu}
 rcu = mrna_counts %>%
