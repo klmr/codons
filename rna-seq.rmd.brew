@@ -1,8 +1,8 @@
 ```{r echo=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/rna-seq-<%= species %>-',
-               cache.path = 'cache/rna-seq-<%= species %>-',
-               dev = c('png', 'pdf'))
+               dev = c('png', 'pdf'),
+               cache = FALSE)
 
 config = import('./config_<%= species %>')
 ```
