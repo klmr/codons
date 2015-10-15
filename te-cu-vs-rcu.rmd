@@ -51,6 +51,26 @@ te_cu = inner_join(cu, aa, by = 'Codon') %>%
     summarize(TE = cor(CU, AA, method = 'spearman'))
 ```
 
+First off, for comparison, calculate the genomic background CU and correlate
+GO CUs — this corresponds to the size factor effect plot.
+
+```{r background-cu}
+background_cu = canonical_cds %>%
+    cu_$cu() %>%
+    group_by(Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    mutate(CU = CU / sum(CU))
+
+background_cor = inner_join(cu, background_cu, by = 'Codon') %>%
+    group_by(GO) %>%
+    summarize(Correlation = cor(CU.x, CU.y, method = 'spearman')) %>%
+    inner_join(group_by(go_genes, GO) %>% summarize(Size = n()), by = 'GO')
+
+ggplot(background_cor, aes(x = Size, y = Correlation)) +
+    geom_point() +
+    scale_x_log10()
+```
+
 A different approach is to look at the selective pressure exerted on the codon
 deployment: that is, how abundant a given codon is compared to synonymous codons
 (ignoring wobble base pairing for now). This compels us to look at relative
