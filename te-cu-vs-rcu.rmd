@@ -94,6 +94,10 @@ transcriptome_cu = canonical_cds %>%
     summarize(CU = sum(CU)) %>%
     mutate(CU = CU / sum(CU))
 
+ggplot(full_join(transcriptome_cu, aa, by = 'Codon'), aes(x = AA, y = CU)) +
+    geom_point(aes(x = ifelse(is.na(AA), 0, AA))) +
+    geom_smooth(method = lm)
+
 transcription_te = inner_join(transcriptome_cu, aa, by = 'Codon') %>%
     summarize(TE = cor(CU, AA, method = 'spearman')) %>%
     .$TE
