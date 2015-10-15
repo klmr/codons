@@ -60,7 +60,7 @@ cu_fit = function (gene_index_set) {
         ungroup() %>%
         mutate(Prop = CU / sum(CU)) %>%
         arrange(Codon) %>%
-        {cor(.$Prop, data$background$Prop)}
+        {cor(.$Prop, data$background$Prop, method = 'spearman')}
 }
 
 sample_cu_fit = function (size)
