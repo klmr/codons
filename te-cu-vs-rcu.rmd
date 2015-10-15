@@ -1,0 +1,88 @@
+# Measures of translation efficiency
+
+The following uses expression data from human liver. We will look at codon
+usage of GO terms.
+
+```{r load-data}
+modules::import('./scripts/knit', attach = TRUE)
+config = import('./config_human')
+data = import('./data')
+
+go_genes = data$go_genes(config)
+canonical_cds = data$canonical_cds(config)
+
+mrna_library = data$mrna_design(config) %>%
+    filter(Celltype == 'Liver-Adult') %>% .$DO %>% first()
+mrna_counts = data$mrna_counts(config) %>%
+    select_(~Gene, ~Name, Count = mrna_library) %>%
+    inner_join(canonical_cds, by = 'Gene')
+
+trna_library = data$trna_design(config) %>%
+    filter(Celltype == 'Liver-Adult') %>% .$DO %>% first()
+trna_counts = data$trna_counts(config) %>%
+    select_(~Gene, AminoAcid = ~AA, ~Anticodon, Count = trna_library)
+```
+
+“Translation efficiency” (TE) measures how well codon usage and anticodon
+abundance are adapted. Specifically, whether a given codon can be efficiently
+translated because its concomitant tRNA anticodon is efficiently found by the
+ribosome. This requires the tRNA to be abundant in just the right ratio — that
+dictated by codon usage, relative to the usage of other codons.
+
+We therefore scale codon usage (CU) and anticodon abundance (AA) by the total
+codon usage and anticodon abundance.
+
+```{r cu}
+cu_ = import('codon_usage')
+cu = mrna_counts %>%
+    cu_$cu() %>%
+    inner_join(go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    mutate(CU = CU / sum(CU))
+
+aa = trna_counts %>%
+    group_by(Anticodon) %>%
+    summarize(AA = sum(Count)) %>%
+    mutate(AA = AA / sum(AA)) %>%
+    mutate(Codon = cu_$revcomp(Anticodon))
+
+te_cu = inner_join(cu, aa, by = 'Codon') %>%
+    summarize(TE = cor(CU, AA, method = 'spearman'))
+```
+
+A different approach is to look at the selective pressure exerted on the codon
+deployment: that is, how abundant a given codon is compared to synonymous codons
+(ignoring wobble base pairing for now). This compels us to look at relative
+codon usage (RCU) within a synonymous codon family and, conversely, at the
+relative anticodon abundance (RAA) within a tRNA anticodon isoacceptor family.
+
+```{r rcu}
+rcu = mrna_counts %>%
+    cu_$cu() %>%
+    inner_join(cu_$genetic_code, by = 'Codon') %>%
+    inner_join(go_genes, by = 'Gene') %>%
+    group_by(GO, AA, Codon) %>%
+    summarize(CU = sum(CU)) %>%
+    mutate(RCU = CU / sum(CU)) %>%
+    group_by(GO)
+
+raa = trna_counts %>%
+    group_by(AminoAcid, Anticodon) %>%
+    summarize(RAA = sum(Count)) %>%
+    mutate(RAA = RAA / sum(RAA)) %>%
+    ungroup() %>%
+    mutate(Codon = cu_$revcomp(Anticodon))
+
+te_rcu = inner_join(rcu, raa, by = 'Codon') %>%
+    summarize(TE = cor(RCU, RAA, method = 'spearman'))
+```
+
+Plot the distributions
+
+```{r plot-te}
+te = bind_rows(mutate(te_cu, Mode = 'CU vs AA'),
+               mutate(te_rcu, Mode = 'RCU vs RAA'))
+
+ggplot(te) + geom_boxplot(aes(Mode, TE))
+```
