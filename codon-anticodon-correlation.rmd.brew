@@ -19,7 +19,7 @@ experimental design).
 ```{r}
 data = import('./data')
 (trna_sf_counts = data$trna_sf_counts(config))
-(mrna_counts = data$mrna_counts(config))
+(mrna_sf_counts = data$mrna_sf_counts(config))
 (trna_design = data$trna_design(config))
 (mrna_design = data$mrna_design(config))
 canonical_cds = data$canonical_cds(config)
@@ -37,13 +37,8 @@ is divided by the sum of the codon usage of its amino acid.
 Calculate codon usage.
 
 ```{r codon-usage}
-norm = import('norm')
-mrna_sf = mrna_counts %>% select(starts_with('do')) %>% norm$size_factors()
-mrna_counts_sf = norm$transform_counts(mrna_counts, . / mrna_sf$.,
-                                       starts_with('do'))
-
 cu_ = import('codon_usage')
-mrna_counts_and_cds = inner_join(mrna_counts_sf, canonical_cds, by = 'Gene')
+mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
 raw_cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 
 cu = Map(DO ~ Celltype -> {
@@ -83,7 +78,7 @@ Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
 ```{r define-contrasts}
-all_contrasts = expand.grid(Codon = unique(codon_usage$Celltype),
+all_contrasts = expand.grid(Codon = unique(cu$Celltype),
                             Anti = unique(aa$Celltype),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
@@ -192,6 +187,7 @@ deseq_test = function (data, col_data, contrast) {
     deseq$DESeq(dds, quiet = TRUE)
 }
 
+mrna_counts = data$mrna_counts(config)
 dds_data = untidy(select(mrna_counts, Gene, starts_with('do')))
 dds_col_data = untidy(mrna_design)
 dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
