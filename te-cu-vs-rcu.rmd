@@ -1,8 +1,11 @@
 ```{r config, echo=FALSE, message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
-opts_chunk$set(fig.path = 'figure/te-cu-vs-rcu-', cache = FALSE)
 species = 'mouse'
 celltype = 'E15.5'
+opts_chunk$set(fig.path = sprintf('figure/te-cu-vs-rcu-%s-%s-',
+                                  species, celltype),
+               dev = c('png', 'pdf'),
+               cache = FALSE)
 ```
 
 # Measures of translation efficiency in `r species` `r celltype`
