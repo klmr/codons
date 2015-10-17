@@ -1,7 +1,7 @@
 ```{r echo=FALSE, message=FALSE}
 modules::import('./scripts/knit', attach = TRUE)
 opts_chunk$set(fig.path = 'figure/codon-anticodon-<%= species %>-',
-               cache.path = 'cache/codon-anticodon-<%= species %>-',
+               cache = FALSE,
                dev = c('png', 'pdf'))
 
 config = import('./config_<%= species %>')
