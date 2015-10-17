@@ -225,6 +225,7 @@ this separately for each contrast.
 
 ```{r de-cu}
 top_n_de = 200
+norm = import('norm')
 
 gene_set_for_contrast = function (de_genes, cmp)
     filter(de_genes, cmp(log2FoldChange, 0)) %>%
