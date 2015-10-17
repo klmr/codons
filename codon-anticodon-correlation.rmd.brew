@@ -121,8 +121,10 @@ replicate_test_set = function (cu, aa, mrna_lib, trna_lib, genes) {
 }
 
 # Calculate adaptations for a list of tests sets, given an adaptation index.
+# Using `mclapply` would speed this up substantially, but unfortunately blows
+# up memory usage to such an extent that it always crashes.
 adaptations = function (test_sets, index)
-    parallel::mclapply(test_sets, index, mc.cores = parallel::detectCores()) %>%
+    lapply(test_sets, index) %>%
     unlist() %>% unname()
 
 # Generate an adaptation test set based on a given contrast, using all genes.
