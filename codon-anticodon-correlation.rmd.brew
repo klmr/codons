@@ -140,18 +140,25 @@ matching_test_sets = function (cu, aa)
 mismatching_test_sets = function (cu, aa)
     complete_test_sets(cu, aa, mismatching_contrasts)
 
-# Calculate tAI on a single test set, given an adaptation index function.
-tai = function (test_set) {
-    all_tai = cu_$adaptation_tai(test_set$cu, test_set$aa, canonical_cds)
-    weighted.mean(all_tai, test_set$weights[names(all_tai)])
+simple_te = function (test_set) {
+    weights = data.frame(Gene = names(test_set$weights),
+                         Count = test_set$weights)
+    inner_join(test_set$cu, weights, by = 'Gene') %>%
+        mutate(CU = CU * Count) %>%
+        group_by(Codon) %>%
+        summarize(CU = mean(CU)) %>%
+        inner_join(test_set$aa, by = 'Codon') %>%
+        mutate(CU = CU / sum(CU),
+               AA = AA / sum(AA)) %>%
+        {cor(.$CU, .$AA, method = 'spearman')}
 }
 
-matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), tai)
-mismatching_adaptations = adaptations(mismatching_test_sets(raw_cu, aa), tai)
+matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), simple_te)
+mismatching_adaptations = adaptations(mismatching_test_sets(raw_cu, aa), simple_te)
 
-all_adaptations = rbind(data.frame(tAI = matching_adaptations,
+all_adaptations = rbind(data.frame(TE = matching_adaptations,
                                    Type = 'Matching'),
-                        data.frame(tAI = mismatching_adaptations,
+                        data.frame(TE = mismatching_adaptations,
                                    Type = 'Mismatching'))
 
 significance = wilcox.test(matching_adaptations,
@@ -160,7 +167,7 @@ significance = wilcox.test(matching_adaptations,
 
 p = format.pval(significance$p.value)
 
-ggplot(all_adaptations, aes(factor(Type), tAI)) +
+ggplot(all_adaptations, aes(factor(Type), TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -266,10 +273,10 @@ that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de-codon-adaptation}
-de_adaptations = adaptations(all_de_test_sets(raw_cu, aa), tai)
+de_adaptations = adaptations(all_de_test_sets(raw_cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                         data.frame(tAI = de_adaptations, Type = 'DE'))
+                         data.frame(TE = de_adaptations, Type = 'DE'))
 all_adaptations$Type = factor(all_adaptations$Type,
                               c('Matching', 'Mismatching', 'DE'))
 
@@ -279,7 +286,7 @@ de_significance = wilcox.test(matching_adaptations,
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_adaptations, aes(Type, tAI)) +
+ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -318,10 +325,10 @@ all_go_test_sets = function (cu, aa) {
     c(healthy, cancer)
 }
 
-go_adaptations = adaptations(all_go_test_sets(raw_cu, aa), tai)
+go_adaptations = adaptations(all_go_test_sets(raw_cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(tAI = go_adaptations, Type = 'GO'))
+                        data.frame(TE = go_adaptations, Type = 'GO'))
 
 go_significance = wilcox.test(matching_adaptations,
                               go_adaptations, conf.int = TRUE,
@@ -332,7 +339,7 @@ go_inverse_test = wilcox.test(matching_adaptations,
 
 go_p = format.pval(go_significance$p.value)
 
-ggplot(all_adaptations, aes(Type, tAI)) +
+ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -372,7 +379,7 @@ de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
 go_samples = replicate(n_simulations, simulate_gene_set(go_size))
 ```
 
-Calculate tAI for all samples in all libraries.
+Calculate TE for all samples in all libraries.
 
 ```{r rcu-simulations}
 sample_test_sets = go_test_sets
@@ -390,20 +397,20 @@ all_sample_test_sets = function (cu, aa, samples) {
 # interested in sample size, not actual DE gene sets.
 
 de_sample_adaptations =
-    adaptations(all_sample_test_sets(raw_cu, aa, de_samples), tai)
+    adaptations(all_sample_test_sets(raw_cu, aa, de_samples), simple_te)
 go_sample_adaptations =
-    adaptations(all_sample_test_sets(raw_cu, aa, go_samples), tai)
+    adaptations(all_sample_test_sets(raw_cu, aa, go_samples), simple_te)
 
 all_sample_adaptation = list(DE = de_sample_adaptations,
                              GO = go_sample_adaptations) %>%
-    {base$map(x ~ n -> data.frame(tAI = x, Type = n), ., names(.))} %>%
+    {base$map(x ~ n -> data.frame(TE = x, Type = n), ., names(.))} %>%
     bind_rows()
 
-ggplot(all_adaptations, aes(factor(Type), tAI)) +
+ggplot(all_adaptations, aes(factor(Type), TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    stat_summary(data = all_sample_adaptation, aes(factor(Type), tAI),
+    stat_summary(data = all_sample_adaptation, aes(factor(Type), TE),
                  fun.data = median_hilow,
                  color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
     scale_x_discrete(name = '') +
