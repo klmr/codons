@@ -10,7 +10,9 @@ library(dplyr)
 options(stringsAsFactors = FALSE,
         import.path = c('scripts', getOption('import.path')))
 
-opts_chunk$set(cache = TRUE)
+# Explicitly disable caching; enabling it will blow up R due to the huge amount
+# of data.
+opts_chunk$set(cache = FALSE)
 
 # Pretty-print tables
 
