@@ -72,31 +72,39 @@ rcu_.default = function (x, column = 'Gene')
 #' measure of goodness of adaptation of the anticodon supply to the codon
 #' demand.
 #'
-#' @param rcu Relative codon usage as given by \code{rcu}
-#' @param raa Relative anticodon abundance, with \code{Codon} column
+#' @param cu codon usage as given by \code{cu}
+#' @param aa anticodon abundance, with \code{Codon} column
+#' @param cds coding sequences
 #' @note \code{raa} is equivalent to \code{rcu} for the abundance of anticodons.
 #' The function expects this to be given with reverse complemented anticodons,
-#' so that the format of the data is equivalent for \code{rcu} and \code{raa}.
-adaptation = function (rcu, raa, method = adaptation_no_wobble)
-    method(rcu, raa)
+#' so that the format of the data is equivalent for \code{cu} and \code{aa}.
+adaptation = function (cu, aa, cds, method = adaptation_no_wobble)
+    method(cu, aa, cds)
 
-#' Simple codon–anticodon adaptation, ignoring wobble base pairing.
-adaptation_no_wobble = function (rcu, raa)
-    inner_join(rcu, raa, by = 'Codon') %>%
-    summarize(Adaptation = cor(RCU, RAA, method = 'spearman')) %>%
-    .$Adaptation
+#' \code{adaptation_no_wobble} computes a simple codon–anticodon correlation,
+#' ignoring wobble base pairing.
+#' @rdname adaptation
+adaptation_no_wobble = function (cu, aa, cds)
+    cu %>%
+    group_by(Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    inner_join(aa, by = 'Codon') %>%
+    mutate(CU = CU / sum(CU),
+           AA = AA / sum(AA)) %>%
+    {cor(.$CU, .$AA, method = 'spearman')}
+
+#' \code{adaptation_wobble} computes a codon–anticodon correlation while
+#' accounting for wobble base pairing.
+adaptation_wobble = function (cu, aa, cds)
+    pass
 
 # Calculate outside function for speed — `adaptation` is called very frequently.
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
 tai = import('tai')
 
-#' Calculate the tRNA adaptation index
-#'
-#' @param cu per-gene codon usage as given by \code{cu}
-#' @param aa amino acid abundance, with \code{Codon} column
-#' @param cds coding sequences
+#' \code{adaptation_tai} computes the tRNA adaptation index.
 #' @param s tAI s-values
-#' @return Returns the tAI for each gene.
+#' @rdname adaptation
 adaptation_tai = function (cu, aa, cds, s = tai$naive_s) {
     lengths = setNames(cds$Length, cds$Gene)[unique(cu$Gene)]
     cu = tidyr$spread(cu, Codon, CU) %>% select(one_of(coding_codons))
@@ -113,7 +121,8 @@ adaptation_tai = function (cu, aa, cds, s = tai$naive_s) {
 norm = function (x) UseMethod('norm')
 
 `norm.codon_usage$cu` = function (x)
-    mutate(x, CU = CU / sum(CU))
+    mutate(x, CU = CU / sum(CU)) %>%
+    `class<-`(c('codon_usage$cu', class(.)))
 
 `norm.codon_usage$rcu` = function (x) {
     warning('Normalizing RCU makes no sense, skipped.')
