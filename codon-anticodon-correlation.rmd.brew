@@ -144,7 +144,7 @@ simple_te = function (test_set) {
                          Count = test_set$weights)
     inner_join(test_set$cu, weights, by = 'Gene') %>%
         mutate(CU = CU * Count) %>%
-        cu_$adaptation(.$cu, test_set$aa, canonical_cds)
+        cu_$adaptation_no_wobble(test_set$aa, canonical_cds)
 }
 
 matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), simple_te)
