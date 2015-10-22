@@ -20,9 +20,10 @@ de_genes = function (counts, design, contrasts, alpha = 0.001) {
     dds_data = untidy(select(counts, Gene, starts_with('do')))
     dds_col_data = untidy(design)
     dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
-    # Ensure Liver-Adult is condition A in the contrast
-    dds_col_data$Celltype = factor(dds_col_data$Celltype)
-    dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
+    # Ensure Liver-Adult is condition A in the contrast, or, if not present,
+    # then E15.5 is.
+    dds_col_data$Celltype = Reduce(relevel, rev(healthy_celltypes),
+                                   factor(dds_col_data$Celltype))
     #contrasts = contrasts[grep('Liver-Adult', contrasts)]
     dds = lapply(contrasts, .deseq_test,
                  data = dds_data, col_data = dds_col_data)
