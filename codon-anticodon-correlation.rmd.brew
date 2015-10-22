@@ -38,15 +38,7 @@ Calculate codon usage.
 ```{r codon-usage}
 cu_ = import('codon_usage')
 mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
-raw_cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
-
-cu = Map(DO ~ Celltype -> {
-    raw_cu %>%
-        mutate_(CU = bquote(CU * .(as.name(DO)) / nchar(Sequence))) %>%
-        select(Gene, Codon, CU) %>%
-        mutate(DO = DO, Celltype = Celltype)
-}, mrna_design$DO, mrna_design$Celltype) %>%
-    bind_rows()
+cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
 ```
 
 Calculate the anticodon abundance (AA), the tRNA equivalent of the CU, i.e.
@@ -77,13 +69,17 @@ Since the tumour cell lines are relatively similar we explicitly exclude them
 from the list of mismatching conditions.
 
 ```{r define-contrasts}
-all_contrasts = expand.grid(Codon = unique(cu$Celltype),
-                            Anti = unique(aa$Celltype),
+all_celltypes = unique(mrna_design$Celltype)
+healthy_celltypes = intersect(all_celltypes, c('Liver-Adult', 'E15.5'))
+cancer_celltypes = setdiff(all_celltypes, healthy_celltypes)
+all_contrasts = expand.grid(Codon = unique(all_celltypes),
+                            Anti = unique(all_celltypes),
                             stringsAsFactors = FALSE)
 matching_contrasts = filter(all_contrasts, Codon == Anti)
 mismatching_contrasts = filter(all_contrasts, Codon != Anti)
 mismatching_contrasts = filter(mismatching_contrasts,
-                               Codon == 'Liver-Adult' | Anti == 'Liver-Adult')
+                               Codon %in% healthy_celltypes |
+                               Anti %in% healthy_celltypes)
 ```
 
 ### tRNA adaptation index
@@ -147,8 +143,8 @@ simple_te = function (test_set) {
         cu_$adaptation_no_wobble(test_set$aa, canonical_cds)
 }
 
-matching_adaptations = adaptations(matching_test_sets(raw_cu, aa), simple_te)
-mismatching_adaptations = adaptations(mismatching_test_sets(raw_cu, aa), simple_te)
+matching_adaptations = adaptations(matching_test_sets(cu, aa), simple_te)
+mismatching_adaptations = adaptations(mismatching_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(data.frame(TE = matching_adaptations,
                                    Type = 'Matching'),
@@ -166,8 +162,7 @@ ggplot(all_adaptations, aes(factor(Type), TE)) +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
     scale_x_discrete(name = bquote(paste('Sample types compared ',
-                                         (p == .(p))))) +
-    ggtitle('Codon–anticodon correlations between different conditions')
+                                         (p == .(p)))))
 ```
 
 #### Codon–anticodon match in DE genes
@@ -194,9 +189,10 @@ mrna_counts = data$mrna_counts(config)
 dds_data = untidy(select(mrna_counts, Gene, starts_with('do')))
 dds_col_data = untidy(mrna_design)
 dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
-# Ensure Liver-Adult is condition A in the contrast
-dds_col_data$Celltype = factor(dds_col_data$Celltype)
-dds_col_data$Celltype = relevel(dds_col_data$Celltype, 'Liver-Adult')
+# Ensure Liver-Adult is condition A in the contrast, or, if not present, then
+# E15.5 is.
+dds_col_data$Celltype = Reduce(relevel, rev(healthy_celltypes),
+                               factor(dds_col_data$Celltype))
 de_contrasts = config$contrasts[grep('Liver-Adult|E15\\.5', config$contrasts)]
 dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
 threshold = 0.001
@@ -218,7 +214,7 @@ write_de_result = contrast ~ dds -> {
 
 mapply(write_de_result,
        base$map(x -> paste(tolower(x), collapse = '-'), de_contrasts),
-       dds)
+       dds) %>% invisible()
 ```
 
 Secondly, re-calculate codon usage bias, but using only a subset of genes in
@@ -267,7 +263,7 @@ that these are significantly higher than mismatching codon–anticodon pool
 correlations.
 
 ```{r de-codon-adaptation}
-de_adaptations = adaptations(all_de_test_sets(raw_cu, aa), simple_te)
+de_adaptations = adaptations(all_de_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
                          data.frame(TE = de_adaptations, Type = 'DE'))
@@ -284,8 +280,7 @@ ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = 'Sample types compared') +
-    ggtitle('Codon–anticodon correlations between different conditions')
+    scale_x_discrete(name = 'Sample types compared')
 ```
 
 Testing for significant difference between the distribution of matching codon
@@ -297,48 +292,64 @@ yields $p(\text{observation | DE = Matching}) = `r de_p`$.
 We will also have a look at cell condition specific GO terms, as highlighted by
 Gingold & al. First, load the GO term associations.
 
-```{r go-associations, fig.width=5}
-go_ids = c(GO0000087 = 'M phase of mitotic cell cycle',
-           GO0007389 = 'Pattern specification process')
+```{r go-association}
+gsa_filename = function (contrast)
+    sprintf('results/gsa/%s-%s-vs-%s.tsv',
+            config$species, contrast[1], contrast[2])
 
-go_terms = sapply(names(go_ids),
-                  function (id) readLines(sprintf('data/%s-%s.txt', id, config$species)))
+read_gsa = function (contrast)
+    io$read_table(gsa_filename(contrast), header = TRUE) %>%
+    mutate(Base = contrast[1], Celltype = contrast[2]) %>%
+    rename(GO = Name)
 
-go_test_sets = function (cu, aa, condition, genes) {
-    # mRNA and tRNA come from same celltype
-    contrasts = expand_contrast(rep(condition, 2))
+gsa = lapply(config$contrasts, read_gsa) %>% bind_rows()
+go_genes = data$go_genes(config)
+
+non_base_names = setdiff(all_celltypes, 'Liver-Adult')
+enriched_go_terms = gsa %>%
+    filter(Base %in% c('Liver-Adult', 'E15.5'), Celltype %in% non_base_names) %>%
+    group_by(Base, Celltype) %>%
+    filter(padj == min(padj)) %>%
+
+enriched_go_genes = inner_join(enriched_go_terms, go_genes, by = 'GO') %>%
+    group_by(Base, Celltype) %>%
+    summarize(Genes = list(Gene)) %>%
+    # These MAY be duplicate. This still works.
+    {setNames(.$Genes, .$Celltype)} %>%
+    lapply(unique)
+
+enrichment_test_set = function (cu, aa, celltype, genes) {
+    contrasts = expand_contrast(rep(celltype, 2))
     lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], genes))
 }
 
-all_go_test_sets = function (cu, aa) {
-    healthy = go_test_sets(cu, aa, 'Liver-Adult', go_terms$GO0007389)
-    cancer_conditions = setdiff(unique(mrna_design$Celltype), 'Liver-Adult')
-    cancer = lapply(cancer_conditions,
-                    x -> go_test_sets(cu, aa, x, go_terms$GO0000087)) %>%
-        unlist(recursive = FALSE)
-    c(healthy, cancer)
+all_enrichment_test_sets = function (cu, aa) {
+    Map(c ~ g -> enrichment_test_set(cu, aa, c, g),
+        names(enriched_go_genes), enriched_go_genes) %>%
+    unlist(recursive = FALSE)
 }
 
-go_adaptations = adaptations(all_go_test_sets(raw_cu, aa), simple_te)
+enriched_adaptations = adaptations(all_enrichment_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(TE = go_adaptations, Type = 'GO'))
+                        data.frame(TE = enriched_adaptations, Type = 'Enriched GO'))
 
-go_significance = wilcox.test(matching_adaptations,
-                              go_adaptations, conf.int = TRUE,
-                              alternative = 'less')
-go_inverse_test = wilcox.test(matching_adaptations,
-                              go_adaptations, conf.int = TRUE,
-                              alternative = 'greater')
+enriched_go_significance = wilcox.test(matching_adaptations,
+                                       enriched_adaptations, conf.int = TRUE,
+                                       alternative = 'less')
+enriched_go_inverse_test = wilcox.test(matching_adaptations,
+                                       enriched_adaptations, conf.int = TRUE,
+                                       alternative = 'greater')
 
-go_p = format.pval(go_significance$p.value)
+go_p = format.pval(enriched_go_significance$p.value)
+inverse_go_p = format.pval(enriched_go_inverse_test$p.value)
 
 ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = 'Sample types compared') +
-    ggtitle('Codon–anticodon correlations between different conditions')
+    scale_x_discrete(name = '') +
+    scale_y_continuous(limits = c(0.75, 0.88))
 ```
 
 Testing for significant difference between the distribution of matching codon
@@ -346,7 +357,7 @@ supply and demand, and between the codon supply and demand just for gene sets
 from condition-specific GO terms yields $p(\text{observation | GO = Matching})
 = `r go_p`$, where $H_1$: “specific GO term gene set RCU correlates *better*
 with matching RAA than whole-transcriptome codon usage”. For the inverted
-hypothesis (*worse* match), we find $p = `r format.pval(go_inverse_test$p.value)`$.<!-- ` -->
+hypothesis (*worse* match), we find $p = `r inverse_go_p`$.
 
 ## Account for sample size
 
@@ -356,18 +367,25 @@ account for this, perform simulations for each of the different sizes used. This
 allows us to assess whether a given gene set’s adaptation is explained by its
 gene set size.
 
+```{r echo=FALSE}
+go_set_sizes = inner_join(enriched_go_terms, go_genes, by = 'GO') %>%
+    group_by(Base, Celltype, GO) %>%
+    summarize(N = n()) %>%
+    .$N
+```
+
 “DE” uses sets of size `r top_n_de`. The GO term sets have sizes
-`r paste(sapply(go_terms, length), collapse = ' and ')`, of which we’ll take the
+`r paste(head(go_set_sizes), collapse = ', ')` …, of which we’ll take the
 mean to simulate gene sets.
 
 ```{r sample-gene-sets}
-transcriptome = unique(raw_cu$Gene)
+transcriptome = unique(cu$Gene)
 
 simulate_gene_set = function (size)
     sample(transcriptome, size)
 
 n_simulations = 100
-go_size = mean(sapply(go_terms, length))
+go_size = mean(go_set_sizes)
 
 de_samples = replicate(n_simulations, simulate_gene_set(top_n_de))
 go_samples = replicate(n_simulations, simulate_gene_set(go_size))
@@ -375,11 +393,12 @@ go_samples = replicate(n_simulations, simulate_gene_set(go_size))
 
 Calculate TE for all samples in all libraries.
 
-```{r rcu-simulations}
-sample_test_sets = go_test_sets
+```{r cu-simulations}
+# Generic function for filtering a list of genes.
+sample_test_sets = enrichment_test_set
 
 all_sample_test_sets = function (cu, aa, samples) {
-    conditions = unique(mrna_design$Celltype)
+    conditions = all_celltypes
     single_sample_test_sets = function (genes)
         lapply(conditions, x -> sample_test_sets(cu, aa, x, genes)) %>%
             unlist(recursive = FALSE)
@@ -391,22 +410,28 @@ all_sample_test_sets = function (cu, aa, samples) {
 # interested in sample size, not actual DE gene sets.
 
 de_sample_adaptations =
-    adaptations(all_sample_test_sets(raw_cu, aa, de_samples), simple_te)
+    adaptations(all_sample_test_sets(cu, aa, de_samples), simple_te)
 go_sample_adaptations =
-    adaptations(all_sample_test_sets(raw_cu, aa, go_samples), simple_te)
+    adaptations(all_sample_test_sets(cu, aa, go_samples), simple_te)
 
 all_sample_adaptation = list(DE = de_sample_adaptations,
                              GO = go_sample_adaptations) %>%
     {base$map(x ~ n -> data.frame(TE = x, Type = n), ., names(.))} %>%
     bind_rows()
 
-ggplot(all_adaptations, aes(factor(Type), TE)) +
+all_adaptations = rbind(all_adaptations,
+                        data.frame(TE = de_sample_adaptations, Type = 'Simulated DE'),
+                        data.frame(TE = go_sample_adaptations, Type = 'Simulated GO'))
+
+ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    stat_summary(data = all_sample_adaptation, aes(factor(Type), TE),
-                 fun.data = median_hilow,
-                 color = '#8080FF', pch = 18, size = 0.75, geom = 'pointrange') +
-    scale_x_discrete(name = '') +
-    ggtitle('Codon–anticodon correlations between different conditions')
+    scale_x_discrete(name = '')
+```
+
+Save all the data to be able to plot it later.
+
+```{r save-all-data}
+saveRDS(tbl_df(all_adaptations), sprintf('results/te-all-%s.rds', config$species))
 ```
