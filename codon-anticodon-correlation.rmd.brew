@@ -302,16 +302,38 @@ read_gsa = function (contrast)
     mutate(Base = contrast[1], Celltype = contrast[2]) %>%
     rename(GO = Name)
 
-gsa = lapply(config$contrasts, read_gsa) %>% bind_rows()
+gsa = c(lapply(config$contrasts, read_gsa),
+        lapply(config$contrasts, read_gsa %.% rev)) %>% bind_rows()
 go_genes = data$go_genes(config)
 
 non_base_names = setdiff(all_celltypes, 'Liver-Adult')
 enriched_go_terms = gsa %>%
     filter(Base %in% c('Liver-Adult', 'E15.5'), Celltype %in% non_base_names) %>%
     group_by(Base, Celltype) %>%
-    filter(padj == min(padj)) %>%
+    filter(padj == min(padj))
 
-enriched_go_genes = inner_join(enriched_go_terms, go_genes, by = 'GO') %>%
+```
+Special handling is needed for enriched genes in adult liver, compared to
+cancer cell lines: We look at enrichment of genes in healthy adult liver
+compared to either cancer, and then take the intersection of the GO terms thus
+found enriched.
+
+```{r liver-enrichment}
+liver_enriched_go_terms = gsa %>%
+    filter(Base %in% cancer_celltypes, Celltype == 'Liver-Adult') %>%
+    group_by(Base, Celltype) %>%
+    filter(padj == min(padj)) %>%
+    summarize(GO = list(GO)) %>%
+    {do.call(intersect, .$GO)} %>%
+    {rep(., length(cancer_celltypes))} %>%
+    {data.frame(GO = ., padj = 0,
+                Base = rep(cancer_celltypes, each = length(.) / 2),
+                Celltype = 'Liver-Adult')}
+```
+
+```{r all-enrichment}
+all_enriched_go_terms = bind_rows(enriched_go_terms, liver_enriched_go_terms)
+enriched_go_genes = inner_join(all_enriched_go_terms, go_genes, by = 'GO') %>%
     group_by(Base, Celltype) %>%
     summarize(Genes = list(Gene)) %>%
     # These MAY be duplicate. This still works.
@@ -348,8 +370,7 @@ ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = '') +
-    scale_y_continuous(limits = c(0.75, 0.88))
+    scale_x_discrete(name = '')
 ```
 
 Testing for significant difference between the distribution of matching codon
@@ -427,7 +448,8 @@ ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
-    scale_x_discrete(name = '')
+    scale_x_discrete(name = '') +
+    scale_y_continuous(limits = c(0, 1))
 ```
 
 Save all the data to be able to plot it later.
