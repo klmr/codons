@@ -1,0 +1,61 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('celltype', 'the celltype'),
+                             arg('outfile', 'the filename of the PDF output'))
+
+    options(import.path = c('.', getOption('import.path')))
+    config = import(paste('../config', args$species, sep = '_'))
+    data = import('../data')
+    import_package('dplyr', attach = TRUE)
+    tidyr = import_package('tidyr')
+
+    cu_ = import('codon_usage')
+    mrna_sf_counts = data$mrna_sf_counts(config) %>%
+        tidyr$gather(DO, Count, -Gene, -Name) %>%
+        inner_join(data$mrna_design(config), by = 'DO') %>%
+        filter(Celltype == args$celltype)
+    canonical_cds = data$canonical_cds(config)
+    mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
+    cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
+    merged_cu = cu %>%
+        group_by(Codon, Gene) %>%
+        summarize(CU = first(CU) * mean(Count) / first(Length)) %>%
+        summarize(CU = sum(CU)) %>%
+        mutate(CU = CU / sum(CU))
+
+    aa = data$trna_sf_counts(config) %>%
+        rename(Type = AA) %>%
+        tidyr::gather(DO, AA, starts_with('do')) %>%
+        inner_join(data$trna_design(config), by = 'DO') %>%
+        filter(Celltype == args$celltype) %>%
+        mutate(Codon = cu_$revcomp(Anticodon)) %>%
+        group_by(Codon) %>%
+        summarize(AA = sum(AA)) %>%
+        mutate(AA = AA / sum(AA))
+
+    adaptation = full_join(merged_cu, aa, by = 'Codon') %>%
+        mutate(AA = ifelse(is.na(AA), 0, AA))
+
+    # Required by ggplot2, see <https://github.com/hadley/ggplot2/issues/1384>
+    library(methods)
+
+    import_package('ggplot2', attach = TRUE)
+
+    on.exit(dev.off())
+    pdf(args$outfile)
+    p = ggplot(adaptation, aes(AA, CU, color = AA == 0)) +
+        geom_point() +
+        geom_smooth(method = lm, data = filter(adaptation, AA != 0)) +
+        scale_color_manual(limits = c(FALSE, TRUE),
+                           values = c('black', 'gray'), guide = FALSE) +
+        theme_bw()
+    plot(p)
+    NULL
+})
+
+# vim: ft=r
