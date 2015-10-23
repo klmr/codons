@@ -22,7 +22,8 @@ go-enrichment: \
 		results/gsa/human-$(firstword ${contrasts/human}).tsv
 
 te: $(foreach i,${species},results/te-$i-boxplot.pdf) \
-	$(foreach i,${species},results/te-$i-adaptation-test-p.tsv)
+	$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
+	results/te-human-liver-matching-scatter.pdf
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
@@ -54,6 +55,9 @@ results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
 results/te-human.rds: codon-anticodon-adaptation-human.html
 
 results/te-mouse.rds: codon-anticodon-adaptation-mouse.html
+
+results/te-human-liver-matching-scatter.pdf:
+	./scripts/plot-te-scatter human Liver-Adult $@
 
 .PHONY: go-enrichment
 go-enrichment: ${go-enrichment}
