@@ -1,0 +1,32 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+plot_te = function (data) {
+    import_package('ggplot2', attach = TRUE)
+    types = c('Matching', 'Mismatching', 'DE', 'Simulated DE',
+              'Enriched GO', 'Simulated GO')
+    data$Type = factor(data$Type, levels = types, ordered = TRUE)
+    colors = c('black', '#3456A3')[ifelse(grepl('Simulated', types), 2, 1)]
+    ggplot(data, aes(Type, TE, color = Type)) +
+        geom_boxplot() +
+        scale_y_continuous('Translation efficiency', limits = c(0, 1)) +
+        scale_color_manual(limits = types, values = colors) +
+        theme_bw()
+}
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('outfile', 'the filename of the PDF output'))
+
+    te = readRDS(sprintf('results/te-%s.rds', args$species))
+    # Required by ggplot2, see <https://github.com/hadley/ggplot2/issues/1384>
+    library(methods)
+    on.exit(dev.off())
+    pdf(args$outfile)
+    plot(plot_te(te))
+    NULL
+})
+
+# vim: ft=r
