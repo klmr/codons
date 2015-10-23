@@ -9,7 +9,7 @@ contrasts/mouse := $(call load-contrasts,mouse)
 contrasts/human := $(call load-contrasts,human)
 
 .PHONY: all
-all: go
+all: go te
 	@echo >&2 No default rule. Please run \`make rule\`
 	exit 1
 
@@ -20,6 +20,9 @@ go: data/go-descriptions.tsv go-enrichment
 go-enrichment: \
 		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
 		results/gsa/human-$(firstword ${contrasts/human}).tsv
+
+te: $(foreach i,${species},results/te-$i-boxplot.pdf) \
+	$(foreach i,${species},results/te-$i-adaptation-test-p.tsv)
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
@@ -36,10 +39,28 @@ data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
 
+results/te-human-boxplot.pdf: results/te-human.rds
+	./scripts/plot-te-boxplot human $@
+
+results/te-mouse-boxplot.pdf: results/te-mouse.rds
+	./scripts/plot-te-boxplot mouse $@
+
+results/te-human-adaptation-test-p.tsv: results/te-human.rds
+	./scripts/write-adaptation-test-table human $@
+
+results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
+	./scripts/write-adaptation-test-table mouse $@
+
+results/te-human.rds: codon-anticodon-adaptation-human.html
+
+results/te-mouse.rds: codon-anticodon-adaptation-mouse.html
+
 .PHONY: go-enrichment
 go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
+
+$(foreach i,${species},codon-anticodon-adaptation-$i.html): go
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
