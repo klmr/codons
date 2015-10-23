@@ -90,10 +90,10 @@ supplements:
 %.rmd: %.rmd.brew
 	${BIN}/brew $< $@
 
-# FIRST generate a list of temporary md files, *then* of temporary rmd files
+# Assume that .md files with corresponding .html files are intermediates.
 .PHONY: clean
 clean:
-	${RM} $(patsubst %.rmd,%.md,$(wildcard *.rmd))
+	${RM} $(patsubst %.html,%.md,$(wildcard *.html))
 	${RM} $(patsubst %.brew,%,$(wildcard *.brew))
 	${RM} $(foreach s,${species},$(patsubst %.rmd.brew,%-$s.rmd,$(wildcard *.brew)))
 	${RM} cache/*
