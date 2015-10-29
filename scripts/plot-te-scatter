@@ -46,14 +46,15 @@ sys$run({
 
     import_package('ggplot2', attach = TRUE)
 
-    on.exit(dev.off())
-    pdf(args$outfile)
     p = ggplot(adaptation, aes(AA, CU, color = AA == 0)) +
         geom_point() +
         geom_smooth(method = lm, data = filter(adaptation, AA != 0)) +
         scale_color_manual(limits = c(FALSE, TRUE),
                            values = c('black', 'gray'), guide = FALSE) +
         theme_bw()
+
+    on.exit(dev.off())
+    pdf(args$outfile)
     plot(p)
     NULL
 })
