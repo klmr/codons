@@ -46,11 +46,15 @@ sys$run({
 
     import_package('ggplot2', attach = TRUE)
 
+    rho = with(filter(adaptation, AA != 0), cor(AA, CU, method = 'spearman'))
+    rho_pos = with(adaptation, c(max(AA), min(CU)))
     p = ggplot(adaptation, aes(AA, CU, color = AA == 0)) +
         geom_point() +
         geom_smooth(method = lm, data = filter(adaptation, AA != 0)) +
         scale_color_manual(limits = c(FALSE, TRUE),
                            values = c('black', 'gray'), guide = FALSE) +
+        annotate('text', x = rho_pos[1], y = rho_pos[2], hjust = 1,
+                 label = sprintf('rho == %.2f', rho), parse = TRUE) +
         theme_bw()
 
     on.exit(dev.off())
