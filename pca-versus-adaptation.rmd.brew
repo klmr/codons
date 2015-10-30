@@ -169,7 +169,7 @@ prepare_plot_data = function (pca, adaptation)
         select(1 : 2) %>%
         inner_join(adaptation, by = 'GO')
 
-ylim = round(range(adaptation$Adaptation) * 10) / 10
+ylim = c(0, 1)
 
 plot_adaptation_pc1 = function (pca, adaptation) {
     ggplot(prepare_plot_data(pca, adaptation)) +
