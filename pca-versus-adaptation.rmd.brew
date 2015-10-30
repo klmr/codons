@@ -171,10 +171,11 @@ adaptation = sapply(unique(raa$Celltype),
 Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
 
 ```{r plot-adaptation-pc1}
-prepare_plot_data = function (pca, adaptation) {
-    pcax = as.data.frame(pca$x) %>% add_rownames('GO') %>% select(1 : 2)
-    inner_join(pcax, adaptation, by = 'GO')
-}
+prepare_plot_data = function (pca, adaptation)
+    as.data.frame(pca$x) %>%
+        add_rownames('GO') %>%
+        select(1 : 2) %>%
+        inner_join(adaptation, by = 'GO')
 
 plot_adaptation_pc1 = function (pca, adaptation) {
     ggplot(prepare_plot_data(pca, adaptation)) +
