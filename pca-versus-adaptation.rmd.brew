@@ -262,6 +262,7 @@ plot_densities = function (adaptation, gsa, celltype) {
 
 ```{r adaptation-pc1-plot-scatter, fig.width = 9, fig.height = 4}
 for (celltype in unique(adaptation$Celltype)) {
+    cat(celltype, '\n')
     scatter = plot_adaptation_pc1_with_go(go_pca, adaptation, gsa, celltype)
     density = plot_densities(adaptation, gsa, celltype)
     ge$grid.arrange(scatter, density, ncol = 2, nrow = 1,
