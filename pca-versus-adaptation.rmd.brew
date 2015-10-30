@@ -177,7 +177,7 @@ plot_adaptation_pc1 = function (pca, adaptation) {
                     size = 1.5, show_guide = FALSE) +
         scale_color_manual(values = config$celltype_colors) +
         scale_fill_manual(values = config$celltype_colors) +
-        scale_y_continuous('Translation efficiency', limits = c(0.6, 0.9))
+        scale_y_continuous('Translation efficiency', limits = c(0.3, 0.8))
 }
 ```
 
@@ -235,7 +235,7 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
             size = Enriched) +
         geom_point(show_guide = FALSE) +
         geom_rug(sides = 't', alpha = 0.5, size = 0.5, show_guide = FALSE) +
-        scale_y_continuous('Translation efficiency', limits = c(0.6, 0.9)) +
+        scale_y_continuous('Translation efficiency', limits = c(0.3, 0.8)) +
         scale_color_manual(limits = c(FALSE, TRUE),
                            values = enrichment_colors(celltype)) +
         scale_shape_manual(limits = c(FALSE, TRUE), values = c(19, 18)) +
@@ -251,7 +251,7 @@ plot_densities = function (adaptation, gsa, celltype) {
         geom_density(alpha = 0.5, show_guide = FALSE) +
         scale_fill_manual(limits = c(FALSE, TRUE),
                           values = enrichment_colors(celltype)) +
-        scale_x_continuous(limits = c(0.6, 0.9)) +
+        scale_x_continuous(limits = c(0.3, 0.8)) +
         coord_flip() +
         theme(axis.line = element_blank(), axis.ticks = element_blank(),
               axis.text.y = element_blank(), axis.title.y = element_blank())
