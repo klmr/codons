@@ -71,9 +71,10 @@ go_categories = list(
     multicellular = c('Development', 'Differentiation', 'Cell adhesion',
                       'Pattern specification', 'Multicellular organism growth',
                       'Angiogenesis'),
-    cell_autonomous = c('Mitotic cell cycle', 'Nucleosome assembly',
-                        'Chromatin remodeling', 'Chromatin modification',
-                        'Translation', 'mRNA metabolic process',
+    cell_autonomous = c('Mitotic cell cycle', 'Mitotic M phase',
+                        'Nucleosome assembly', 'Chromatin remodeling',
+                        'Chromatin modification', 'Translation',
+                        'mRNA metabolic process',
                         'Negative regulation of cell cycle')
 )
 
