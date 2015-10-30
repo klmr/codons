@@ -18,18 +18,8 @@ canonical_cds = data$canonical_cds(config)
 ```
 
 ```{r pca}
-pca = function (go_rcu) {
-    # Exclude amino acids with only one isoacceptor
-    singular_codons = cu_$genetic_code %>%
-        group_by(AA) %>%
-        mutate(Count = n()) %>%
-        ungroup() %>%
-        filter(Count == 1) %>%
-        .$Codon
-    table = go_rcu %>%
-        filter(! Codon %in% singular_codons) %>%
-        select(GO, Codon, RCU) %>%
-        tidyr$spread(Codon, RCU)
+pca = function (go_cu) {
+    table = tidyr$spread(go_cu, Codon, CU)
     table = `rownames<-`(select(table, -GO), table$GO)
     prcomp(table, scale. = TRUE)
 }
@@ -65,14 +55,14 @@ plot_empty = function () {
 ```
 
 ```{r go-cu-pca}
-go_rcu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
+go_cu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
     group_by(GO, Codon) %>%
     summarize(CU = mean(CU)) %>%
-    ungroup() %>%
     base$add_class('codon_usage$cu') %>%
-    cu_$rcu(GO)
+    cu_$norm() %>%
+    ungroup()
 
-pca = pca(go_rcu)
+go_pca = pca(go_cu)
 ```
 
 Ensure that “cell autonomous” and “multicellular” cluster separately.
@@ -100,11 +90,11 @@ go_groups = sapply(go_categories,
 ```
 
 ```{r go-cu-pca-plot, fig.width=9}
-plot_pca(pca, 'none')
-plot_pca(pca, with(list(x = rownames(pca$x)),
-                   ifelse(x %in% go_groups$multicellular, 'multicellular',
-                   ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
-                   'none'))))
+plot_pca(go_pca, 'none')
+plot_pca(go_pca, with(list(x = rownames(go_pca$x)),
+                      ifelse(x %in% go_groups$multicellular, 'multicellular',
+                      ifelse(x %in% go_groups$cell_autonomous, 'cell autonomous',
+                      'none'))))
 ```
 
 Next, compute translation efficiency for each GO term. For this, we first need
@@ -127,7 +117,8 @@ trna_design = data$trna_design(config)
 trna_sf_counts = data$trna_sf_counts(config) %>%
     tidyr$gather(DO, Count, starts_with('do')) %>%
     inner_join(trna_design, by = 'DO') %>%
-    group_by(Celltype, Gene, AA, Anticodon) %>%
+    rename(Isotype = AA) %>%
+    group_by(Celltype, Gene, Isotype, Anticodon) %>%
     summarize(Count = mean(Count)) %>%
     ungroup()
 ```
@@ -135,20 +126,17 @@ trna_sf_counts = data$trna_sf_counts(config) %>%
 Now calculate the GO term relative codon usage and relative anticodon abundance.
 
 ```{r rcu}
-go_rcu = inner_join(cu_$cu(canonical_cds), mrna_sf_counts, by = 'Gene') %>%
+go_cu = inner_join(cu_$cu(canonical_cds), mrna_sf_counts, by = 'Gene') %>%
     mutate(CU = CU * Count / Length) %>%
     inner_join(go_genes, by = 'Gene') %>%
     group_by(Celltype, GO, Codon) %>%
-    summarize(CU = sum(CU)) %>%
-    base$add_class('codon_usage$cu') %>%
-    cu_$rcu_(c('Celltype', 'GO'))
+    summarize(CU = sum(CU))
 ```
 
 ```{r raa}
-raa = trna_sf_counts %>%
-    group_by(Celltype, AA, Anticodon) %>%
-    summarize(Count = sum(Count)) %>%
-    mutate(RAA = Count / sum(Count)) %>%
+aa = trna_sf_counts %>%
+    group_by(Celltype, Anticodon) %>%
+    summarize(AA = sum(Count)) %>%
     ungroup() %>%
     mutate(Codon = cu_$revcomp(Anticodon))
 ```
@@ -157,11 +145,15 @@ To calculate GO term adaptation (translation efficiency) to all cell type
 specific tRNA transcriptomes.
 
 ```{r adaptation}
-go_terms_in_order = group_by(go_rcu, GO) %>% summarize(TRUE) %>% .$GO
+go_terms_in_order = group_by(go_cu, GO) %>% summarize(TRUE) %>% .$GO
 
-adaptation = sapply(unique(raa$Celltype),
-                    x -> cu_$adaptation(group_by(filter(go_rcu, Celltype == x), GO),
-                                        filter(raa, Celltype == x))) %>%
+simple_te = function (celltype) {
+    cu = filter(go_cu, Celltype == celltype) %>% group_by(GO)
+    aa = filter(aa, Celltype == celltype)
+    cu_$adaptation(cu, aa, canonical_cds)
+}
+
+adaptation = sapply(unique(aa$Celltype), simple_te) %>%
     as.data.frame() %>%
     `rownames<-`(go_terms_in_order) %>%
     add_rownames('GO') %>%
@@ -190,7 +182,7 @@ plot_adaptation_pc1 = function (pca, adaptation) {
 ```
 
 ```{r adaptation-pc1-plot-line, fig.width=10}
-plot_adaptation_pc1(pca, adaptation)
+plot_adaptation_pc1(go_pca, adaptation)
 ```
 
 Highlight GO term enriched in each condition, compared to healthy liver.
@@ -268,7 +260,7 @@ plot_densities = function (adaptation, gsa, celltype) {
 
 ```{r adaptation-pc1-plot-scatter, fig.width = 9, fig.height = 4}
 for (celltype in unique(adaptation$Celltype)) {
-    scatter = plot_adaptation_pc1_with_go(pca, adaptation, gsa, celltype)
+    scatter = plot_adaptation_pc1_with_go(go_pca, adaptation, gsa, celltype)
     density = plot_densities(adaptation, gsa, celltype)
     ge$grid.arrange(scatter, density, ncol = 2, nrow = 1,
                     widths = c(4, 1))
