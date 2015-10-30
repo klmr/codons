@@ -86,12 +86,13 @@ adaptation = function (cu, aa, cds, method = adaptation_no_wobble)
 #' @rdname adaptation
 adaptation_no_wobble = function (cu, aa, cds)
     cu %>%
-    group_by(Codon) %>%
+    group_by(Codon, add = TRUE) %>%
     summarize(CU = mean(CU)) %>%
     inner_join(aa, by = 'Codon') %>%
     mutate(CU = CU / sum(CU),
            AA = AA / sum(AA)) %>%
-    {cor(.$CU, .$AA, method = 'spearman')}
+    summarize(Cor = cor(CU, AA, method = 'spearman')) %>%
+    .$Cor
 
 #' \code{adaptation_wobble} computes a codon–anticodon correlation while
 #' accounting for wobble base pairing.
