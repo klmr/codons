@@ -455,5 +455,5 @@ ggplot(all_adaptations, aes(Type, TE)) +
 Save all the data to be able to plot it later.
 
 ```{r save-all-data}
-saveRDS(tbl_df(all_adaptations), sprintf('results/te-all-%s.rds', config$species))
+saveRDS(tbl_df(all_adaptations), sprintf('results/te-%s.rds', config$species))
 ```
