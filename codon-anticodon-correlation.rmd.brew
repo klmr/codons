@@ -139,7 +139,7 @@ simple_te = function (test_set) {
     weights = data.frame(Gene = names(test_set$weights),
                          Count = test_set$weights)
     inner_join(test_set$cu, weights, by = 'Gene') %>%
-        mutate(CU = CU * Count) %>%
+        mutate(CU = CU * Count / Length) %>%
         cu_$adaptation_no_wobble(test_set$aa, canonical_cds)
 }
 
