@@ -10,7 +10,7 @@ plot_te = function (data) {
     data$Type = factor(data$Type, levels = types, ordered = TRUE)
     colors = c('black', '#3456A3')[ifelse(grepl('Simulated', types), 2, 1)]
     ggplot(data, aes(Type, TE, color = Type)) +
-        geom_boxplot() +
+        geom_boxplot(show_guide = FALSE) +
         scale_y_continuous('Translation efficiency', limits = c(0, 1)) +
         scale_color_manual(limits = types, values = colors) +
         theme_bw()
