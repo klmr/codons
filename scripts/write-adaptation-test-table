@@ -9,20 +9,22 @@ sys$run({
 
     import_package('dplyr', attach = TRUE)
     io = import('ebits/io')
+    import('ebits/base')
 
     te = readRDS(sprintf('results/te-%s.rds', args$species))
-    contrasts = c('Mismatching', 'DE', 'Enriched GO')
+    contrasts = rbind(cbind('Matching', c('Mismatching', 'DE', 'Enriched GO')),
+                      cbind(c('Simulated DE', 'Simulated GO'),
+                            c('DE', 'Enriched GO'))) %>%
+        t() %>% as.data.frame(stringsAsFactors = FALSE)
 
-    test = function (alternative)
-        function (x)
-            wilcox.test(filter(te, Type == 'Matching')$TE,
-                        filter(te, Type == x)$TE,
-                        alternative = alternative)$p.value
+    test = function (contrast)
+        wilcox.test(filter(te, Type == contrast[1])$TE,
+                    filter(te, Type == contrast[2])$TE,
+                    alternative = 'less')$p.value
 
-    results = data.frame(Test = sapply(contrasts, test('less')),
-                         Inverse = sapply(contrasts, test('greater'))) %>%
+    results = data.frame(p = sapply(contrasts, test)) %>%
         sapply(p.adjust, method = 'bonferroni') %>%
-        {cbind.data.frame(Contrast = contrasts, .)}
+        {cbind.data.frame(Contrast = sapply(contrasts, c -> sprintf('%s-%s', c[1], c[2])), .)}
 
     io$write_table(results, args$outfile)
 })
