@@ -300,3 +300,10 @@ enrichment_test = enrichment_test_set %>%
 
 enrichment_test
 ```
+
+Write the enrichment results to a file.
+
+```{r save-enrichment-p}
+io$write_table(enrichment_test,
+               sprintf('results/go-te-%s-test-p.tsv', config$species))
+```
