@@ -145,7 +145,7 @@ To calculate GO term adaptation (translation efficiency) to all cell type
 specific tRNA transcriptomes.
 
 ```{r adaptation}
-go_terms_in_order = group_by(go_cu, GO) %>% summarize(TRUE) %>% .$GO
+go_terms_in_order = group_by(go_cu, GO) %>% summarize() %>% .$GO
 
 simple_te = function (celltype) {
     cu = filter(go_cu, Celltype == celltype) %>% group_by(GO)
@@ -196,14 +196,12 @@ gsa_filename = function (contrast)
 
 read_gsa = function (contrast)
     io$read_table(gsa_filename(contrast), header = TRUE) %>%
-    mutate(Celltype = contrast[2]) %>%
+    mutate(Base = contrast[1], Celltype = contrast[2]) %>%
     rename(GO = Name)
 
-gsa_adult = lapply(base$filter(x -> x[1] == 'Liver-Adult' &
-                                    x[2] != 'E15.5', config$contrasts),
+gsa_adult = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
                    x -> read_gsa(rev(x))) %>%
-    bind_rows() %>%
-    mutate(Celltype = 'Liver-Adult')
+    bind_rows()
 
 gsa = lapply(base$filter(x -> x[1] == 'Liver-Adult', config$contrasts),
              read_gsa) %>% bind_rows() %>% bind_rows(gsa_adult)
@@ -225,9 +223,9 @@ enrichment_colors = function (celltype) {
         c(celltype_color, darken(celltype_color, 0.3))
 }
 
-plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
+plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, base, celltype) {
     data = prepare_plot_data(pca, adaptation) %>%
-        left_join(gsa, by = c('GO', 'Celltype')) %>%
+        left_join(filter(gsa, Base == base), by = c('GO', 'Celltype')) %>%
         mutate(Enriched = ! is.na(padj)) %>%
         filter(Celltype == celltype) %>%
         arrange(Enriched)
@@ -244,8 +242,9 @@ plot_adaptation_pc1_with_go = function (pca, adaptation, gsa, celltype) {
         scale_size_manual(limits = c(FALSE, TRUE), values = c(2, 4))
 }
 
-plot_densities = function (adaptation, gsa, celltype) {
-    data = left_join(adaptation, gsa, by = c('GO', 'Celltype')) %>%
+plot_densities = function (adaptation, gsa, base, celltype) {
+    data = adaptation %>%
+        left_join(filter(gsa, Base == base), by = c('GO', 'Celltype')) %>%
         mutate(Enriched = ! is.na(padj)) %>%
         filter(Celltype == celltype)
 
@@ -261,25 +260,38 @@ plot_densities = function (adaptation, gsa, celltype) {
 ```
 
 ```{r adaptation-pc1-plot-scatter, fig.width = 9, fig.height = 4}
-for (celltype in unique(adaptation$Celltype)) {
-    cat(celltype, '\n')
-    scatter = plot_adaptation_pc1_with_go(go_pca, adaptation, gsa, celltype)
-    density = plot_densities(adaptation, gsa, celltype)
+contrasts = gsa %>%
+    group_by(Base, Celltype) %>%
+    summarize() %>%
+    t() %>%
+    as.data.frame()
+
+base$map(contrast -> {
+    base = contrast[1]
+    celltype = contrast[2]
+    scatter = plot_adaptation_pc1_with_go(go_pca, adaptation, gsa, base, celltype)
+    density = plot_densities(adaptation, gsa, base, celltype)
+    cat(sprintf('%s in contrast to base %s', celltype, base), '\n')
     ge$grid.arrange(scatter, density, ncol = 2, nrow = 1,
                     widths = c(4, 1))
-}
+}, contrasts) %>% invisible()
 ```
 
 Check for difference in adaptation between enriched and non-enriched GO terms
 in each condition.
 
 ```{r test-diff-enrichment}
-enrichment_test_set = gsa %>%
-    right_join(adaptation, by = c('GO', 'Celltype')) %>%
-    mutate(Enriched = ! is.na(padj))
+enrichment_test_set = base$map(contrast -> {
+    base = contrast[1]
+    celltype = contrast[2]
+    gsa = filter(gsa, Base == base, Celltype == celltype)
+    adaptation = filter(adaptation, Celltype == celltype)
+    right_join(gsa, adaptation, by = c('GO', 'Celltype')) %>%
+        mutate(Base = base, Enriched = ! is.na(padj))
+}, contrasts) %>% bind_rows()
 
 enrichment_test = enrichment_test_set %>%
-    group_by(Celltype) %>%
+    group_by(Base, Celltype) %>%
     summarize_each(funs(t.test(.[Enriched], .[! Enriched],
                                alternative = 'greater')$p.value),
                    p = Adaptation) %>%
