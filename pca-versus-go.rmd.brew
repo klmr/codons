@@ -1,0 +1,82 @@
+```{r}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/pca-versus-go-<%= species %>-',
+               dev = c('png', 'pdf'))
+
+config = import('./config_<%= species %>')
+```
+
+Compute the PCA of the codon usage.
+
+```{r load-data}
+cu_ = import('codon_usage')
+tidyr = import_package('tidyr')
+data = import('./data')
+go_genes = data$go_genes(config)
+canonical_cds = data$canonical_cds(config)
+```
+
+```{r pca}
+pca = function (go_cu) {
+    table = tidyr$spread(go_cu, Codon, CU)
+    table = `rownames<-`(select(table, -GO), table$GO)
+    prcomp(table, scale. = TRUE)
+}
+
+plot_pca = function (pca) {
+    ve = sprintf('(%.0f%% variance explained)',
+                 summary(pca)$importance['Proportion of Variance', 1 : 2] * 100)
+    ggplot(as.data.frame(pca$x), aes(x = PC1, y = PC2)) +
+        geom_point() +
+        xlab(paste('PC1', ve[1])) +
+        ylab(paste('PC2', ve[2])) +
+        geom_rug(sides = 'b', size = 0.5, alpha = 0.5)
+}
+```
+
+```{r go-cu-pca}
+go_cu = inner_join(cu_$cu(canonical_cds), go_genes, by = 'Gene') %>%
+    group_by(GO, Codon) %>%
+    summarize(CU = mean(CU)) %>%
+    base$add_class('codon_usage$cu') %>%
+    cu_$norm() %>%
+    ungroup()
+
+go_pca = pca(go_cu)
+```
+
+```{r go-cu-pca-plot, fig.width=9}
+plot_pca(go_pca)
+```
+
+```{r gc}
+bios = import_package('Biostrings')
+gc_content = function (strings)
+    bios$letterFrequency(bios$DNAStringSet(strings), 'CG')[, 1] / nchar(strings)
+
+go_gc = inner_join(canonical_cds, go_genes, by = 'Gene') %>%
+    group_by(GO) %>%
+    summarize(Sequence = paste(Sequence, collapse = '')) %>%
+    mutate(`%GC` = gc_content(Sequence)) %>%
+    select(-Sequence)
+```
+
+```{r plot-go-vs-pc1}
+prepare_data = function (pca, gc)
+    inner_join(add_rownames(as.data.frame(pca$x), 'GO'), gc, by = 'GO')
+
+plot_gc_cu = function (pca, gc) {
+    ggplot(prepare_data(pca, gc), aes(x = PC1, y = `%GC`)) +
+        geom_point() +
+        geom_smooth(method = lm) +
+        geom_rug(sides = 't', size = 0.5, alpha = 0.5)
+}
+
+plot_gc_cu(go_pca, go_gc)
+```
+
+Rank correlation of PC1 with %GC:
+
+```{r correlation}
+with(prepare_data(go_pca, go_gc), cor(PC1, `%GC`, method = 'spearman'))
+```
