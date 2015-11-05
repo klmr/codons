@@ -292,11 +292,11 @@ enrichment_test_set = base$map(contrast -> {
 
 enrichment_test = enrichment_test_set %>%
     group_by(Base, Celltype) %>%
-    summarize_each(funs(t.test(.[Enriched], .[! Enriched],
-                               alternative = 'greater')$p.value),
+    summarize_each(funs(wilcox.test(.[Enriched], .[! Enriched],
+                                    alternative = 'greater')$p.value),
                    p = Adaptation) %>%
     ungroup() %>%
-    mutate(q = p.adjust(p, method = 'fdr')) %>%
+    mutate(q = p.adjust(p, method = 'bonferroni')) %>%
     mutate_each(funs(format.pval(., digits = 2)), p, q)
 
 enrichment_test
