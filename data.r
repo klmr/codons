@@ -150,3 +150,9 @@ go_genes = cache %@% function (config) {
     select(-Size) %>%
     tbl_df()
 }
+
+housekeeping_genes = cache %@% function (config) {
+    mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
+    hk_gene_names = io$read_table('data/hk408.txt')[[1]]
+    filter(mrna_annotation, Name %in% hk_gene_names)$Gene
+}

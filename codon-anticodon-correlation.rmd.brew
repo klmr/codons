@@ -380,6 +380,28 @@ from condition-specific GO terms yields $p(\text{observation | GO = Matching})
 with matching RAA than whole-transcriptome codon usage”. For the inverted
 hypothesis (*worse* match), we find $p = `r inverse_go_p`$.
 
+# Test housekeeping and ribosomal genes
+
+```{r housekeeping-genes}
+hk_genes = data$housekeeping_genes(config)
+
+hk_gene_sets = function (cu, aa) {
+    test_set_ids = expand_test_sets(matching_contrasts)
+    lapply(test_set_ids, x -> replicate_test_set(cu, aa, x[1], x[2], hk_genes))
+}
+
+hk_adaptations = adaptations(hk_gene_sets(cu, aa), simple_te)
+
+all_adaptations = rbind(all_adaptations,
+                        data.frame(TE = hk_adaptations, Type = 'Housekeeping'))
+
+ggplot(all_adaptations, aes(Type, TE)) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(height = 0, width = 0.3),
+               color = 'grey') +
+    scale_x_discrete(name = '')
+```
+
 ## Account for sample size
 
 The gene sets used in the four comparisons have different size, which implies
