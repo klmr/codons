@@ -311,8 +311,8 @@ enriched_go_terms = gsa %>%
     filter(Base %in% c('Liver-Adult', 'E15.5'), Celltype %in% non_base_names) %>%
     group_by(Base, Celltype) %>%
     filter(padj == min(padj))
-
 ```
+
 Special handling is needed for enriched genes in adult liver, compared to
 cancer cell lines: We look at enrichment of genes in healthy adult liver
 compared to either cancer, and then take the intersection of the GO terms thus
