@@ -307,7 +307,7 @@ gsa = c(lapply(config$contrasts, read_gsa),
 go_genes = data$go_genes(config)
 
 non_base_names = setdiff(all_celltypes, 'Liver-Adult')
-enriched_go_terms = gsa %>%
+go_terms = gsa %>%
     filter(Base %in% c('Liver-Adult', 'E15.5'), Celltype %in% non_base_names) %>%
     group_by(Base, Celltype) %>%
     filter(padj == min(padj))
@@ -319,7 +319,7 @@ compared to either cancer, and then take the intersection of the GO terms thus
 found enriched.
 
 ```{r liver-enrichment}
-liver_enriched_go_terms = gsa %>%
+liver_go_terms = gsa %>%
     filter(Base %in% cancer_celltypes, Celltype == 'Liver-Adult') %>%
     group_by(Base, Celltype) %>%
     filter(padj == min(padj)) %>%
@@ -332,8 +332,8 @@ liver_enriched_go_terms = gsa %>%
 ```
 
 ```{r all-enrichment}
-all_enriched_go_terms = bind_rows(enriched_go_terms, liver_enriched_go_terms)
-enriched_go_genes = inner_join(all_enriched_go_terms, go_genes, by = 'GO') %>%
+all_go_terms = bind_rows(go_terms, liver_go_terms)
+go_gene_ids = inner_join(all_go_terms, go_genes, by = 'GO') %>%
     group_by(Base, Celltype) %>%
     summarize(Genes = list(Gene)) %>%
     # These MAY be duplicate. This still works.
@@ -345,26 +345,25 @@ enrichment_test_set = function (cu, aa, celltype, genes) {
     lapply(contrasts, x -> replicate_test_set(cu, aa, x[1], x[2], genes))
 }
 
-all_enrichment_test_sets = function (cu, aa) {
+all_enrichment_test_sets = function (cu, aa)
     Map(c ~ g -> enrichment_test_set(cu, aa, c, g),
-        names(enriched_go_genes), enriched_go_genes) %>%
+        names(go_gene_ids), go_gene_ids) %>%
     unlist(recursive = FALSE)
-}
 
 enriched_adaptations = adaptations(all_enrichment_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(TE = enriched_adaptations, Type = 'Enriched GO'))
+                        data.frame(TE = enriched_adaptations, Type = 'GO'))
 
-enriched_go_significance = wilcox.test(matching_adaptations,
+go_significance = wilcox.test(matching_adaptations,
                                        enriched_adaptations, conf.int = TRUE,
                                        alternative = 'less')
-enriched_go_inverse_test = wilcox.test(matching_adaptations,
+go_inverse_test = wilcox.test(matching_adaptations,
                                        enriched_adaptations, conf.int = TRUE,
                                        alternative = 'greater')
 
-go_p = format.pval(enriched_go_significance$p.value)
-inverse_go_p = format.pval(enriched_go_inverse_test$p.value)
+go_p = format.pval(go_significance$p.value)
+inverse_go_p = format.pval(go_inverse_test$p.value)
 
 ggplot(all_adaptations, aes(Type, TE)) +
     geom_boxplot() +
@@ -411,7 +410,7 @@ allows us to assess whether a given gene set’s adaptation is explained by its
 gene set size.
 
 ```{r echo=FALSE}
-go_set_sizes = inner_join(enriched_go_terms, go_genes, by = 'GO') %>%
+go_set_sizes = inner_join(go_terms, go_genes, by = 'GO') %>%
     group_by(Base, Celltype, GO) %>%
     summarize(N = n()) %>%
     .$N
