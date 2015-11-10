@@ -67,9 +67,9 @@ go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
-codon-anticodon-adaptation-human.html: go data/rb-genes-human.txt
+codon-anticodon-correlation-human.html: go data/rb-genes-human.txt
 
-codon-anticodon-adaptation-mouse.html: go data/rb-genes-mouse.txt
+codon-anticodon-correlation-mouse.html: go data/rb-genes-mouse.txt
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
