@@ -40,6 +40,9 @@ data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
 
+data/rb-genes-%.txt:
+	./scripts/download-rp-genes $* > $@
+
 results/te-human-boxplot.pdf: results/te-human.rds
 	./scripts/plot-te-boxplot human $@
 
@@ -64,7 +67,9 @@ go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
-$(foreach i,${species},codon-anticodon-adaptation-$i.html): go
+codon-anticodon-adaptation-human.html: go data/rb-genes-human.txt
+
+codon-anticodon-adaptation-mouse.html: go data/rb-genes-mouse.txt
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
