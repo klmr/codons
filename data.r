@@ -153,6 +153,12 @@ go_genes = cache %@% function (config) {
 
 housekeeping_genes = cache %@% function (config) {
     mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
-    hk_gene_names = io$read_table('data/hk408.txt')[[1]]
+    hk_gene_names = readLines('data/hk408.txt')
     filter(mrna_annotation, Name %in% hk_gene_names)$Gene
+}
+
+ribosomal_genes = cache %@% function (config) {
+    mrna_annotation = mrna_annotation(config)
+    rp_gene_names = readLines(sprintf('data/rp-genes-%s.txt', config$species))
+    filter(mrna_annotation, Name %in% rp_gene_names)$Gene
 }
