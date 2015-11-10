@@ -40,7 +40,7 @@ data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
 
-data/rb-genes-%.txt:
+data/rp-genes-%.txt:
 	./scripts/download-rp-genes $* > $@
 
 results/te-human-boxplot.pdf: results/te-human.rds
@@ -55,9 +55,9 @@ results/te-human-adaptation-test-p.tsv: results/te-human.rds
 results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
 	./scripts/write-adaptation-test-table mouse $@
 
-results/te-human.rds: codon-anticodon-adaptation-human.html
+results/te-human.rds: codon-anticodon-correlation-human.html
 
-results/te-mouse.rds: codon-anticodon-adaptation-mouse.html
+results/te-mouse.rds: codon-anticodon-correlation-mouse.html
 
 results/te-human-liver-matching-scatter.pdf:
 	./scripts/plot-te-scatter human Liver-Adult $@
@@ -67,9 +67,9 @@ go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
-codon-anticodon-correlation-human.html: go data/rb-genes-human.txt
+codon-anticodon-correlation-human.html: go data/rp-genes-human.txt
 
-codon-anticodon-correlation-mouse.html: go data/rb-genes-mouse.txt
+codon-anticodon-correlation-mouse.html: go data/rp-genes-mouse.txt
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
