@@ -20,9 +20,7 @@ sys$run({
     design = load_data('design')
 
     de = import('./de')
-
-    gsa = import('./gsa')
-    de_genes = de$de_genes(counts, design, config$contrasts, config$alpha)
+    de_genes = de$de_genes(counts, design, config$contrasts, args$alpha)
 
     io = import('ebits/io')
 
@@ -31,7 +29,7 @@ sys$run({
         io$write_table(results[order(results$padj), ], filename, row.names = TRUE)
     }
 
-    invisible(Map(save_table, gsub('/', '-vs-', names(de_genes)), result))
+    invisible(Map(save_table, gsub('/', '-vs-', names(de_genes)), de_genes))
     NULL
 })
 
