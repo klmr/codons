@@ -172,49 +172,16 @@ compute the sets of differentially expressed genes between healthy tissues and
 cancer cell lines.
 
 ```{r de}
-deseq = modules::import_package('DESeq2')
-untidy = function (tidy_data, rownames = 1)
-    `rownames<-`(as.data.frame(tidy_data[-rownames]), tidy_data[[rownames]])
+de_filename = function (contrast)
+    sprintf('results/de/%s-mrna-%s-vs-%s.tsv',
+            config$species, contrast[1], contrast[2])
 
-deseq_test = function (data, col_data, contrast) {
-    cols = col_data[[1]] %in% contrast
-    col_data = col_data[cols, , drop = FALSE]
-    data = data[, cols]
-    design = eval(bquote(~ .(as.name(colnames(col_data)[1]))))
-    dds = deseq$DESeqDataSetFromMatrix(data, col_data, design)
-    deseq$DESeq(dds, quiet = TRUE)
-}
+read_de = function (contrast)
+    io$read_table(de_filename(contrast), header = TRUE) %>%
+    add_rownames('Gene')
 
-mrna_counts = data$mrna_counts(config)
-dds_data = untidy(select(mrna_counts, Gene, starts_with('do')))
-dds_col_data = untidy(mrna_design)
-dds_col_data = dds_col_data[colnames(dds_data), , drop = FALSE]
-# Ensure Liver-Adult is condition A in the contrast, or, if not present, then
-# E15.5 is.
-dds_col_data$Celltype = Reduce(relevel, rev(healthy_celltypes),
-                               factor(dds_col_data$Celltype))
 de_contrasts = config$contrasts[grep('Liver-Adult|E15\\.5', config$contrasts)]
-dds = lapply(de_contrasts, deseq_test, data = dds_data, col_data = dds_col_data)
-threshold = 0.001
-de_genes = lapply(dds, dds -> subset(as.data.frame(deseq$results(dds)),
-                                     ! is.na(padj) & padj < threshold) %>%
-                            add_rownames('Gene'))
-sapply(de_genes, nrow)
-```
-
-Save the differentially expressed genes in a table
-
-```{r de-table, echo=FALSE}
-write_de_result = contrast ~ dds -> {
-    results = subset(as.data.frame(deseq$results(dds)), ! is.na(padj))
-    io$write_table(results[order(results$padj), ],
-                   file = sprintf('results/de-genes-%s.tsv', contrast),
-                   row.names = TRUE)
-}
-
-mapply(write_de_result,
-       base$map(x -> paste(tolower(x), collapse = '-'), de_contrasts),
-       dds) %>% invisible()
+de_genes = lapply(de_contrasts, read_de)
 ```
 
 Secondly, re-calculate codon usage bias, but using only a subset of genes in
