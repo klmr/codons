@@ -208,9 +208,18 @@ set_a_for_contrast = function (de_genes)
 set_b_for_contrast = function (de_genes)
     gene_set_for_contrast(de_genes, `>`)
 
+used_de_test_sets = list() # Cache those gene sets that we actually use
+
+store_contrast = function (contrast, genes)
+    used_de_test_sets[[sprintf('%s-vs-%s', contrast[1], contrast[2])]] <<- genes
+
 de_test_sets = function (cu, aa, contrast, genes) {
     a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
     b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
+    # Invert contrast so that gene list we store is up-regulated in second
+    # listed condition, relative to first, same as for GSA files.
+    store_contrast(rev(contrast), a$genes)
+    store_contrast(contrast, b$genes)
 
     lapply(list(a, b), cond -> {
         # mRNA and tRNA come from same celltype
@@ -231,6 +240,14 @@ correlations.
 
 ```{r de-codon-adaptation}
 de_adaptations = adaptations(all_de_test_sets(cu, aa), simple_te)
+
+# Write the used gene sets to files for supplementary tables.
+write_de_result = function (name, genes) {
+    filename = sprintf('results/de/up-%s-%s.txt', config$species, name)
+    writeLines(genes, filename)
+}
+
+invisible(Map(write_de_result, names(used_de_test_sets), used_de_test_sets))
 
 all_adaptations = rbind(all_adaptations,
                          data.frame(TE = de_adaptations, Type = 'DE'))
