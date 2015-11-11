@@ -21,9 +21,10 @@ go-enrichment: \
 		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
 		results/gsa/human-$(firstword ${contrasts/human}).tsv
 
-te: $(foreach i,${species},results/te-$i-boxplot.pdf) \
-	$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
-	results/te-human-liver-matching-scatter.pdf
+te: \
+		$(foreach i,${species},results/te-$i-boxplot.pdf) \
+		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
+		results/te-human-liver-matching-scatter.pdf
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
