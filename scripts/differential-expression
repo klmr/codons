@@ -4,13 +4,13 @@ library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
 sys$run({
-    base = import('ebits/base')
     args = sys$cmdline$parse(opt('a', 'alpha', 'significance threshold for enrichment', 0.001),
                              arg('species', 'the species'),
                              arg('type', 'the type (“mrna” or “trna”)',
-                                 validate = x -> x %in% c('mrna', 'trna')),
+                                 validate = function(x)  x %in% c('mrna', 'trna')),
                              arg('out-prefix', 'prefix of the output path'))
 
+    base = import('ebits/base')
     data = import('../data')
     config = import(paste('../config', args$species, sep = '_'))
     load_data = function (type)
