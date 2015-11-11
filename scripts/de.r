@@ -26,8 +26,10 @@ de_genes = function (counts, design, contrasts, alpha = 0.001) {
                                   c('Liver-Adult', 'E15.5'))
     dds_col_data$Celltype = Reduce(relevel, rev(healthy_celltypes),
                                    factor(dds_col_data$Celltype))
-    dds = lapply(contrasts, .deseq_test,
-                 data = dds_data, col_data = dds_col_data)
+    parallel = import_package('parallel')
+    dds = parallel$mclapply(contrasts, .deseq_test,
+                            data = dds_data, col_data = dds_col_data,
+                            mc.cores = parallel$detectCores())
     lapply(dds, dds -> subset(as.data.frame(.deseq$results(dds)),
                               ! is.na(padj) & padj < alpha)) %>%
         setNames(vapply(contrasts, paste, character(1), collapse = '/'))
