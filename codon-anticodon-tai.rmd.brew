@@ -144,9 +144,9 @@ simple_te = function (test_set) {
 matching_adaptations = adaptations(matching_test_sets(cu, aa), simple_te)
 mismatching_adaptations = adaptations(mismatching_test_sets(cu, aa), simple_te)
 
-all_adaptations = rbind(data.frame(TE = matching_adaptations,
+all_adaptations = rbind(data.frame(tAI = matching_adaptations,
                                    Type = 'Matching'),
-                        data.frame(TE = mismatching_adaptations,
+                        data.frame(tAI = mismatching_adaptations,
                                    Type = 'Mismatching'))
 
 significance = wilcox.test(matching_adaptations,
@@ -155,7 +155,7 @@ significance = wilcox.test(matching_adaptations,
 
 p = format.pval(significance$p.value)
 
-ggplot(all_adaptations, aes(factor(Type), TE)) +
+ggplot(all_adaptations, aes(factor(Type), tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -248,7 +248,7 @@ write_de_result = function (name, genes) {
 invisible(Map(write_de_result, names(used_de_test_sets), used_de_test_sets))
 
 all_adaptations = rbind(all_adaptations,
-                         data.frame(TE = de_adaptations, Type = 'DE'))
+                         data.frame(tAI = de_adaptations, Type = 'DE'))
 all_adaptations$Type = factor(all_adaptations$Type,
                               c('Matching', 'Mismatching', 'DE'))
 
@@ -258,7 +258,7 @@ de_significance = wilcox.test(matching_adaptations,
 
 de_p = format.pval(de_significance$p.value)
 
-ggplot(all_adaptations, aes(Type, TE)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -335,7 +335,7 @@ all_enrichment_test_sets = function (cu, aa)
 enriched_adaptations = adaptations(all_enrichment_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(TE = enriched_adaptations, Type = 'GO'))
+                        data.frame(tAI = enriched_adaptations, Type = 'GO'))
 
 go_significance = wilcox.test(matching_adaptations,
                                        enriched_adaptations, conf.int = TRUE,
@@ -347,7 +347,7 @@ go_inverse_test = wilcox.test(matching_adaptations,
 go_p = format.pval(go_significance$p.value)
 inverse_go_p = format.pval(go_inverse_test$p.value)
 
-ggplot(all_adaptations, aes(Type, TE)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -374,9 +374,9 @@ hk_gene_sets = function (cu, aa) {
 hk_adaptations = adaptations(hk_gene_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(TE = hk_adaptations, Type = 'Housekeeping'))
+                        data.frame(tAI = hk_adaptations, Type = 'Housekeeping'))
 
-ggplot(all_adaptations, aes(Type, TE)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
@@ -396,9 +396,9 @@ rp_gene_sets = function (cu, aa) {
 rp_adaptations = adaptations(rp_gene_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(all_adaptations,
-                        data.frame(TE = rp_adaptations, Type = 'Ribosomal'))
+                        data.frame(tAI = rp_adaptations, Type = 'Ribosomal'))
 
-ggplot(all_adaptations, aes(Type, TE)) +
+ggplot(all_adaptations, aes(Type, tAI)) +
     geom_boxplot() +
     geom_point(position = position_jitter(height = 0, width = 0.3),
                color = 'grey') +
