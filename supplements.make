@@ -1,10 +1,9 @@
 include structure.make
 supp_dir := results/supplements
 combinations := human-mrna mouse-mrna human-trna mouse-trna
-de_genes_combinations := $(addprefix de-genes-,${combinations})
 
 .PHONY: all
-all: gene-expression de-genes
+all: gene-expression
 
 .PHONY: gene-expression
 gene-expression: ${combinations}
@@ -12,14 +11,6 @@ gene-expression: ${combinations}
 ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
 	./scripts/write-expression-table $(call split-args,$*) > $@
-
-.PHONY: de-genes
-de-genes: ${de_genes_combinations}
-
-.PHONY: ${de_genes_combinations}
-${de_genes_combinations}:
-	mkdir -p ${supp_dir}
-	./scripts/write-de-table $(call split-args-de,$@) ${supp_dir}/
 
 define split-args
 	$(subst -, ,$1)

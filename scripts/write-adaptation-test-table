@@ -12,7 +12,8 @@ sys$run({
     import('ebits/base')
 
     te = readRDS(sprintf('results/te-%s.rds', args$species))
-    contrasts = rbind(cbind('Matching', c('Mismatching', 'DE', 'GO')),
+    contrasts = rbind(cbind('Matching', c('Mismatching', 'DE', 'GO',
+                                          'Housekeeping', 'Ribosomal')),
                       cbind(c('Simulated DE', 'Simulated GO'),
                             c('DE', 'GO'))) %>%
         t() %>% as.data.frame(stringsAsFactors = FALSE)

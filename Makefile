@@ -16,14 +16,28 @@ all: go te
 .PHONY: go
 go: data/go-descriptions.tsv go-enrichment
 
+.PHONY: de
+de: \
+		results/de/mouse-$(firstword %{contrasts/mouse}).tsv \
+		results/de/human-$(firstword %{contrasts/human}).tsv
+
 .PHONY: go-enrichment
 go-enrichment: \
 		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
 		results/gsa/human-$(firstword ${contrasts/human}).tsv
 
-te: $(foreach i,${species},results/te-$i-boxplot.pdf) \
-	$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
-	results/te-human-liver-matching-scatter.pdf
+te: \
+		$(foreach i,${species},results/te-$i-boxplot.pdf) \
+		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
+		results/te-human-liver-matching-scatter.pdf
+
+results/de/mouse-%:
+	mkdir -p results/de
+	./scripts/differential-expression mouse mrna results/de/
+
+results/de/human-%:
+	mkdir -p results/de
+	./scripts/differential-expression human mrna results/de/
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
@@ -67,9 +81,9 @@ go-enrichment: ${go-enrichment}
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
-codon-anticodon-correlation-human.html: go data/rp-genes-human.txt
+codon-anticodon-correlation-human.html: go de data/rp-genes-human.txt
 
-codon-anticodon-correlation-mouse.html: go data/rp-genes-mouse.txt
+codon-anticodon-correlation-mouse.html: go de data/rp-genes-mouse.txt
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 

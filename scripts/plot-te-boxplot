@@ -6,7 +6,7 @@ sys = import('sys')
 plot_te = function (data) {
     import_package('ggplot2', attach = TRUE)
     types = c('Matching', 'Mismatching', 'DE', 'Simulated DE',
-              'GO', 'Simulated GO')
+              'GO', 'Simulated GO', 'Housekeeping', 'Ribosomal')
     data$Type = factor(data$Type, levels = types, ordered = TRUE)
     colors = c('black', '#3456A3')[ifelse(grepl('Simulated', types), 2, 1)]
     ggplot(data, aes(Type, TE, color = Type)) +

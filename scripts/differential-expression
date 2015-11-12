@@ -1,0 +1,36 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(opt('a', 'alpha', 'significance threshold for enrichment', 0.001),
+                             arg('species', 'the species'),
+                             arg('type', 'the type (“mrna” or “trna”)',
+                                 validate = function(x)  x %in% c('mrna', 'trna')),
+                             arg('out-prefix', 'prefix of the output path'))
+
+    base = import('ebits/base')
+    data = import('../data')
+    config = import(paste('../config', args$species, sep = '_'))
+    load_data = function (type)
+        data[[paste(args$type, type, sep = '_')]](config)
+
+    counts = load_data('counts')
+    design = load_data('design')
+
+    de = import('./de')
+    de_genes = de$de_genes(counts, design, config$contrasts, args$alpha)
+
+    io = import('ebits/io')
+
+    save_table = function (name, results) {
+        filename = sprintf('%s%s-%s-%s.tsv', args$`out-prefix`, args$species, args$type, name)
+        io$write_table(results[order(results$padj), ], filename, row.names = TRUE)
+    }
+
+    invisible(Map(save_table, gsub('/', '-vs-', names(de_genes)), de_genes))
+    NULL
+})
+
+# vim: ft=r
