@@ -157,7 +157,8 @@ adaptation = sapply(unique(aa$Celltype), simple_te) %>%
     as.data.frame() %>%
     `rownames<-`(go_terms_in_order) %>%
     add_rownames('GO') %>%
-    tidyr$gather(Celltype, Adaptation, -GO)
+    tidyr$gather(Celltype, Adaptation, -GO) %>%
+    mutate(Celltype = as.character(Celltype))
 ```
 
 Now we can plot the adaptation against the PC1 of the GO codon usage PCA.
@@ -248,10 +249,12 @@ plot_densities = function (adaptation, gsa, base, celltype) {
         mutate(Enriched = ! is.na(padj)) %>%
         filter(Celltype == celltype)
 
-    ggplot(data, aes(x = Adaptation, fill = Enriched)) +
-        geom_density(alpha = 0.5, show_guide = FALSE) +
+    ggplot(data, aes(x = Adaptation, fill = Enriched, color = Enriched)) +
+        geom_density(alpha = 0.5, size = 1, show_guide = FALSE) +
         scale_fill_manual(limits = c(FALSE, TRUE),
                           values = enrichment_colors(celltype)) +
+        scale_color_manual(limits = c(FALSE, TRUE),
+                           values = enrichment_colors(celltype)) +
         scale_x_continuous(limits = ylim) +
         coord_flip() +
         theme(axis.line = element_blank(), axis.ticks = element_blank(),
