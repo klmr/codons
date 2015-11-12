@@ -144,6 +144,8 @@ simple_te = function (test_set) {
 }
 
 matching_adaptations = adaptations(matching_test_sets(cu, aa), simple_te)
+# FIXME: The following somehow has exponential memory usage and blows up for
+# mouse (one more experimental condition). Should be refactored.
 mismatching_adaptations = adaptations(mismatching_test_sets(cu, aa), simple_te)
 
 all_adaptations = rbind(data.frame(TE = matching_adaptations,
