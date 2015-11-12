@@ -18,8 +18,8 @@ go: data/go-descriptions.tsv go-enrichment
 
 .PHONY: de
 de: \
-		results/de/mouse-$(firstword %{contrasts/mouse}).tsv \
-		results/de/human-$(firstword %{contrasts/human}).tsv
+		results/de/mouse-$(firstword ${contrasts/mouse}).tsv \
+		results/de/human-$(firstword ${contrasts/human}).tsv
 
 .PHONY: go-enrichment
 go-enrichment: \
