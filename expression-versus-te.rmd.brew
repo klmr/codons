@@ -41,8 +41,9 @@ Calculate codon usage.
 
 ```{r codon-usage}
 cu_ = import('codon_usage')
-mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
-cu = inner_join(cu_$cu(mrna_counts_and_cds), mrna_counts_and_cds, by = 'Gene')
+gene_expr = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene') %>%
+    mutate(Expression = Count / Length)
+cu = inner_join(cu_$cu(gene_expr), gene_expr, by = 'Gene')
 ```
 
 Calculate anticodon abundance.
@@ -66,8 +67,8 @@ te = data_frame(Gene = unique(test_cu$Gene),
 Plot gene expression vs TE.
 
 ```{r scatter-te}
-ggplot(inner_join(mrna_sf_counts, te, by = 'Gene'),
-       aes(x = Count, y = TE)) +
+ggplot(inner_join(gene_expr, te, by = 'Gene'),
+       aes(x = Expression, y = TE)) +
     geom_point() +
     scale_x_log10()
 ```
@@ -75,15 +76,15 @@ ggplot(inner_join(mrna_sf_counts, te, by = 'Gene'),
 Calculate tAI.
 
 ```{r tai}
-tai = data_frame(Gene = unique(test_cu$Gene),
+tai = data_frame(Gene = unique(cu$Gene),
                  tAI = cu_$adaptation_tai(cu, aa, canonical_cds))
 ```
 
 Plot gene expression vs tAI.
 
 ```{r scatter-tai}
-ggplot(inner_join(mrna_sf_counts, tai, by = 'Gene'),
-       aes(x = Count, y = tAI)) +
+ggplot(inner_join(gene_expr, tai, by = 'Gene'),
+       aes(x = Expression, y = tAI)) +
     geom_point() +
     scale_x_log10()
 ```
