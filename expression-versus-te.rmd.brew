@@ -1,0 +1,96 @@
+```{r echo=FALSE, message=FALSE}
+modules::import('./scripts/knit', attach = TRUE)
+opts_chunk$set(fig.path = 'figure/expression-versus-te-<%= species %>-',
+               dev = c('png', 'pdf'))
+
+tidyr = import_package('tidyr')
+config = import('./config_<%= species %>')
+```
+
+Load data. We care only about a single condition. Sample 10% of the genes.
+
+```{r load-data}
+data = import('./data')
+trna_liver_libraries = data$trna_design(config) %>%
+    filter(Celltype == 'Liver-Adult') %>%
+    .$DO
+mrna_liver_libraries = data$mrna_design(config) %>%
+    filter(Celltype == 'Liver-Adult') %>%
+    .$DO
+
+trna_sf_counts = data$trna_sf_counts(config) %>%
+    select(Gene, AA, Anticodon, one_of(trna_liver_libraries)) %>%
+    tidyr$gather(DO, Count, -c(Gene, AA, Anticodon)) %>%
+    group_by(Gene, AA, Anticodon) %>%
+    summarize(Count = mean(Count)) %>%
+    ungroup()
+
+mrna_sf_counts = data$mrna_sf_counts(config) %>%
+    select(Gene, one_of(mrna_liver_libraries)) %>%
+    tidyr$gather(DO, Count, -Gene) %>%
+    group_by(Gene) %>%
+    summarize(Count = mean(Count)) %>%
+    filter(Count > 0) %>%
+    sample_frac(0.1)
+
+canonical_cds = data$canonical_cds(config) %>%
+    semi_join(mrna_sf_counts, by = 'Gene')
+```
+
+Calculate codon usage.
+
+```{r codon-usage}
+cu_ = import('codon_usage')
+mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
+cu = inner_join(cu_$cu(mrna_counts_and_cds), mrna_counts_and_cds, by = 'Gene')
+```
+
+Calculate anticodon abundance.
+
+```{r aa}
+aa = trna_sf_counts %>%
+    rename(Type = AA) %>%
+    mutate(Codon = cu_$revcomp(Anticodon)) %>%
+    group_by(Type, Codon) %>%
+    summarize(AA = sum(Count))
+```
+
+Calculate TE.
+
+```{r te}
+test_cu = group_by(cu, Gene)
+te = data_frame(Gene = unique(test_cu$Gene),
+                TE = cu_$adaptation_no_wobble(test_cu, aa, canonical_cds))
+```
+
+Plot gene expression vs TE.
+
+```{r scatter-te}
+ggplot(inner_join(mrna_sf_counts, te, by = 'Gene'),
+       aes(x = Count, y = TE)) +
+    geom_point() +
+    scale_x_log10()
+```
+
+Calculate tAI.
+
+```{r tai}
+tai = data_frame(Gene = unique(test_cu$Gene),
+                 tAI = cu_$adaptation_tai(cu, aa, canonical_cds))
+```
+
+Plot gene expression vs tAI.
+
+```{r scatter-tai}
+ggplot(inner_join(mrna_sf_counts, tai, by = 'Gene'),
+       aes(x = Count, y = tAI)) +
+    geom_point() +
+    scale_x_log10()
+```
+
+Finally, plot TE vs tAI.
+
+```{r scatter-te-vs-tai}
+ggplot(inner_join(te, tai, by = 'Gene'), aes(x = TE, y = tAI)) +
+    geom_point()
+```
