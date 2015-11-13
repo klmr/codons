@@ -88,10 +88,3 @@ ggplot(inner_join(gene_expr, tai, by = 'Gene'),
     geom_point() +
     scale_x_log10()
 ```
-
-Finally, plot TE vs tAI.
-
-```{r scatter-te-vs-tai}
-ggplot(inner_join(te, tai, by = 'Gene'), aes(x = TE, y = tAI)) +
-    geom_point()
-```
