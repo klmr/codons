@@ -128,8 +128,7 @@ canonical_cds = cache %@% function (config) {
         filter(is_valid_cds(Sequence)) %>%
         mutate(Length = base::nchar(Sequence)) %>%
         group_by(Gene) %>%
-        arrange(desc(Length)) %>%
-        slice(1) %>%
+        slice(which.max(Length)) %>%
         ungroup()
 }
 
