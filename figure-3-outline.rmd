@@ -152,7 +152,7 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
     * calculate $\rho_{1 \dots n}^*$, for each simulated pool, and
 
-    * calculate empirical one-tailed $p$-value of $\rho \sim \rho_{1 \dots n}^*$.
+    * calculate empirical one-tailed $p$-value of $\rho \sim \rho^*$.
 
 * The above was simplified, we have no 1:1 match between “match” and
   “mismatch” tRNA:
@@ -162,3 +162,12 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
     “HepG2–liver”, “Huh7–liver”
 
     **How to handle these?**
+
+---
+
+# Details
+
+Empirically testing $\rho \sim \rho^*$ is impossible for a single $\rho$ but
+since we have more than one match- and mismatch correlation we effectively
+have sample of $\rho$ values; we can consequently use a Kolmogorov–Smirnov
+test to determine if the sample of $\rho$ was drawn from $\rho^*$.
