@@ -108,15 +108,15 @@ Here’s a different idea:
 * For each gene set, say $\text{DE} = (g_1, g_2, \dots, g_n)$, calculate
   per-gene TE with **matching** tRNA pool
 
-    $$t_{\text{DE}} = (t_{\text{DE}}(g_1), t_{\text{DE}}(g_2), \dots, t_{\text{DE}}(g_n))$$
+    $$t = (t_{g_1}, t_{g_2}, \dots, t_{g_n})$$
 
     and **mismatching** tRNA pool
 
-    $$t_{\text{DE}}' = (t_{\text{DE}}(g_1), t_{\text{DE}}(g_2), \dots, t_{\text{DE}}(g_n))$$
+    $$t' = (t_{g_1}, t_{g_2}, \dots, t_{g_n})$$
 
 * Calculate the correlation
   
-    $$\rho_{\text{DE}} = cor(t_{\text{DE}}, t_{\text{DE}}')$$
+    $$\rho = cor(t, t')$$
 
 ---
 
@@ -143,8 +143,8 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
 # Correlate TE of matching and mismatching tRNA pool
 
-* If there’s *no* adaptation of TE to cell-specific tRNA pools, then
-  $\rho_{\text{DE}}$ is higher than expected by chance.
+* If there’s *no* adaptation of TE to cell-specific tRNA pools, then $\rho$ is
+  higher than expected by chance.
 
 * But, **how do we quantify “chance”?**
 
