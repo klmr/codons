@@ -57,23 +57,17 @@ data/go-basic.obo:
 data/rp-genes-%.txt:
 	${BIN}/download-rp-genes $* > $@
 
-results/te-human-boxplot.pdf: results/te-human.rds
-	./scripts/plot-te-boxplot human $@
-
-results/te-mouse-boxplot.pdf: results/te-mouse.rds
-	./scripts/plot-te-boxplot mouse $@
-
-results/te-human-adaptation-test-p.tsv: results/te-human.rds
+results/te-boxplot-human.pdf: results/te-human.rds
 	${BIN}/plot-te-boxplot human $@
 
-results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
+results/te-boxplot-mouse.pdf: results/te-mouse.rds
 	${BIN}/plot-te-boxplot mouse $@
 
 results/te-human.rds: codon-anticodon-correlation-human.html
 
 results/te-mouse.rds: codon-anticodon-correlation-mouse.html
 
-results/te-human-liver-matching-scatter.pdf:
+results/te-liver-matching-scatter-human.pdf:
 	${BIN}/plot-te-scatter human Liver-Adult $@
 
 .PHONY: go-enrichment
