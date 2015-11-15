@@ -16,16 +16,12 @@ all: go te
 .PHONY: go
 go: data/go-descriptions.tsv go-enrichment
 
-.PHONY: de
-de: \
-		results/de/mouse-$(firstword ${contrasts/mouse}).tsv \
-		results/de/human-$(firstword ${contrasts/human}).tsv
-
 .PHONY: go-enrichment
 go-enrichment: \
 		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
 		results/gsa/human-$(firstword ${contrasts/human}).tsv
 
+.PHONY: te
 te: \
 		$(foreach i,${species},results/te-$i-boxplot.pdf) \
 		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
