@@ -8,7 +8,7 @@ sys$run({
                              arg('species', 'the species'),
                              arg('type', 'the type (“mrna” or “trna”)',
                                  validate = function(x)  x %in% c('mrna', 'trna')),
-                             arg('out-prefix', 'prefix of the output path'))
+                             arg('outfile', 'the output filename'))
 
     base = import('ebits/base')
     data = import('../data')
@@ -21,15 +21,7 @@ sys$run({
 
     de = import('./de')
     de_genes = de$de_genes(counts, design, config$contrasts, args$alpha)
-
-    io = import('ebits/io')
-
-    save_table = function (name, results) {
-        filename = sprintf('%s%s-%s-%s.tsv', args$`out-prefix`, args$species, args$type, name)
-        io$write_table(results[order(results$padj), ], filename, row.names = TRUE)
-    }
-
-    invisible(Map(save_table, gsub('/', '-vs-', names(de_genes)), de_genes))
+    saveRDS(de_genes, args$outfile)
     NULL
 })
 
