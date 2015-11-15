@@ -121,4 +121,5 @@ clean:
 cleanall: clean
 	${RM} *.html
 	${RM} *.pdf
-	${RM} figure/*
+	${RM} -r figure
+	${RM} -r results
