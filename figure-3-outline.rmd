@@ -16,7 +16,7 @@ modules::import('scripts/knit')
 tidyr = import_package('tidyr')
 ```
 
-# The problem
+## The problem
 
 ```{r load-old-te-data, echo=FALSE}
 te = readRDS('./results/te-human.rds') %>% filter(Type %in% c('Matching', 'DE'))
@@ -35,8 +35,6 @@ ggplot(te) +
 
 ---
 
-# The problem
-
 * The number of samples (`r n_samples`) is low
 * We are using a nonparametric test of different medians
 * The distributions are not continuous
@@ -53,8 +51,6 @@ dramatically.
 
 ---
 
-# The problem
-
 * *Finally*, we’re arguably testing the wrong thing:
 
     * We are testing whether cell-type specific genes are significantly more
@@ -70,7 +66,7 @@ dramatically.
 
 ---
 
-# Compare matching tRNA pool to mismatching tRNA pool.
+## Compare matching tRNA pool to mismatching tRNA pool
 
 For each test set, compare the TE calculated from matching and mismatching tRNA
 pools:
@@ -94,8 +90,6 @@ ggplot(new_te, aes(x = `tRNA pool`, y = TE)) +
 
 ---
 
-# Compare matching tRNA pool to mismatching tRNA pool.
-
 * This test is more direct. However, it does not fundamentally solve the fact
   that we are trying to *accept* the null hypothesis of no difference, rather
   than rejecting it. All we can therefore say is that we find no evidence
@@ -105,7 +99,7 @@ ggplot(new_te, aes(x = `tRNA pool`, y = TE)) +
 
 ---
 
-# Correlate TE of matching and mismatching tRNA pool
+## Correlate TE of matching and mismatching tRNA pool
 
 Here’s a different idea:
 
@@ -120,11 +114,9 @@ Here’s a different idea:
 
 * Calculate the correlation
   
-    $$\rho = cor(t, t')$$
+    $$\rho = \operatorname{cor}(t, t')$$
 
 ---
-
-# Correlate TE of matching and mismatching tRNA pool
 
 ```{r example-de-data, echo=FALSE}
 t_de_match = rnorm(200, 0.7, 0.2)
@@ -145,7 +137,6 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
 ---
 
-# Correlate TE of matching and mismatching tRNA pool
 
 * If there’s *no* adaptation of TE to cell-specific tRNA pools, then $\rho$ is
   higher than expected by chance.
@@ -169,7 +160,7 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
 ---
 
-# Details
+## Details
 
 Empirically testing $\rho \sim \rho^*$ is impossible for a single $\rho$ but
 since we have more than one match- and mismatch correlation we effectively
