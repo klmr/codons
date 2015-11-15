@@ -33,29 +33,29 @@ te: \
 
 results/de/mouse-%:
 	mkdir -p results/de
-	./scripts/differential-expression mouse mrna results/de/
+	${BIN}/differential-expression $* mrna $@
 
 results/de/human-%:
 	mkdir -p results/de
-	./scripts/differential-expression human mrna results/de/
+	${BIN}/overexpressed-genes $* $< $@
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
-	./scripts/go-enrichment mouse results/gsa/
+	${BIN}/go-enrichment mouse results/gsa/
 
 results/gsa/human-%:
 	mkdir -p results/gsa
-	./scripts/go-enrichment human results/gsa/
+	${BIN}/go-enrichment human results/gsa/
 
 data/go-descriptions.tsv: data/go-basic.obo
-	./scripts/write-go-descriptions $< $@
+	${BIN}/write-go-descriptions $< $@
 
 data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
 
 data/rp-genes-%.txt:
-	./scripts/download-rp-genes $* > $@
+	${BIN}/download-rp-genes $* > $@
 
 results/te-human-boxplot.pdf: results/te-human.rds
 	./scripts/plot-te-boxplot human $@
@@ -64,17 +64,17 @@ results/te-mouse-boxplot.pdf: results/te-mouse.rds
 	./scripts/plot-te-boxplot mouse $@
 
 results/te-human-adaptation-test-p.tsv: results/te-human.rds
-	./scripts/write-adaptation-test-table human $@
+	${BIN}/plot-te-boxplot human $@
 
 results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
-	./scripts/write-adaptation-test-table mouse $@
+	${BIN}/plot-te-boxplot mouse $@
 
 results/te-human.rds: codon-anticodon-correlation-human.html
 
 results/te-mouse.rds: codon-anticodon-correlation-mouse.html
 
 results/te-human-liver-matching-scatter.pdf:
-	./scripts/plot-te-scatter human Liver-Adult $@
+	${BIN}/plot-te-scatter human Liver-Adult $@
 
 .PHONY: go-enrichment
 go-enrichment: ${go-enrichment}
@@ -88,7 +88,7 @@ codon-anticodon-correlation-mouse.html: go de data/rp-genes-mouse.txt
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
 results/sampled-cu-fit.rds: scripts/sample-codon-usage
-	./scripts/sample-codon-usage $@
+	${BIN}/sample-codon-usage $@
 
 .PHONY: supplements
 supplements:
