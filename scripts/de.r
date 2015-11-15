@@ -30,7 +30,8 @@ de_genes = function (counts, design, contrasts, alpha = 0.001) {
     dds = parallel$mclapply(contrasts, .deseq_test,
                             data = dds_data, col_data = dds_col_data,
                             mc.cores = parallel$detectCores())
-    lapply(dds, dds -> subset(as.data.frame(.deseq$results(dds)),
-                              ! is.na(padj) & padj < alpha)) %>%
+    lapply(dds, dds -> as.data.frame(.deseq$results(dds)) %>%
+                       subset(! is.na(padj) & padj < alpha) %>%
+                       add_rownames('Gene')) %>%
         setNames(vapply(contrasts, paste, character(1), collapse = '/'))
 }
