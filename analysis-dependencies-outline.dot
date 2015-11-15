@@ -1,0 +1,35 @@
+digraph Makefile {
+    counts_human -> de_human;
+    counts_mouse -> de_mouse;
+
+    de_human -> de_high_human;
+    de_mouse -> de_high_mouse;
+
+    go -> gsa_human;
+    go -> gsa_mouse;
+    de_human -> gsa_human;
+    de_mouse -> gsa_mouse;
+
+    de_high_human -> te_human;
+    gsa_human -> te_human;
+    de_high_mouse -> te_mouse;
+    gsa_mouse -> te_mouse;
+
+    te_human -> te;
+    te_mouse -> te;
+
+    de_human -> de;
+    de_mouse -> de;
+    gsa_human -> gsa;
+    gsa_mouse -> gsa;
+    go -> go_descriptions;
+    de -> supplements;
+    gsa -> supplements;
+    go_descriptions -> supplements;
+
+    // Box shapes are .PHONY targets
+    de [shape=box];
+    gsa [shape=box];
+    te [shape=box];
+    supplements [shape=box];
+}
