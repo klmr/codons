@@ -137,26 +137,27 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
 ---
 
+* **If there’s *no* adaptation of TE to cell-specific tRNA pools, then $\rho$
+  will be higher than expected by chance.**
 
-* If there’s *no* adaptation of TE to cell-specific tRNA pools, then $\rho$ is
-  higher than expected by chance.
-
-* To quantify what’s expected by chance,
+* To quantify what TE correlation is expected by chance,
 
     * simulate tRNA pools, calculate TE using these pools as $t_{1\dots n}^*$,
 
-    * calculate $\rho_{1 \dots n}^*$, for each simulated pool, and
+    * calculate $\rho_i^* = \operatorname{cor}(t, t_i^*)$, for each simulated
+      pool $i \in \{1\dots n\}$, and
 
-    * calculate empirical one-tailed $p$-value of $\rho \sim \rho^*$.
+    * calculate empirical $p$-value of $\rho \sim \rho^*$.
 
 * The above was simplified, we have no 1:1 match between “match” and
   “mismatch” tRNA:
 
     * We have 3 matching TEs, “liver”, “HepG2” and “Huh7”
-    * We have 4 mismatching TEs: “liver–HepG2”, “liver–Huh7”,
-    “HepG2–liver”, “Huh7–liver”
 
-    **How to handle these?**
+    * We have 4 mismatching TEs: “liver–HepG2”, “liver–Huh7”,
+      “HepG2–liver”, “Huh7–liver”
+
+    … yielding more than one $\rho$.
 
 ---
 
