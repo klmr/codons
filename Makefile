@@ -66,9 +66,11 @@ results/te-boxplot-human.pdf: results/te-human.rds
 results/te-boxplot-mouse.pdf: results/te-mouse.rds
 	${BIN}/plot-te-boxplot mouse $@
 
-results/te-human.rds: codon-anticodon-correlation-human.html
+results/te-adaptation-test-p-human.tsv: results/te-human.rds
+	${BIN}/write-adaptation-test-table human $@
 
-results/te-mouse.rds: codon-anticodon-correlation-mouse.html
+results/te-adaptation-test-p-mouse.tsv: results/te-mouse.rds
+	${BIN}/write-adaptation-test-table mouse $@
 
 results/te-liver-matching-scatter-human.pdf:
 	${BIN}/plot-te-scatter human Liver-Adult $@
