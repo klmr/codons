@@ -1,0 +1,48 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(opt('n', 'number', 'number of genes to report', 200),
+                             arg('species', 'the species'),
+                             arg('infile', 'the input filename'),
+                             arg('outfile', 'the output filename'))
+
+    norm = import('norm')
+    dplyr = import_package('dplyr', attach = TRUE)
+
+    gene_set_for_contrast = function (de_genes, cmp)
+        filter(de_genes, cmp(log2FoldChange, 0)) %>%
+        inner_join(canonical_cds, by = 'Gene') %>%
+        mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
+        filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
+        arrange(desc(abs(log2FoldChange))) %>%
+        head(args$number) %>%
+        .$Gene
+
+    gene_sets_for_contrast = function (contrast, contrast_genes)
+        list(gene_set_for_contrast(contrast_genes, `<`),
+             gene_set_for_contrast(contrast_genes, `>`))
+
+    # Invert contrast so that gene list we store is up-regulated in second
+    # listed condition, relative to first, same as for GSA files.
+    set_names_for_contrast = function (contrast)
+        sapply(list(rev(contrast), contrast), paste, collapse = '/')
+
+    data = import('../data')
+    config = import(paste('../config', args$species, sep = '_'))
+
+    canonical_cds = data$canonical_cds(config)
+    de_genes = readRDS(args$infile)
+    contrasts = strsplit(names(de_genes), '/')
+
+    upregulated_names = unlist(Map(set_names_for_contrast, contrasts))
+    upregulated_genes = Map(gene_sets_for_contrast, contrasts, de_genes) %>%
+        unlist(recursive = FALSE) %>%
+        setNames(upregulated_names)
+
+    saveRDS(upregulated_genes, args$outfile)
+})
+
+# vim: ft=r
