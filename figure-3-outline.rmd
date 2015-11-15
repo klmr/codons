@@ -178,3 +178,23 @@ Empirically testing $\rho \sim \rho^*$ is impossible for a single $\rho$ but
 since we have more than one match- and mismatch correlation we effectively have
 sample of $\rho$ values; we can consequently use a Kolmogorov–Smirnov test to
 determine if the sample of $\rho$ was drawn from $\rho^*$.
+
+## Rationale
+
+> Why not simply test for difference between $t$ and $t'$ on the one hand, and
+> $t'$ and $t^*$ on the other?
+
+— We’d be back to square 1:
+
+* When testing for difference between $t$ and $t'$, we want to accept the null
+  hypothesis, and reject H1, which we cannot do with a significance test.
+* When testing for difference between $t'$ and $t^*$, there’s no problem but
+  even if there is a difference here, this doesn’t tell us anything: we do not
+  want to prove that random tRNA transcriptomes are worse at decoding mRNA than
+  mismatching tRNA transcriptomes; we want to show that mismatching tRNA
+  transcriptomes aren’t substantially worse than matching tRNA transcriptomes.
+
+If we instead ensure that the correlation between $t$ and $t'$ is significantly
+better than that between $t$ and $t*$, this shows directly that matching and
+mismatching tRNA pools are more similarly efficient at decoding mRNA genes than
+expected by chance.
