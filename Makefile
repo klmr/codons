@@ -27,13 +27,20 @@ te: \
 		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
 		results/te-human-liver-matching-scatter.pdf
 
-results/de/mouse-%:
+.PRECIOUS: $(foreach i,${species},results/de/de-$i.rds)
+results/de/de-%.rds:
 	mkdir -p results/de
 	${BIN}/differential-expression $* mrna $@
 
-results/de/human-%:
+.PRECIOUS: $(foreach i,${species},results/de/up-$i.rds)
+results/de/up-%.rds: results/de/de-%.rds
 	mkdir -p results/de
 	${BIN}/overexpressed-genes $* $< $@
+
+.PRECIOUS: $(foreach i,${species},results/te-$i.rds)
+results/te-%.rds: results/de/up-%.rds
+	mkdir -p results
+	${BIN}/translation-efficiency $* $< $@
 
 results/gsa/mouse-%:
 	mkdir -p results/gsa
