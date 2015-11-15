@@ -3,7 +3,11 @@ title: "A different analysis of translation efficiency"
 author: ""
 date: ""
 output:
-    beamer_presentation:
+    html_document:
+        toc: true
+        theme: united
+    pdf_document:
+        toc: true
         latex_engine: xelatex
 ---
 
