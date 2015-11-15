@@ -163,7 +163,18 @@ ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
 
 ## Details
 
+It is important to simulate tRNA pools and keep the mRNA gene set fixed because
+this simulates what would happen if a (biologically plausible) tRNA pool were
+not well suited to decode the mRNA in question (e.g. “DE genes”).
+
+To simulate biologically plausible tRNA pools, we take the existing, (matching
+or mismatching?) tRNA pools and shuffle the observed anticodon isoacceptor
+abundances. It might be important to preserve the isotype identity, however —
+that is, when shuffling isoacceptor abundances, only shuffle between synonymous
+tRNAs. That way, we ensure that the observation is not confounded by unrealistic
+changes to amino acid usage, since not all amino acids are equally frequent.
+
 Empirically testing $\rho \sim \rho^*$ is impossible for a single $\rho$ but
-since we have more than one match- and mismatch correlation we effectively
-have sample of $\rho$ values; we can consequently use a Kolmogorov–Smirnov
-test to determine if the sample of $\rho$ was drawn from $\rho^*$.
+since we have more than one match- and mismatch correlation we effectively have
+sample of $\rho$ values; we can consequently use a Kolmogorov–Smirnov test to
+determine if the sample of $\rho$ was drawn from $\rho^*$.
