@@ -1,5 +1,5 @@
 ---
-title: "Suggestion for a different analysis of translation efficiency"
+title: "A different analysis of translation efficiency"
 author: ""
 date: ""
 output:
