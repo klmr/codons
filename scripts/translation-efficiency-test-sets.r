@@ -19,7 +19,7 @@ define_contrasts = function (config) {
 expand_contrast = function (contrast) {
     mrna_samples = filter(data$mrna_design(config), Celltype == contrast[1])$DO
     trna_samples = filter(data$trna_design(config), Celltype == contrast[2])$DO
-    expand.grid(mrna_samples, trna_samples) %>% t() %>% as.data.frame()
+    as.data.frame(t(expand.grid(mrna_samples, trna_samples)))
 }
 
 #' Get all pairwise replicate libraries for a set of contrasts.
