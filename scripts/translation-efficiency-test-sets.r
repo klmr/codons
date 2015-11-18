@@ -42,22 +42,20 @@ gene_set_translation_efficiency = function (mrna_condition, trna_condition, whic
         select_('Gene', 'Codon', 'CU', 'Length',
                 Count = lazyeval::interp(~first(DO), DO = as.name(lib)))
 
-    names_of = function (comparisons)
-        lapply(comparisons, relation -> {
+    gene_sets = which_genes(mrna_condition)
+    comparisons = expand_relation(c(mrna_condition, trna_condition))
+    relation_names = lapply(comparisons, relation -> {
             rel_mrna_cond = filter(mrna_design, DO == relation[1])$Celltype
             rel_trna_cond = filter(trna_design, DO == relation[2])$Celltype
             paste(rel_mrna_cond, rel_trna_cond, '', sep = '/')
         })
-
-    gene_sets = which_genes(mrna_condition)
-    comparisons = expand_relation(c(mrna_condition, trna_condition))
     unlist(setNames(lapply(comparisons, relation -> {
         unname(lapply(gene_sets, gene_set -> {
             codons = gene_set_codons(gene_set, relation[1])
             anticodons = filter(aa, DO == relation[2])
             te(codons, anticodons)
         }))
-    }), names_of(comparisons))) %>%
+    }), relation_names)) %>%
         # This removes the trailing number that `unlist` added to the name.
         setNames(sub('/\\d*$', '', names(.)))
 }
