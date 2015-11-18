@@ -62,6 +62,10 @@ gene_set_translation_efficiency = function (mrna_condition, trna_condition, whic
         setNames(sub('/\\d*$', '', names(.)))
 }
 
+simple_te = function (cu, aa)
+    cu_$adaptation_no_wobble(mutate(cu, CU = CU * Count / Length),
+                             aa, canonical_cds)
+
 #' Create gene sets of a given condition
 #'
 #' @param condition name of the condition
