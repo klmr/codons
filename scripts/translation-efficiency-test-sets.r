@@ -62,6 +62,26 @@ gene_set_translation_efficiency = function (mrna_condition, trna_condition, whic
         setNames(sub('/\\d*$', '', names(.)))
 }
 
+#' @param relations \code{data.frame} of relations
+#' @rdname gene_set_translation_efficiency
+relations_translation_efficiency = function (relations, which_genes, te) {
+    f = c -> gene_set_translation_efficiency(c[1], c[2], which_genes, te)
+    unlist(unname(lapply(as.data.frame(t(relations)), f)))
+}
+
+#' @rdname gene_set_translation_efficiency
+all_match_translation_efficiencies = function (which_genes, te)
+    relations_translation_efficiency(matching_relations, which_genes, te)
+
+#' @rdname gene_set_translation_efficiency
+all_mismatch_translation_efficiencies = function (which_genes, te)
+    relations_translation_efficiency(mismatching_relations, which_genes, te)
+
+#' @rdname gene_set_translation_efficiency
+translation_efficiency_contrast = function (which_genes, te)
+    list(Match = all_match_translation_efficiencies(which_genes, te),
+         Mismatch = all_mismatch_translation_efficiencies(which_genes, te))
+
 simple_te = function (cu, aa)
     cu_$adaptation_no_wobble(mutate(cu, CU = CU * Count / Length),
                              aa, canonical_cds)
