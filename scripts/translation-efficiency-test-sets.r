@@ -22,8 +22,3 @@ expand_relation = function (relation) {
     as.data.frame(t(expand.grid(mrna_samples, trna_samples)))
 }
 
-#' Get all pairwise replicate libraries for a set of contrasts.
-expand_test_sets = function (contrasts) {
-    contrasts = as.data.frame(t(contrasts))
-    unname(bind_cols(lapply(contrasts, expand_contrast)))
-}
