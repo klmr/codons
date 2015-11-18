@@ -82,6 +82,15 @@ translation_efficiency_contrast = function (which_genes, te)
     list(Match = all_match_translation_efficiencies(which_genes, te),
          Mismatch = all_mismatch_translation_efficiencies(which_genes, te))
 
+tidy_te = function (te, name = deparse(substitute(te), backtick = TRUE)) {
+    df = which -> {
+        rel = strsplit(names(te[[which]]), '/')
+        data_frame(TE = te[[which]], Mode = which, Which = name,
+                   mRNA = sapply(rel, `[`, 1), tRNA = sapply(rel, `[`, 2))
+    }
+    bind_rows(df('Match'), df('Mismatch'))
+}
+
 simple_te = function (cu, aa)
     cu_$adaptation_no_wobble(mutate(cu, CU = CU * Count / Length),
                              aa, canonical_cds)
