@@ -42,13 +42,10 @@ results/te-%.rds: results/de/up-%.rds
 	mkdir -p results
 	${BIN}/translation-efficiency $* $< $@
 
-results/gsa/mouse-%:
+.PRECIOUS: $(foreach i,${species},results/gsa/go-$i.rds)
+results/gsa/go-%.rds: data/gene_association.goa_human
 	mkdir -p results/gsa
-	${BIN}/go-enrichment mouse results/gsa/
-
-results/gsa/human-%:
-	mkdir -p results/gsa
-	${BIN}/go-enrichment human results/gsa/
+	${BIN}/go-enrichment $* $@
 
 data/go-descriptions.tsv: data/go-basic.obo
 	${BIN}/write-go-descriptions $< $@
