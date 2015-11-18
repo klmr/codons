@@ -22,6 +22,46 @@ expand_relation = function (relation) {
     as.data.frame(t(expand.grid(mrna_samples, trna_samples)))
 }
 
+#' Calculate the translation efficiency comparison for a given relation
+#'
+#' @param mrna_condition name of condition from which to take mRNA genes
+#' @param trna_condition name of condition from which to take tRNA pool
+#' @param which_genes function taking a condition that returns the appropriate
+#' gene set
+#' @param te function to calculate the TE
+#' @return Returns a vector of TEs for all pairwise replicate comparisons of the
+#' given gene set and condition.
+#' @details
+#' \code{which_genes} is a function taking a single argument, the mRNA contrast.
+#' \code{te} is a function taking two arguments, the codon and anticodon
+#' pool.
+gene_set_translation_efficiency = function (mrna_condition, trna_condition, which_genes, te) {
+    gene_set_codons = function (gene_set, lib)
+        cu %>%
+        filter(Gene %in% gene_set) %>%
+        select_('Gene', 'Codon', 'CU', 'Length',
+                Count = lazyeval::interp(~first(DO), DO = as.name(lib)))
+
+    names_of = function (comparisons)
+        lapply(comparisons, relation -> {
+            rel_mrna_cond = filter(mrna_design, DO == relation[1])$Celltype
+            rel_trna_cond = filter(trna_design, DO == relation[2])$Celltype
+            paste(rel_mrna_cond, rel_trna_cond, '', sep = '/')
+        })
+
+    gene_sets = which_genes(mrna_condition)
+    comparisons = expand_relation(c(mrna_condition, trna_condition))
+    unlist(setNames(lapply(comparisons, relation -> {
+        unname(lapply(gene_sets, gene_set -> {
+            codons = gene_set_codons(gene_set, relation[1])
+            anticodons = filter(aa, DO == relation[2])
+            te(codons, anticodons)
+        }))
+    }), names_of(comparisons))) %>%
+        # This removes the trailing number that `unlist` added to the name.
+        setNames(sub('/\\d*$', '', names(.)))
+}
+
 #' Create gene sets of a given condition
 #'
 #' @param condition name of the condition
