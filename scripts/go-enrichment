@@ -31,7 +31,7 @@ sys$run({
 
     get_enrichment = function (result, contrast) {
         names = sapply(c(identity, rev),
-                       f -> paste(f(contrast), collapse = '-vs-'))
+                       f -> paste(f(contrast), collapse = '/'))
         lapply(c('up', 'down'), get_top_genes, result = result) %>%
             setNames(names)
     }
