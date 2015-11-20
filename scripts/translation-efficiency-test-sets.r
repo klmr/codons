@@ -144,6 +144,12 @@ enriched_go_genes = function () {
     }
 }
 
+housekeeping_genes = function (condition)
+    data$housekeeping_genes(config)
+
+ribosomal_genes = function (condition)
+    data$ribosomal_genes(config)
+
 sys$run({
     valid_te_methods = c('simple_te', 'wobble_te', 'tai')
     args = sys$cmdline$parse(opt('t', 'te',
