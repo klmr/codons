@@ -3,9 +3,6 @@
 library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
-dplyr = import_package('dplyr', attach = TRUE)
-base = import('ebits/base')
-
 define_relations = function () {
     all_celltypes = unique(data$mrna_design(config)$Celltype)
     healthy_celltypes = intersect(all_celltypes, c('Liver-Adult', 'E15.5'))
@@ -146,3 +143,38 @@ enriched_go_genes = function () {
         lapply(enriched_go_genes[indices], genes)
     }
 }
+
+sys$run({
+    valid_te_methods = c('simple_te', 'wobble_te', 'tai')
+    args = sys$cmdline$parse(opt('t', 'te',
+                                 do.call(sprintf,
+                                         c('the method to calculate translation efficiency (%s, %s or %s)',
+                                           lapply(valid_te_methods, dQuote))),
+                                 valid_te_methods[1],
+                                 function (x) x %in% valid_te_methods),
+                             arg('species', 'the species'),
+                             arg('outfile', 'the output filename'))
+
+    dplyr = import_package('dplyr', attach = TRUE)
+    base = import('ebits/base')
+
+    config = import(sprintf('../config_%s', args$species))
+    data = import('../data')
+    define_relations()
+
+    te = match.fun(args$te)
+    te_all = translation_efficiency_contrast(whole_transcriptome, te)
+    te_up = translation_efficiency_contrast(upregulated_genes(), te)
+    te_go = translation_efficiency_contrast(enriched_go_genes(), te)
+    te_hk = translation_efficiency_contrast(housekeeping_genes, te)
+    te_rb =  translation_efficiency_contrast(ribosomal_genes, te)
+
+    all_te = bind_rows(tidy_te(te_all, 'All'),
+                       tidy_te(te_up, 'Upregulated'),
+                       tidy_te(te_go, 'GO'),
+                       tidy_te(te_hk, 'Housekeeping'),
+                       tidy_te(te_rb, 'Ribosomal'))
+
+    saveRDS(all_te, args$outfile)
+    NULL
+})
