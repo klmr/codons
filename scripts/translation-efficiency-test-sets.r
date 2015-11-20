@@ -119,3 +119,21 @@ upregulated_genes = local({
         upregulated_genes[indices]
     }
 })
+
+enriched_go_genes = local({
+    enriched_go_genes = readRDS(sprintf('results/gsa/go-%s.rds', config$species))
+    go_contrast_selection = names(enriched_go_genes) %>%
+        {grep('Liver-Adult|E15\\.5', .)}
+    enriched_go_genes = enriched_go_genes[go_contrast_selection]
+
+    go_genes = data$go_genes(config)
+
+    genes = function (enriched_go)
+        inner_join(go_genes, enriched_go, by = c(GO = 'Name'))$Gene
+
+    function (condition) {
+        # The genes are upregulated in the second condition of the contrast.
+        indices = grep(sprintf('/%s', condition), names(enriched_go_genes))
+        lapply(enriched_go_genes[indices], genes)
+    }
+})
