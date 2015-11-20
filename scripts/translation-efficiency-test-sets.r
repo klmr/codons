@@ -1,3 +1,11 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+dplyr = import_package('dplyr', attach = TRUE)
+base = import('ebits/base')
+
 define_relations = function (config) {
     all_celltypes = unique(data$mrna_design(config)$Celltype)
     healthy_celltypes = intersect(all_celltypes, c('Liver-Adult', 'E15.5'))
