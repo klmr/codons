@@ -20,7 +20,7 @@ define_relations = function () {
                Anti %in% healthy_celltypes)
 
     globalenv = parent.env(environment())
-    invisible(lapply(ls(), function (n) assign(n, get(n), globalenv)))
+    invisible(lapply(ls(), n -> assign(n, get(n), globalenv)))
 }
 
 #' Get all pairwise replicate library identifiers for a given relation.
@@ -57,6 +57,7 @@ gene_set_translation_efficiency = function (mrna_condition, trna_condition, whic
             rel_trna_cond = filter(trna_design, DO == relation[2])$Celltype
             paste(rel_mrna_cond, rel_trna_cond, '', sep = '/')
         })
+
     unlist(setNames(lapply(comparisons, relation -> {
         unname(lapply(gene_sets, gene_set -> {
             codons = gene_set_codons(gene_set, relation[1])
@@ -114,7 +115,7 @@ whole_transcriptome = function (condition)
 #' @return \code{upregulated_genes} returns the set of sets of upregulated
 #' gene IDs for each contrast involving \code{condition}.
 #' @rdname whole_transcriptome
-upregulated_genes = local({
+upregulated_genes = function () {
     # FIXME: This is a mess, do proper filtering. My brain is fried.
     upregulated_genes = readRDS(sprintf('results/de/up-%s.rds', config$species))
     de_contrast_selection = names(upregulated_genes) %>%
@@ -126,9 +127,9 @@ upregulated_genes = local({
         indices = grep(sprintf('/%s', condition), names(upregulated_genes))
         upregulated_genes[indices]
     }
-})
+}
 
-enriched_go_genes = local({
+enriched_go_genes = function () {
     enriched_go_genes = readRDS(sprintf('results/gsa/go-%s.rds', config$species))
     go_contrast_selection = names(enriched_go_genes) %>%
         {grep('Liver-Adult|E15\\.5', .)}
@@ -140,8 +141,8 @@ enriched_go_genes = local({
         inner_join(go_genes, enriched_go, by = c(GO = 'Name'))$Gene
 
     function (condition) {
-        # The genes are upregulated in the second condition of the contrast.
+        # The GO genes are enriched in the second condition of the contrast.
         indices = grep(sprintf('/%s', condition), names(enriched_go_genes))
         lapply(enriched_go_genes[indices], genes)
     }
-})
+}
