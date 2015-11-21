@@ -2,12 +2,6 @@ BIN := ./scripts
 
 species := mouse human
 
-load-contrasts = \
-	$(shell Rscript -e 'modules::import("./config_$1", attach = TRUE); cat(sapply(contrasts, function (x) sprintf("%s-vs-%s", x[1], x[2])))')
-
-contrasts/mouse := $(call load-contrasts,mouse)
-contrasts/human := $(call load-contrasts,human)
-
 .PHONY: all
 all: go te
 	@echo >&2 No default rule. Please run \`make rule\`
