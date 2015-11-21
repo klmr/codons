@@ -42,12 +42,12 @@ mean_center = function (all_te) {
 
 sys$run({
     args = sys$cmdline$parse(opt('c', 'mean-center', 'center tRNA strata before plotting?', FALSE),
-                             opt('s', 'summary', 'plot summary rather than detailed points?', TRUE),
+                             opt('s', 'summary', 'plot summary rather than detailed points?', FALSE),
                              arg('species', 'the species'),
                              arg('outfile', 'the filename of the PDF output'))
 
     config = import(sprintf('../config_%s', args$species))
-    te = readRDS(sprintf('results/te-%s.rds', args$species))
+    te = readRDS(sprintf('results/simple-te-%s.rds', args$species))
     if (args$`mean-center`)
         te = mean_center(te)
 
