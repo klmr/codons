@@ -37,6 +37,23 @@ results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
 	mkdir -p results
 	${BIN}/translation-efficiency-test-sets $* $@
 
+results/simple-te-boxplot-%.pdf: results/simple-te-%.rds
+	${BIN}/plot-te-boxplot --summary $* $@
+
+.PHONY: all-te-plots
+all-te-plots:
+	# for te in simple-te wobble-te tai do;
+	for te in simple-te; do \
+		for s in --summary ''; do \
+			for c in --mean-center ''; do \
+				for species in human mouse; do \
+					${BIN}/plot-te-boxplot $$s $$c $$species \
+						results/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
+				done; \
+			done; \
+		done; \
+	done
+
 data/go-descriptions.tsv: data/go-basic.obo
 	${BIN}/write-go-descriptions $< $@
 
