@@ -62,9 +62,6 @@ results/te-adaptation-test-p-mouse.tsv: results/te-mouse.rds
 results/te-liver-matching-scatter-human.pdf:
 	${BIN}/plot-te-scatter human Liver-Adult $@
 
-.PHONY: go-enrichment
-go-enrichment: ${go-enrichment}
-
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
 codon-anticodon-correlation-human.html: go de data/rp-genes-human.txt
