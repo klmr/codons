@@ -32,7 +32,8 @@ results/gsa/go-%.rds: data/gene_association.goa_human
 	${BIN}/go-enrichment $* $@
 
 .PRECIOUS: $(foreach i,${species},results/simple-te-$i.rds)
-results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds
+results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
+		data/rp-genes-%.txt
 	mkdir -p results
 	${BIN}/translation-efficiency-test-sets $* $@
 
