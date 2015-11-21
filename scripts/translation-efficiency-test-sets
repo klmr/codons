@@ -169,6 +169,24 @@ sys$run({
     data = import('../data')
     define_relations()
 
+    trna_sf_counts = data$trna_sf_counts(config)
+    mrna_sf_counts = data$mrna_sf_counts(config)
+    canonical_cds = data$canonical_cds(config)
+    trna_design = data$trna_design(config)
+    mrna_design = data$mrna_design(config)
+
+    cu_ = import('codon_usage')
+    mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
+    cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
+    aa = trna_sf_counts %>%
+        rename(Type = AA) %>%
+        tidyr::gather(DO, AA, starts_with('do')) %>%
+        mutate(Codon = cu_$revcomp(Anticodon)) %>%
+        group_by(DO, Type, Codon) %>%
+        summarize(AA = sum(AA)) %>%
+        ungroup() %>%
+        inner_join(trna_design, by = 'DO')
+
     te = match.fun(args$te)
     te_all = all_translation_efficiencies(whole_transcriptome, te)
     te_up = all_translation_efficiencies(upregulated_genes(), te)
