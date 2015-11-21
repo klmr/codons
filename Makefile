@@ -26,15 +26,15 @@ results/de/up-%.rds: results/de/de-%.rds
 	mkdir -p results/de
 	${BIN}/overexpressed-genes $* $< $@
 
-.PRECIOUS: $(foreach i,${species},results/te-$i.rds)
-results/te-%.rds: results/de/up-%.rds
-	mkdir -p results
-	${BIN}/translation-efficiency $* $< $@
-
 .PRECIOUS: $(foreach i,${species},results/gsa/go-$i.rds)
 results/gsa/go-%.rds: data/gene_association.goa_human
 	mkdir -p results/gsa
 	${BIN}/go-enrichment $* $@
+
+.PRECIOUS: $(foreach i,${species},results/simple-te-$i.rds)
+results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds
+	mkdir -p results
+	${BIN}/translation-efficiency-test-sets $* $@
 
 data/go-descriptions.tsv: data/go-basic.obo
 	${BIN}/write-go-descriptions $< $@
