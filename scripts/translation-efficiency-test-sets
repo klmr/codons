@@ -83,7 +83,7 @@ all_mismatch_translation_efficiencies = function (which_genes, te)
     relations_translation_efficiency(mismatching_relations, which_genes, te)
 
 #' @rdname gene_set_translation_efficiency
-translation_efficiency_contrast = function (which_genes, te)
+all_translation_efficiencies = function (which_genes, te)
     list(Match = all_match_translation_efficiencies(which_genes, te),
          Mismatch = all_mismatch_translation_efficiencies(which_genes, te))
 
@@ -170,11 +170,11 @@ sys$run({
     define_relations()
 
     te = match.fun(args$te)
-    te_all = translation_efficiency_contrast(whole_transcriptome, te)
-    te_up = translation_efficiency_contrast(upregulated_genes(), te)
-    te_go = translation_efficiency_contrast(enriched_go_genes(), te)
-    te_hk = translation_efficiency_contrast(housekeeping_genes, te)
-    te_rb =  translation_efficiency_contrast(ribosomal_genes, te)
+    te_all = all_translation_efficiencies(whole_transcriptome, te)
+    te_up = all_translation_efficiencies(upregulated_genes(), te)
+    te_go = all_translation_efficiencies(enriched_go_genes(), te)
+    te_hk = all_translation_efficiencies(housekeeping_genes, te)
+    te_rb =  all_translation_efficiencies(ribosomal_genes, te)
 
     all_te = bind_rows(tidy_te(te_all, 'All'),
                        tidy_te(te_up, 'Upregulated'),
