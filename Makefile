@@ -14,12 +14,7 @@ all: go te
 	exit 1
 
 .PHONY: go
-go: data/go-descriptions.tsv go-enrichment
-
-.PHONY: go-enrichment
-go-enrichment: \
-		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
-		results/gsa/human-$(firstword ${contrasts/human}).tsv
+go: data/go-descriptions.tsv $(foreach i,${species},results/gsa/go-$i.rds)
 
 .PHONY: te
 te: \
