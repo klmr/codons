@@ -48,7 +48,7 @@ sys$run({
 
     config = import(sprintf('../config_%s', args$species))
     te = readRDS(sprintf('results/simple-te-%s.rds', args$species))
-    if (args$`mean-center`)
+    if (args$mean_center)
         te = mean_center(te)
 
     # Required by ggplot2, see <https://github.com/hadley/ggplot2/issues/1384>
