@@ -23,7 +23,6 @@ sys$run({
         grep(pattern = '^\\s*$', invert = TRUE, value = TRUE)
 
     writeLines(genes, stdout())
-    invisible(NULL)
 })
 
 # vim: ft=r

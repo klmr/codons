@@ -201,7 +201,6 @@ sys$run({
                        tidy_te(te_rb, 'Ribosomal'))
 
     saveRDS(all_te, args$outfile)
-    NULL
 })
 
 # vim: ft=r

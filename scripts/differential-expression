@@ -22,7 +22,6 @@ sys$run({
     de = import('./de')
     de_genes = de$de_genes(counts, design, config$contrasts, args$alpha)
     saveRDS(de_genes, args$outfile)
-    NULL
 })
 
 # vim: ft=r

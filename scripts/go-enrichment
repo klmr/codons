@@ -40,7 +40,6 @@ sys$run({
         unlist(recursive = FALSE)
 
     saveRDS(result, args$outfile)
-    NULL
 })
 
 # vim: ft=r
