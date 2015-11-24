@@ -6,6 +6,10 @@ sys = import('sys')
 plot_te = function (data, summary) {
     import_package('ggplot2', attach = TRUE)
 
+    data$Which = factor(data$Which,
+                        levels = c('All', 'Upregulated', 'GO', 'Housekeeping', 'Ribosomal'),
+                        ordered = TRUE)
+
     plot = ggplot(data, aes(x = Mode, y = TE)) +
         geom_boxplot(width = if (summary) 0.4 else 0.2, outlier.size = 0) +
         scale_y_continuous(limits = c(0.45, 0.85)) +
