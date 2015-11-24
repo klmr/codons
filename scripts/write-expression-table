@@ -38,7 +38,6 @@ sys$run({
 
     io = import('ebits/io')
     io$write_table(per_condition_counts, stdout(), sep = '\t')
-    NULL
 })
 
 # vim: ft=r

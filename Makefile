@@ -2,82 +2,82 @@ BIN := ./scripts
 
 species := mouse human
 
-load-contrasts = \
-	$(shell Rscript -e 'modules::import("./config_$1", attach = TRUE); cat(sapply(contrasts, function (x) sprintf("%s-vs-%s", x[1], x[2])))')
-
-contrasts/mouse := $(call load-contrasts,mouse)
-contrasts/human := $(call load-contrasts,human)
-
 .PHONY: all
 all: go te
 	@echo >&2 No default rule. Please run \`make rule\`
 	exit 1
 
 .PHONY: go
-go: data/go-descriptions.tsv go-enrichment
+go: data/go-descriptions.tsv $(foreach i,${species},results/gsa/go-$i.rds)
 
-.PHONY: de
-de: \
-		results/de/mouse-$(firstword ${contrasts/mouse}).tsv \
-		results/de/human-$(firstword ${contrasts/human}).tsv
-
-.PHONY: go-enrichment
-go-enrichment: \
-		results/gsa/mouse-$(firstword ${contrasts/mouse}).tsv \
-		results/gsa/human-$(firstword ${contrasts/human}).tsv
-
+.PHONY: te
 te: \
 		$(foreach i,${species},results/te-$i-boxplot.pdf) \
 		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
 		results/te-human-liver-matching-scatter.pdf
 
-results/de/mouse-%:
+.PRECIOUS: $(foreach i,${species},results/de/de-$i.rds)
+results/de/de-%.rds:
 	mkdir -p results/de
-	./scripts/differential-expression mouse mrna results/de/
+	${BIN}/differential-expression $* mrna $@
 
-results/de/human-%:
+.PRECIOUS: $(foreach i,${species},results/de/up-$i.rds)
+results/de/up-%.rds: results/de/de-%.rds
 	mkdir -p results/de
-	./scripts/differential-expression human mrna results/de/
+	${BIN}/overexpressed-genes $* $< $@
 
-results/gsa/mouse-%:
+.PRECIOUS: $(foreach i,${species},results/gsa/go-$i.rds)
+results/gsa/go-%.rds: data/gene_association.goa_human
 	mkdir -p results/gsa
-	./scripts/go-enrichment mouse results/gsa/
+	${BIN}/go-enrichment $* $@
 
-results/gsa/human-%:
-	mkdir -p results/gsa
-	./scripts/go-enrichment human results/gsa/
+.PRECIOUS: $(foreach i,${species},results/simple-te-$i.rds)
+results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
+		data/rp-genes-%.txt
+	mkdir -p results
+	${BIN}/translation-efficiency-test-sets $* $@
+
+results/simple-te-boxplot-%.pdf: results/simple-te-%.rds
+	${BIN}/plot-te-boxplot --summary $* $@
+
+.PHONY: all-te-plots
+all-te-plots:
+	# for te in simple-te wobble-te tai do;
+	for te in simple-te; do \
+		for s in --summary ''; do \
+			for c in --mean-center ''; do \
+				for species in human mouse; do \
+					${BIN}/plot-te-boxplot $$s $$c $$species \
+						results/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
+				done; \
+			done; \
+		done; \
+	done
 
 data/go-descriptions.tsv: data/go-basic.obo
-	./scripts/write-go-descriptions $< $@
+	${BIN}/write-go-descriptions $< $@
 
 data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
 		--output-document data/go-basic.obo
 
 data/rp-genes-%.txt:
-	./scripts/download-rp-genes $* > $@
+	${BIN}/download-rp-genes $* > $@
 
-results/te-human-boxplot.pdf: results/te-human.rds
-	./scripts/plot-te-boxplot human $@
+results/te-boxplot-human.pdf: results/te-human.rds
+	${BIN}/plot-te-boxplot human $@
 
-results/te-mouse-boxplot.pdf: results/te-mouse.rds
-	./scripts/plot-te-boxplot mouse $@
+results/te-boxplot-mouse.pdf: results/te-mouse.rds
+	${BIN}/plot-te-boxplot mouse $@
 
-results/te-human-adaptation-test-p.tsv: results/te-human.rds
-	./scripts/write-adaptation-test-table human $@
+results/te-adaptation-test-p-human.tsv: results/te-human.rds
+	${BIN}/write-adaptation-test-table human $@
 
-results/te-mouse-adaptation-test-p.tsv: results/te-mouse.rds
-	./scripts/write-adaptation-test-table mouse $@
+results/te-adaptation-test-p-mouse.tsv: results/te-mouse.rds
+	${BIN}/write-adaptation-test-table mouse $@
 
-results/te-human.rds: codon-anticodon-correlation-human.html
-
-results/te-mouse.rds: codon-anticodon-correlation-mouse.html
-
-results/te-human-liver-matching-scatter.pdf:
-	./scripts/plot-te-scatter human Liver-Adult $@
-
-.PHONY: go-enrichment
-go-enrichment: ${go-enrichment}
+results/te-liver-matching-scatter-human.pdf:
+	${BIN}/plot-te-scatter human Liver-Adult $@
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
@@ -88,7 +88,7 @@ codon-anticodon-correlation-mouse.html: go de data/rp-genes-mouse.txt
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
 results/sampled-cu-fit.rds: scripts/sample-codon-usage
-	./scripts/sample-codon-usage $@
+	${BIN}/sample-codon-usage $@
 
 .PHONY: supplements
 supplements:
@@ -121,4 +121,5 @@ clean:
 cleanall: clean
 	${RM} *.html
 	${RM} *.pdf
-	${RM} figure/*
+	${RM} -r figure
+	${RM} -r results

@@ -60,7 +60,6 @@ sys$run({
     on.exit(dev.off())
     pdf(args$outfile)
     plot(p)
-    NULL
 })
 
 # vim: ft=r

@@ -6,7 +6,7 @@ sys = import('sys')
 sys$run({
     args = sys$cmdline$parse(opt('a', 'alpha', 'significance threshold for enrichment', 0.001),
                              arg('species', 'the species'),
-                             arg('out-prefix', 'prefix of the output path'))
+                             arg('outfile', 'the output filename'))
 
     base = import('ebits/base')
     data = import('../data')
@@ -31,7 +31,7 @@ sys$run({
 
     get_enrichment = function (result, contrast) {
         names = sapply(c(identity, rev),
-                       f -> paste(f(contrast), collapse = '-vs-'))
+                       f -> paste(f(contrast), collapse = '/'))
         lapply(c('up', 'down'), get_top_genes, result = result) %>%
             setNames(names)
     }
@@ -39,15 +39,7 @@ sys$run({
     result = Map(get_enrichment, result, config$contrasts) %>%
         unlist(recursive = FALSE)
 
-    io = import('ebits/io')
-
-    save_table = function (name, data) {
-        filename = sprintf('%s%s-%s.tsv', args$`out-prefix`, args$species, name)
-        io$write_table(data, filename)
-    }
-
-    invisible(Map(save_table, names(result), result))
-    NULL
+    saveRDS(result, args$outfile)
 })
 
 # vim: ft=r

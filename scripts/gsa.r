@@ -12,13 +12,15 @@ gsa_de = function (data, col_data, contrast, go_genes) {
     data = untidy(select(data, Gene, starts_with('do')))
     col_data = untidy(col_data)
 
+    # Annoyingly, we need to recalculate the DE genes here because we previously
+    # only stored genes with evidence of DE, not all genes.
     de = deseq_test(data, col_data, contrast) %>%
         deseq$results() %>%
         as.data.frame() %>%
         {.[! is.na(.$padj), ]}
     stats = de[, 'padj', drop = FALSE]
     directions = de[, 'log2FoldChange', drop = FALSE]
-    piano$runGSA(stats, directions, gsc = go_genes)
+    piano$runGSA(stats, directions, gsc = go_genes, verbose = FALSE)
 }
 
 #' @export

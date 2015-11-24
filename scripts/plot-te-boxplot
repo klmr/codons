@@ -3,30 +3,66 @@
 library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
-plot_te = function (data) {
+plot_te = function (data, summary) {
     import_package('ggplot2', attach = TRUE)
-    types = c('Matching', 'Mismatching', 'DE', 'Simulated DE',
-              'GO', 'Simulated GO', 'Housekeeping', 'Ribosomal')
-    data$Type = factor(data$Type, levels = types, ordered = TRUE)
-    colors = c('black', '#3456A3')[ifelse(grepl('Simulated', types), 2, 1)]
-    ggplot(data, aes(Type, TE, color = Type)) +
-        geom_boxplot(show_guide = FALSE) +
-        scale_y_continuous('Translation efficiency', limits = c(0, 1)) +
-        scale_color_manual(limits = types, values = colors) +
+
+    data$Which = factor(data$Which,
+                        levels = c('All', 'Upregulated', 'GO', 'Housekeeping', 'Ribosomal'),
+                        ordered = TRUE)
+
+    plot = ggplot(data, aes(x = Mode, y = TE)) +
+        (if (summary)
+            geom_boxplot(width = 0.4)
+        else
+            geom_boxplot(width = 0.2, outlier.size = 0)) +
+        scale_y_continuous(limits = c(0.45, 0.85)) +
+        facet_wrap(~ Which, nrow = 1) +
         theme_bw()
+
+    if (summary)
+        plot
+    else {
+        import_package('ggbeeswarm', attach = TRUE)
+        plot +
+            geom_point(aes(color = mRNA, shape = tRNA),
+                       position = position_beeswarm()) +
+            scale_color_manual(limits = names(config$celltype_colors),
+                               values = config$celltype_colors) +
+            scale_shape_manual(limits = names(config$celltype_colors),
+                               values = c(15, 4, 5, 16))
+    }
+}
+
+mean_center = function (all_te) {
+    import_package('dplyr', attach = TRUE)
+    trna_zscores = all_te %>%
+        filter(Mode == 'Match') %>%
+        group_by(Which) %>%
+        mutate(AllMedian = median(TE)) %>%
+        group_by(tRNA, add = TRUE) %>%
+        mutate(tRNAMedian = median(TE)) %>%
+        summarize(Scaling = first(tRNAMedian / AllMedian))
+
+    inner_join(all_te, trna_zscores, by = c('Which', 'tRNA')) %>%
+        mutate(TE = TE / Scaling)
 }
 
 sys$run({
-    args = sys$cmdline$parse(arg('species', 'the species'),
+    args = sys$cmdline$parse(opt('c', 'mean-center', 'center tRNA strata before plotting?', FALSE),
+                             opt('s', 'summary', 'plot summary rather than detailed points?', FALSE),
+                             arg('species', 'the species'),
                              arg('outfile', 'the filename of the PDF output'))
 
-    te = readRDS(sprintf('results/te-%s.rds', args$species))
+    config = import(sprintf('../config_%s', args$species))
+    te = readRDS(sprintf('results/simple-te-%s.rds', args$species))
+    if (args$mean_center)
+        te = mean_center(te)
+
     # Required by ggplot2, see <https://github.com/hadley/ggplot2/issues/1384>
     library(methods)
     on.exit(dev.off())
     pdf(args$outfile)
-    plot(plot_te(te))
-    NULL
+    plot(plot_te(te, args$summary))
 })
 
 # vim: ft=r

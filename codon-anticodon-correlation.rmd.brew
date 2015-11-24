@@ -171,57 +171,22 @@ ggplot(all_adaptations, aes(factor(Type), TE)) +
 
 Next, perform a similar analysis for differentially expressed genes only. First,
 compute the sets of differentially expressed genes between healthy tissues and
-cancer cell lines.
-
-```{r de}
-de_filename = function (contrast)
-    sprintf('results/de/%s-mrna-%s-vs-%s.tsv',
-            config$species, contrast[1], contrast[2])
-
-read_de = function (contrast)
-    io$read_table(de_filename(contrast), header = TRUE) %>%
-    add_rownames('Gene')
-
-de_contrasts = config$contrasts[grep('Liver-Adult|E15\\.5', config$contrasts)]
-de_genes = lapply(de_contrasts, read_de)
-```
-
-Secondly, re-calculate codon usage bias, but using only a subset of genes in
-each condition. So instead of summing over all genes, we sum over the codon
-usage of genes significantly upregulated in the respective condition, and we do
-this separately for each contrast.
+cancer cell lines. Re-calculate codon usage bias, but using only a subset of
+genes in each condition. So instead of summing over all genes, we sum over the
+codon usage of genes significantly upregulated in the respective condition, and
+we do this separately for each contrast.
 
 ```{r de-cu}
-top_n_de = 200
-norm = import('norm')
+de_contrasts = config$contrasts[grep('Liver-Adult|E15\\.5', config$contrasts)]
+upregulated_genes = readRDS(sprintf('results/de/up-%s.rds', config$species))
 
-gene_set_for_contrast = function (de_genes, cmp)
-    filter(de_genes, cmp(log2FoldChange, 0)) %>%
-    inner_join(canonical_cds, by = 'Gene') %>%
-    mutate(BaseMeanTpm = norm$tpm(baseMean, nchar(Sequence))) %>%
-    filter(BaseMeanTpm > quantile(BaseMeanTpm)[4]) %>%
-    arrange(desc(abs(log2FoldChange))) %>%
-    head(top_n_de) %>%
-    .$Gene
+de_test_sets = function (contrast, cu, aa) {
+    upregulated_genes_for = function (c)
+        upregulated_genes[[sprintf('%s/%s', c[1], c[2])]]
 
-set_a_for_contrast = function (de_genes)
-    gene_set_for_contrast(de_genes, `<`)
-
-set_b_for_contrast = function (de_genes)
-    gene_set_for_contrast(de_genes, `>`)
-
-used_de_test_sets = list() # Cache those gene sets that we actually use
-
-store_contrast = function (contrast, genes)
-    used_de_test_sets[[sprintf('%s-vs-%s', contrast[1], contrast[2])]] <<- genes
-
-de_test_sets = function (cu, aa, contrast, genes) {
-    a = list(celltype = contrast[1], genes = set_a_for_contrast(genes))
-    b = list(celltype = contrast[2], genes = set_b_for_contrast(genes))
-    # Invert contrast so that gene list we store is up-regulated in second
-    # listed condition, relative to first, same as for GSA files.
-    store_contrast(rev(contrast), a$genes)
-    store_contrast(contrast, b$genes)
+    # Genes are up-regulated in second listed condition.
+    a = list(celltype = contrast[2], genes = upregulated_genes_for(contrast))
+    b = list(celltype = contrast[1], genes = upregulated_genes_for(rev(contrast)))
 
     lapply(list(a, b), cond -> {
         # mRNA and tRNA come from same celltype
@@ -231,8 +196,7 @@ de_test_sets = function (cu, aa, contrast, genes) {
 }
 
 all_de_test_sets = function (cu, aa)
-    Map(c ~ g -> de_test_sets(cu, aa, c, g), de_contrasts, de_genes) %>%
-    unlist(recursive  = FALSE)
+    unlist(lapply(de_contrasts, de_test_sets, cu, aa), recursive  = FALSE)
 ```
 
 Finally, calculate the adaptation between every sample’s DE gene RCU and the
@@ -242,14 +206,6 @@ correlations.
 
 ```{r de-codon-adaptation}
 de_adaptations = adaptations(all_de_test_sets(cu, aa), simple_te)
-
-# Write the used gene sets to files for supplementary tables.
-write_de_result = function (name, genes) {
-    filename = sprintf('results/de/up-%s-%s.txt', config$species, name)
-    writeLines(genes, filename)
-}
-
-invisible(Map(write_de_result, names(used_de_test_sets), used_de_test_sets))
 
 all_adaptations = rbind(all_adaptations,
                          data.frame(TE = de_adaptations, Type = 'DE'))
