@@ -93,3 +93,5 @@ sys$run({
     cat('\n', file = stderr())
     saveRDS(sampled_cu_fit, file = args$filename)
 })
+
+# vim: ft=r
