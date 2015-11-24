@@ -1,0 +1,200 @@
+---
+title: "A different analysis of translation efficiency"
+author: ""
+date: ""
+output:
+    html_document:
+        toc: true
+        theme: united
+    pdf_document:
+        toc: true
+        latex_engine: xelatex
+---
+
+```{r load-libraries, echo=FALSE, message=FALSE}
+modules::import('scripts/knit')
+tidyr = import_package('tidyr')
+```
+
+## The problem
+
+```{r load-old-te-data, echo=FALSE}
+te = readRDS('./results/te-human.rds') %>% filter(Type %in% c('Matching', 'DE'))
+n_samples = nrow(filter(te, Type == 'Matching'))
+```
+
+Our current analysis for Figure 3 fundamentally suffers from a lack of
+statistical power.
+
+```{r problematic-figure, echo=FALSE, fig.width=3, fig.height=3, fig.align='center'}
+ggplot(te) +
+    aes(x = Type, y = TE) +
+    geom_boxplot() +
+    geom_point(position = position_jitter(0.2))
+```
+
+---
+
+* The number of samples (`r n_samples`) is low
+* We are using a nonparametric test of different medians
+* The distributions are not continuous
+* There are ties, so we cannot compute exact $p$-values:
+
+    \footnotesize
+    ```{r}
+    wilcox.test(TE ~ Type, te, alternative = 'less')
+    ```
+
+→ We lack statistical power to establish lack of evidence convincingly. This
+can only be solved by increasing the number of sequenced libraries
+dramatically.
+
+---
+
+* *Finally*, we’re arguably testing the wrong thing:
+
+    * We are testing whether cell-type specific genes are significantly more
+      efficiently translated than the bulk of the transcriptome.
+
+    * But we *want* to test whether cell-type specific genes are significantly
+      more efficiently translated by the cell-type specific tRNA pool, compared
+      to mismatching tRNA pools.
+
+* With this, I propose two changes:
+
+> **Note** All data in the subsequent plots is mock data!
+
+---
+
+## Compare matching tRNA pool to mismatching tRNA pool
+
+For each test set, compare the TE calculated from matching and mismatching tRNA
+pools:
+
+```{r example-data, echo=FALSE}
+set.seed(24587954)
+conditions = factor(c('All', 'DE', 'GO', 'Ribosomal'), ordered = TRUE)
+make_test_set = size ~ cond -> data_frame(TE = rnorm(size, 0.7, 0.2), Type = cond)
+matching = bind_rows(lapply(conditions, cond -> make_test_set(14, cond)))
+mismatching = bind_rows(lapply(conditions, cond -> make_test_set(20, cond)))
+new_te = bind_rows(mutate(matching, `tRNA pool` = 'Match'),
+                   mutate(mismatching, `tRNA pool` = 'Mismatch'))
+```
+
+```{r boxplot-te, echo=FALSE, fig.width=5, fig.height=3, fig.align = 'center'}
+ggplot(new_te, aes(x = `tRNA pool`, y = TE)) +
+    geom_boxplot(aes(color = `tRNA pool`)) +
+    scale_x_discrete('', labels = '') +
+    facet_wrap(~ Type, ncol = 4)
+```
+
+---
+
+* This test is more direct. However, it does not fundamentally solve the fact
+  that we are trying to *accept* the null hypothesis of no difference, rather
+  than rejecting it. All we can therefore say is that we find no evidence
+  (given insufficient data).
+
+* An even more direct test is needed, and possible:
+
+---
+
+## Correlate TE of matching and mismatching tRNA pool
+
+Here’s a different idea:
+
+* For each gene set, say $\text{DE} = (g_1, g_2, \dots, g_n)$, calculate
+  per-gene TE with **matching** tRNA pool
+
+    $$t = (t_{g_1}, t_{g_2}, \dots, t_{g_n})$$
+
+    and **mismatching** tRNA pool
+
+    $$t' = (t_{g_1}, t_{g_2}, \dots, t_{g_n})$$
+
+* Calculate the correlation
+  
+    $$\rho = \operatorname{cor}(t, t')$$
+
+---
+
+```{r example-de-data, echo=FALSE}
+t_de_match = rnorm(200, 0.7, 0.2)
+t_de_mismatch = t_de_match + rnorm(200, 0.1, 0.2)
+t_de = bind_rows(data_frame(Gene = 1 : 200, TE = t_de_match, tRNA = 'Match'),
+                 data_frame(Gene = 1 : 200, TE = t_de_mismatch, tRNA = 'Mismatch'))
+```
+
+```{r te_de_scatter, echo=FALSE, fig.width=3, fig.height=3, fig.align='center'}
+t_de_untidy = tidyr$spread(t_de, tRNA, TE)
+t_rho = cor(t_de_untidy$Match, t_de_untidy$Mismatch, method = 'spearman')
+ggplot(t_de_untidy, aes(x = Match, y = Mismatch)) +
+    geom_point() +
+    geom_smooth(method = lm) +
+    annotate(geom = 'text', x = 1, y = 0,
+             label = paste('rho[DE] ==', format(t_rho, digits = 2)), parse = TRUE)
+```
+
+---
+
+* **If there’s *no* adaptation of TE to cell-specific tRNA pools, then $\rho$
+  will be higher than expected by chance.**
+
+* To quantify what TE correlation is expected by chance,
+
+    * simulate tRNA pools, calculate TE using these pools as $t_{1\dots n}^*$,
+
+    * calculate $\rho_i^* = \operatorname{cor}(t, t_i^*)$, for each simulated
+      pool $i \in \{1\dots n\}$, and
+
+    * calculate empirical $p$-value of $\rho \sim \rho^*$.
+
+* The above was simplified, we have no 1:1 match between “match” and
+  “mismatch” tRNA:
+
+    * We have 3 matching TEs, “liver”, “HepG2” and “Huh7”
+
+    * We have 4 mismatching TEs: “liver–HepG2”, “liver–Huh7”,
+      “HepG2–liver”, “Huh7–liver”
+
+    … yielding more than one $\rho$.
+
+---
+
+## Details
+
+It is important to simulate tRNA pools and keep the mRNA gene set fixed because
+this simulates what would happen if a (biologically plausible) tRNA pool were
+not well suited to decode the mRNA in question (e.g. “DE genes”).
+
+To simulate biologically plausible tRNA pools, we take the existing, (matching
+or mismatching?) tRNA pools and shuffle the observed anticodon isoacceptor
+abundances. It might be important to preserve the isotype identity, however —
+that is, when shuffling isoacceptor abundances, only shuffle between synonymous
+tRNAs. That way, we ensure that the observation is not confounded by unrealistic
+changes to amino acid usage, since not all amino acids are equally frequent.
+
+Empirically testing $\rho \sim \rho^*$ is impossible for a single $\rho$ but
+since we have more than one match- and mismatch correlation we effectively have
+sample of $\rho$ values; we can consequently use a Kolmogorov–Smirnov test to
+determine if the sample of $\rho$ was drawn from $\rho^*$.
+
+## Rationale
+
+> Why not simply test for difference between $t$ and $t'$ on the one hand, and
+> $t'$ and $t^*$ on the other?
+
+— We’d be back to square 1:
+
+* When testing for difference between $t$ and $t'$, we want to accept the null
+  hypothesis, and reject H1, which we cannot do with a significance test.
+* When testing for difference between $t'$ and $t^*$, there’s no problem but
+  even if there is a difference here, this doesn’t tell us anything: we do not
+  want to prove that random tRNA transcriptomes are worse at decoding mRNA than
+  mismatching tRNA transcriptomes; we want to show that mismatching tRNA
+  transcriptomes aren’t substantially worse than matching tRNA transcriptomes.
+
+If we instead ensure that the correlation between $t$ and $t'$ is significantly
+better than that between $t$ and $t*$, this shows directly that matching and
+mismatching tRNA pools are more similarly efficient at decoding mRNA genes than
+expected by chance.
