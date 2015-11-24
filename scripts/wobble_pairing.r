@@ -21,19 +21,19 @@ rc_anticodons = data.frame(Codon = tai$rc_anticodons) %>%
 #' are not considered. This relies on the (inaccurate) assumption that
 #' matching anticodons will generally out-compete wobble matching anticodons
 #' at the ribosome.
-adaptation = function (rcu, raa) {
+adaptation = function (cu, aa) {
     wobble_match_index = function (i)
         i + c(-1, 1, -1, -2)[i %% 4 + 1]
 
-    data = full_join(rcu, raa, by = 'Codon') %>%
+    data = full_join(cu, aa, by = 'Codon') %>%
         full_join(rc_anticodons, by = 'Codon') %>%
         arrange(Order)
-    unmatched_codon_indices = which(is.na(data$RAA))
+    unmatched_codon_indices = which(is.na(data$AA))
     wobble_codon_indices = unlist(lapply(unmatched_codon_indices,
                                          wobble_match_index))
 
-    data[unmatched_codon_indices, 'RAA'] = data[wobble_codon_indices, 'RAA']
-    summarize(data, X = cor(RCU, RAA,
+    data[unmatched_codon_indices, 'AA'] = data[wobble_codon_indices, 'AA']
+    summarize(data, X = cor(CU, AA,
                             use = 'complete.obs',
                             method = 'spearman'))$X
 }
