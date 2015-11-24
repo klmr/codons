@@ -11,7 +11,10 @@ plot_te = function (data, summary) {
                         ordered = TRUE)
 
     plot = ggplot(data, aes(x = Mode, y = TE)) +
-        geom_boxplot(width = if (summary) 0.4 else 0.2, outlier.size = 0) +
+        (if (summary)
+            geom_boxplot(width = 0.4)
+        else
+            geom_boxplot(width = 0.2, outlier.size = 0)) +
         scale_y_continuous(limits = c(0.45, 0.85)) +
         facet_wrap(~ Which, nrow = 1) +
         theme_bw()
