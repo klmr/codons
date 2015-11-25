@@ -1,3 +1,4 @@
+include structure.make
 species := mouse human
 te-methods := simple-te wobble-te tai
 
@@ -46,17 +47,19 @@ results/tai-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
 	mkdir -p results
 	${BIN}/translation-efficiency-test-sets --te=tai $* $@
 
-results/simple-te-boxplot-%.pdf: results/simple-te-%.rds
+results/figure-3/simple-te-summary-boxplot-%.pdf: results/simple-te-%.rds
+	mkdir $(@D)
 	${BIN}/plot-te-boxplot --summary $* $@
 
 .PHONY: all-te-plots
 all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
+	mkdir results/figure-3
 	for te in ${te-methods} do; \
 		for s in --summary ''; do \
 			for c in --mean-center ''; do \
 				for species in ${species}; do \
 					${BIN}/plot-te-boxplot $$s $$c $$species \
-						results/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
+						results/figure-3/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
 				done; \
 			done; \
 		done; \
