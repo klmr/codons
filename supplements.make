@@ -4,6 +4,7 @@ species := human mouse
 datatype := mrna trna
 combinations := $(foreach i,${species},$(foreach j,${datatype},$j-$i))
 upregulated-all := $(foreach i,${species},upregulated-$i)
+enriched-go-all := $(foreach i,${species},enriched-go-$i)
 
 .PHONY: all
 all: gene-expression
@@ -25,6 +26,17 @@ ${upregulated-all}:
 	mkdir -p ${supp_dir}/upregulated
 	${BIN}/write-upregulated-genes-tables \
 		$(lastword $(subst -, ,$@)) ${supp_dir}/upregulated/
+
+.PHONY: enriched-go-all ${enriched-go-all}
+enriched-go-all: ${enriched-go-all}
+
+enriched-go-human: results/gsa/go-human.rds
+enriched-go-mouse: results/gsa/go-mouse.rds
+
+${enriched-go-all}:
+	mkdir -p ${supp_dir}/enriched-go
+	${BIN}/write-enriched-go-tables \
+		$(lastword $(subst -, ,$@)) ${supp_dir}/enriched-go/
 
 .PHONY: ribosomal-genes
 ribosomal-genes: $(foreach i,${species},${supp_dir}/ribosomal/rp-genes-$i.txt)
