@@ -25,7 +25,10 @@ adaptation = function (cu, aa) {
     wobble_match_index = function (i)
         i + c(-1, 1, -1, -2)[i %% 4 + 1]
 
-    data = full_join(cu, aa, by = 'Codon') %>%
+    data = cu %>%
+        group_by(Codon) %>%
+        summarize(CU = mean(CU)) %>%
+        full_join(aa, by = 'Codon') %>%
         full_join(rc_anticodons, by = 'Codon') %>%
         arrange(Order)
     unmatched_codon_indices = which(is.na(data$AA))
@@ -33,7 +36,10 @@ adaptation = function (cu, aa) {
                                          wobble_match_index))
 
     data[unmatched_codon_indices, 'AA'] = data[wobble_codon_indices, 'AA']
-    summarize(data, X = cor(CU, AA,
-                            use = 'complete.obs',
-                            method = 'spearman'))$X
+    data %>%
+        filter(! is.na(CU)) %>%
+        mutate(CU = CU / sum(CU),
+               AA = AA / sum(AA)) %>%
+        summarize(Cor = cor(CU, AA, use = 'complete.obs', method = 'spearman')) %>%
+        .$Cor
 }
