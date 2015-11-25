@@ -7,14 +7,14 @@ upregulated-all := $(foreach i,${species},upregulated-$i)
 enriched-go-all := $(foreach i,${species},enriched-go-$i)
 
 .PHONY: all
-all: gene-expression
+all: gene-expression upregulated-all enriched-go-all ribosomal-genes housekeeping-genes
 
 .PHONY: gene-expression
 gene-expression: ${combinations}
 
 ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
-	${BIN}/write-expression-table $(call split-args,$*) > $@
+	${BIN}/write-expression-table $(subst -, ,$*) > $@
 
 .PHONY: upregulated-all ${upregulated-all}
 upregulated-all: ${upregulated-all}
