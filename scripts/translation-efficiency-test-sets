@@ -154,7 +154,7 @@ ribosomal_genes = function (condition)
     list(data$ribosomal_genes(config))
 
 sys$run({
-    valid_te_methods = c('simple_te', 'wobble_te', 'tai')
+    valid_te_methods = c('simple-te', 'wobble-te', 'tai')
     args = sys$cmdline$parse(opt('t', 'te',
                                  do.call(sprintf,
                                          c('the method to calculate translation efficiency (%s, %s or %s)',
@@ -189,7 +189,7 @@ sys$run({
         ungroup() %>%
         inner_join(trna_design, by = 'DO')
 
-    te = match.fun(args$te)
+    te = match.fun(sub('-', '_', args$te))
     te_all = all_translation_efficiencies(whole_transcriptome, te)
     te_up = all_translation_efficiencies(upregulated_genes(), te)
     te_go = all_translation_efficiencies(enriched_go_genes(), te)
