@@ -97,8 +97,10 @@ tidy_te = function (te, name = deparse(substitute(te), backtick = TRUE)) {
 }
 
 simple_te = function (cu, aa)
-    cu_$adaptation_no_wobble(mutate(cu, CU = CU * Count / Length),
-                             aa, canonical_cds)
+    cu_$adaptation_no_wobble(mutate(cu, CU = CU * Count / Length), aa)
+
+wobble_te = function (cu, aa)
+    cu_$adaptation_wobble(mutate(cu, CU = CU * Count / Length), aa)
 
 #' Create gene sets of a given condition
 #'
