@@ -1,0 +1,21 @@
+#!/usr/bin/env Rscript
+
+options(stringsAsFactors = FALSE)
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('out-prefix', 'the output filename prefix'))
+
+    save_table = function (name, genes) {
+        path_components = c(args$out_prefix, strsplit(name, '/')[[1]], args$species)
+        filename = do.call(sprintf, as.list(c('%s%s-vs-%s-%s.txt', path_components)))
+        writeLines(genes, filename)
+    }
+
+    data = readRDS(sprintf('results/de/up-%s.rds', args$species))
+    Map(save_table, names(data), data)
+})
+
+# vim: ft=r
