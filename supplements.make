@@ -14,6 +14,18 @@ ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
 	${BIN}/write-expression-table $(call split-args,$*) > $@
 
+.PHONY: upregulated-all $(foreach i,${species},upregulated-$i)
+upregulated-all: $(foreach i,${species},upregulated-$i)
+
+upregulated-human: results/de/up-human.rds
+upregulated-mouse: results/de/up-human.rds
+
+$(foreach i,${species},upregulated-$i):
+	mkdir -p ${supp_dir}/upregulated
+	${BIN}/write-upregulated-genes-tables \
+		$(lastword $(subst -, ,$@)) \
+		${supp_dir}/upregulated/
+
 .PHONY: ribosomal-genes
 ribosomal-genes: $(foreach i,${species},${supp_dir}/ribosomal/rp-genes-$i.txt)
 
@@ -27,14 +39,6 @@ housekeeping-genes: $(foreach i,${species},${supp_dir}/housekeeping/hk-genes-$i.
 ${supp_dir}/housekeeping/hk-genes-%.txt: data/hk408.txt
 	mkdir -p $(@D)
 	${BIN}/write-housekeeping-genes-table $* $@
-
-define split-args
-	$(subst -, ,$1)
-endef
-
-define split-args-de
-	$(call split-args,$(subst de-genes-,,$1))
-endef
 
 .PHONY: ${combinations}
 
