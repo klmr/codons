@@ -1,5 +1,3 @@
-BIN := ./scripts
-
 species := mouse human
 te-methods := simple-te wobble-te tai
 
