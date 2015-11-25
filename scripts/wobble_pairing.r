@@ -27,7 +27,7 @@ adaptation = function (cu, aa) {
 
     data = cu %>%
         group_by(Codon) %>%
-        summarize(CU = mean(CU)) %>%
+        summarize(CU = sum(CU)) %>%
         full_join(aa, by = 'Codon') %>%
         full_join(rc_anticodons, by = 'Codon') %>%
         arrange(Order)

@@ -87,7 +87,7 @@ adaptation = function (cu, aa, cds, method = adaptation_no_wobble)
 adaptation_no_wobble = function (cu, aa, cds)
     cu %>%
     group_by(Codon, add = TRUE) %>%
-    summarize(CU = mean(CU)) %>%
+    summarize(CU = sum(CU)) %>%
     inner_join(aa, by = 'Codon') %>%
     mutate(CU = CU / sum(CU),
            AA = AA / sum(AA)) %>%
