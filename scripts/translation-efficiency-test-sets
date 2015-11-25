@@ -102,6 +102,14 @@ simple_te = function (cu, aa)
 wobble_te = function (cu, aa)
     cu_$adaptation_wobble(mutate(cu, CU = CU * Count / Length), aa)
 
+tai = function (cu, aa) {
+    weights = cu %>%
+        group_by(Gene) %>%
+        summarize(Expr = first(Count) / first(Length)) %>%
+        .$Expr
+    weighted.mean(cu_$adaptation_tai(cu, aa, canonical_cds), weights)
+}
+
 #' Create gene sets of a given condition
 #'
 #' @param condition name of the condition
