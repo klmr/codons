@@ -48,17 +48,17 @@ results/tai-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
 	${BIN}/translation-efficiency-test-sets --te=tai $* $@
 
 results/figure-3/simple-te-summary-boxplot-%.pdf: results/simple-te-%.rds
-	mkdir $(@D)
+	mkdir -p $(@D)
 	${BIN}/plot-te-boxplot --summary $* $@
 
 .PHONY: all-te-plots
 all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
-	mkdir results/figure-3
-	for te in ${te-methods} do; \
+	mkdir -p results/figure-3
+	for te in ${te-methods}; do \
 		for s in --summary ''; do \
 			for c in --mean-center ''; do \
 				for species in ${species}; do \
-					${BIN}/plot-te-boxplot $$s $$c $$species \
+					${BIN}/plot-te-boxplot --te=$$te $$s $$c $$species \
 						results/figure-3/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
 				done; \
 			done; \
