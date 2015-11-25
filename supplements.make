@@ -3,6 +3,7 @@ supp_dir := results/supplements
 species := human mouse
 datatype := mrna trna
 combinations := $(foreach i,${species},$(foreach j,${datatype},$j-$i))
+upregulated-all := $(foreach i,${species},upregulated-$i)
 
 .PHONY: all
 all: gene-expression
@@ -14,17 +15,16 @@ ${supp_dir}/gene-expression-%.tsv:
 	mkdir -p $(@D)
 	${BIN}/write-expression-table $(call split-args,$*) > $@
 
-.PHONY: upregulated-all $(foreach i,${species},upregulated-$i)
-upregulated-all: $(foreach i,${species},upregulated-$i)
+.PHONY: upregulated-all ${upregulated-all}
+upregulated-all: ${upregulated-all}
 
 upregulated-human: results/de/up-human.rds
 upregulated-mouse: results/de/up-human.rds
 
-$(foreach i,${species},upregulated-$i):
+${upregulated-all}:
 	mkdir -p ${supp_dir}/upregulated
 	${BIN}/write-upregulated-genes-tables \
-		$(lastword $(subst -, ,$@)) \
-		${supp_dir}/upregulated/
+		$(lastword $(subst -, ,$@)) ${supp_dir}/upregulated/
 
 .PHONY: ribosomal-genes
 ribosomal-genes: $(foreach i,${species},${supp_dir}/ribosomal/rp-genes-$i.txt)
