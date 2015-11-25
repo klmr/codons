@@ -94,10 +94,12 @@ adaptation_no_wobble = function (cu, aa, cds)
     summarize(Cor = cor(CU, AA, method = 'spearman')) %>%
     .$Cor
 
+wobble_pairing = import('./wobble_pairing')
+
 #' \code{adaptation_wobble} computes a codon–anticodon correlation while
 #' accounting for wobble base pairing.
 adaptation_wobble = function (cu, aa, cds)
-    pass
+    cu %>% do(Cor = wobble_pairing$adaptation(., aa)) %>% .$Cor %>% unlist()
 
 # Calculate outside function for speed — `adaptation` is called very frequently.
 coding_codons = setdiff(genetic_code$Codon, stop_codons)
