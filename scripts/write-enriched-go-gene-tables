@@ -1,0 +1,34 @@
+#!/usr/bin/env Rscript
+
+options(stringsAsFactors = FALSE)
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('out-prefix', 'the output filename prefix'))
+
+    import_package('dplyr', attach = TRUE)
+    config = import(sprintf('../config_%s', args$species))
+    data = import('../data')
+
+    enriched_go_genes = function (enriched_go)
+        inner_join(go_genes, enriched_go, by = c(GO = 'Name')) %>%
+        select(Gene, GO)
+
+    go_genes = data$go_genes(config)
+    data = readRDS(sprintf('results/gsa/go-%s.rds', args$species)) %>%
+        lapply(enriched_go_genes)
+
+    io = import('ebits/io')
+
+    save_table = function (name, genes) {
+        path_components = c(args$out_prefix, strsplit(name, '/')[[1]], args$species)
+        filename = do.call(sprintf, as.list(c('%s%s-vs-%s-%s.tsv', path_components)))
+        io$write_table(genes, filename)
+    }
+
+    Map(save_table, names(data), data)
+})
+
+# vim: ft=r
