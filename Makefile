@@ -1,6 +1,7 @@
 BIN := ./scripts
 
 species := mouse human
+te-methods := simple-te wobble-te tai
 
 .PHONY: all
 all: go te
@@ -31,22 +32,31 @@ results/gsa/go-%.rds: data/gene_association.goa_human
 	mkdir -p results/gsa
 	${BIN}/go-enrichment $* $@
 
-.PRECIOUS: $(foreach i,${species},results/simple-te-$i.rds)
+.PRECIOUS: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
 results/simple-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
 		data/rp-genes-%.txt
 	mkdir -p results
 	${BIN}/translation-efficiency-test-sets $* $@
 
+results/wobble-te-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
+		data/rp-genes-%.txt
+	mkdir -p results
+	${BIN}/translation-efficiency-test-sets --te=wobble-te $* $@
+
+results/tai-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
+		data/rp-genes-%.txt
+	mkdir -p results
+	${BIN}/translation-efficiency-test-sets --te=tai $* $@
+
 results/simple-te-boxplot-%.pdf: results/simple-te-%.rds
 	${BIN}/plot-te-boxplot --summary $* $@
 
 .PHONY: all-te-plots
-all-te-plots:
-	# for te in simple-te wobble-te tai do;
-	for te in simple-te; do \
+all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
+	for te in ${te-methods} do; \
 		for s in --summary ''; do \
 			for c in --mean-center ''; do \
-				for species in human mouse; do \
+				for species in ${species}; do \
 					${BIN}/plot-te-boxplot $$s $$c $$species \
 						results/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
 				done; \
