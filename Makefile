@@ -51,6 +51,10 @@ results/figure-3/boxplot-simple-te-summary-%.pdf: results/simple-te-%.rds
 	mkdir -p $(@D)
 	${BIN}/plot-te-boxplot --summary $* $@
 
+results/figure-3/test-p-values-simple-te-compare-which-%.tsv: results/simple-te-%.rds
+	mkdir -p $(@D)
+	${BIN}/write-adaptation-test-table --axis=which $* $@
+
 .PHONY: all-te-plots
 all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
 	mkdir -p results/figure-3
@@ -60,6 +64,20 @@ all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds
 				for species in ${species}; do \
 					${BIN}/plot-te-boxplot --te=$$te $$s $$c $$species \
 						results/figure-3/boxplot-$$te$${s/-/}$${c/-/}-$$species.pdf; \
+				done; \
+			done; \
+		done; \
+	done
+
+.PHONY: all-te-tests
+all-te-tests: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
+	mkdir -p results/figure-3
+	for te in ${te-methods}; do \
+		for a in which match; do \
+			for c in --mean-center ''; do \
+				for species in ${species}; do \
+					${BIN}/plot-te-boxplot --axis=$$a --te=$$te $$s $$c $$species \
+						results/figure-3/test-p-values-$$te-compare-$$a-$${c/-/}-$$species.tsv; \
 				done; \
 			done; \
 		done; \
