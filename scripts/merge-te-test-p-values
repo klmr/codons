@@ -1,0 +1,30 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    nargs = length(sys$args)
+    outfile = sys$args[nargs]
+    infiles = sys$args[-nargs]
+
+    io = import('ebits/io')
+    base = import('ebits/base')
+    import_package('dplyr', attach = TRUE)
+
+    get_te = x -> sapply(strsplit(basename(x), '-'), `[`, 4)
+    get_axis = x -> sub('.*compare-([^-]+).*', '\\1', x)
+    get_species = x -> sub('.*-([^-]+)\\.tsv$', '\\1', x)
+    get_centered = x -> grepl('mean-center', x)
+
+    data = lapply(infiles, io$read_table, header = TRUE) %>%
+        {base$map(x ~ file -> mutate(x, TE = get_te(file),
+                                     Axis = get_axis(file),
+                                     Species = get_species(file),
+                                     Centered = get_centered(file)),
+                  ., infiles)} %>% bind_rows()
+
+    io$write_table(data, outfile)
+})
+
+# vim: ft=r
