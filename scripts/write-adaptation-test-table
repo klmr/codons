@@ -4,14 +4,33 @@ library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
 sys$run({
-    args = sys$cmdline$parse(arg('species', 'the species'),
+    valid_te_methods = c('simple-te', 'wobble-te', 'tai')
+    valid_axes = c('which', 'match')
+    validate = function (against) function (x) x %in% against
+    args = sys$cmdline$parse(opt('', 'axis',
+                                 do.call(sprintf,
+                                         c('which axis to perform comparison across (%s or %s)',
+                                           lapply(valid_axes, dQuote))),
+                                 validate = validate(valid_axes)),
+                             opt('t', 'te',
+                                 do.call(sprintf,
+                                         c('the method to calculate translation efficiency (%s, %s or %s)',
+                                           lapply(valid_te_methods, dQuote))),
+                                 valid_te_methods[1],
+                                 validate(valid_te_methods)),
+                             opt('c', 'mean-center', 'center tRNA strata before plotting?', FALSE),
+                             arg('species', 'the species'),
                              arg('outfile', 'the filename of the output table'))
+
+    config = import(sprintf('../config_%s', args$species))
+    te = readRDS(sprintf('results/%s-%s.rds', args$te, args$species))
+    if (args$mean_center)
+        te = import('./plot-te-boxplot')$mean_center(te)
 
     import_package('dplyr', attach = TRUE)
     io = import('ebits/io')
     import('ebits/base')
 
-    te = readRDS(sprintf('results/te-%s.rds', args$species))
     contrasts = rbind(cbind('Matching', c('Mismatching', 'DE', 'GO',
                                           'Housekeeping', 'Ribosomal')),
                       cbind(c('Simulated DE', 'Simulated GO'),
@@ -23,9 +42,18 @@ sys$run({
                     filter(te, Type == contrast[2])$TE,
                     alternative = 'less')$p.value
 
-    results = data.frame(p = sapply(contrasts, test)) %>%
-        sapply(p.adjust, method = 'bonferroni') %>%
-        {cbind.data.frame(Contrast = sapply(contrasts, c -> sprintf('%s-%s', c[1], c[2])), .)}
+    which_test = function (data)
+        wilcox.test(filter(data, Mode == 'Match')$TE,
+                    filter(data, Mode == 'Mismatch')$TE,
+                    alternative = 'greater')$p.value
+
+    results = switch (args$axis,
+        which = te %>%
+            group_by(Which) %>%
+            do(p = which_test(.)) %>%
+            ungroup() %>%
+            mutate(p = unlist(p), q = p.adjust(p, method = 'bonferroni')),
+        match = te %>% TODO)
 
     io$write_table(results, args$outfile)
 })
