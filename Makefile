@@ -47,7 +47,7 @@ results/tai-%.rds: results/de/up-%.rds results/gsa/go-%.rds \
 	mkdir -p results
 	${BIN}/translation-efficiency-test-sets --te=tai $* $@
 
-results/figure-3/simple-te-summary-boxplot-%.pdf: results/simple-te-%.rds
+results/figure-3/boxplot-simple-te-summary-%.pdf: results/simple-te-%.rds
 	mkdir -p $(@D)
 	${BIN}/plot-te-boxplot --summary $* $@
 
@@ -59,7 +59,7 @@ all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds
 			for c in --mean-center ''; do \
 				for species in ${species}; do \
 					${BIN}/plot-te-boxplot --te=$$te $$s $$c $$species \
-						results/figure-3/$$te$${s/-/}$${c/-/}-boxplot-$$species.pdf; \
+						results/figure-3/boxplot-$$te$${s/-/}$${c/-/}-$$species.pdf; \
 				done; \
 			done; \
 		done; \
