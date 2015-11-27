@@ -76,8 +76,9 @@ all-te-tests: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds
 		for a in which match; do \
 			for c in --mean-center ''; do \
 				for species in ${species}; do \
-					${BIN}/plot-te-boxplot --axis=$$a --te=$$te $$s $$c $$species \
-						results/figure-3/test-p-values-$$te-compare-$$a-$${c/-/}-$$species.tsv; \
+					${BIN}/write-adaptation-test-table \
+						--axis=$$a --te=$$te $$s $$c $$species \
+						results/figure-3/test-p-values-$$te-compare-$$a$${c/-/}-$$species.tsv; \
 				done; \
 			done; \
 		done; \
