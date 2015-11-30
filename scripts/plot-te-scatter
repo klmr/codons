@@ -3,12 +3,40 @@
 library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
+which_filter = function (data, type)
+    switch(args$which,
+           `whole-match` = whole_match_filter,
+           `whole-mismatch` = whole_mismatch_filter,
+           `cell-specific-match` = cell_specific_match_filter)(data, type)
+
+whole_match_filter = function (data, type)
+    filter(data, Celltype == config$contrasts[[1]][1])
+
+whole_mismatch_filter = function (data, type) {
+    celltype = switch(type, m = 2, t = 1)
+    filter(data, Celltype == config$contrasts[[1]][celltype])
+}
+
+cell_specific_match_filter = function (data, type) {
+    data = whole_match_filter(data, type)
+
+    if (type == 'm') {
+        genelist_file = sprintf('results/de/up-%s.rds', config$species)
+        contrast = paste(config$contrasts[[1]], collapse = '/')
+        genelist = readRDS(genelist_file)[[contrast]]
+        data = filter(data, Gene %in% genelist)
+    }
+
+    data
+}
+
 sys$run({
+    valid_relations = c('whole-match', 'whole-mismatch', 'cell-specific-match')
     args = sys$cmdline$parse(arg('species', 'the species'),
-                             arg('celltype', 'the celltype'),
+                             arg('which', 'which type of relation should be plotted',
+                                 validate = function (x) x %in% valid_relations),
                              arg('outfile', 'the filename of the PDF output'))
 
-    options(import.path = c('.', getOption('import.path')))
     config = import(paste('../config', args$species, sep = '_'))
     data = import('../data')
     import_package('dplyr', attach = TRUE)
@@ -18,7 +46,7 @@ sys$run({
     mrna_sf_counts = data$mrna_sf_counts(config) %>%
         tidyr$gather(DO, Count, -Gene, -Name) %>%
         inner_join(data$mrna_design(config), by = 'DO') %>%
-        filter(Celltype == args$celltype)
+        which_filter('m')
     canonical_cds = data$canonical_cds(config)
     mrna_counts_and_cds = inner_join(mrna_sf_counts, canonical_cds, by = 'Gene')
     cu = inner_join(cu_$cu(canonical_cds), mrna_counts_and_cds, by = 'Gene')
@@ -32,7 +60,7 @@ sys$run({
         rename(Type = AA) %>%
         tidyr::gather(DO, AA, starts_with('do')) %>%
         inner_join(data$trna_design(config), by = 'DO') %>%
-        filter(Celltype == args$celltype) %>%
+        which_filter('t') %>%
         mutate(Codon = cu_$revcomp(Anticodon)) %>%
         group_by(Codon) %>%
         summarize(AA = sum(AA)) %>%
@@ -55,6 +83,8 @@ sys$run({
                            values = c('black', 'gray'), guide = FALSE) +
         annotate('text', x = rho_pos[1], y = rho_pos[2], hjust = 1,
                  label = sprintf('rho == %.2f', rho), parse = TRUE) +
+        scale_x_continuous(limits = c(0, 0.065)) +
+        scale_y_continuous(limits = c(0, 0.065)) +
         theme_bw()
 
     on.exit(dev.off())

@@ -110,8 +110,23 @@ results/te-adaptation-test-p-human.tsv: results/te-human.rds
 results/te-adaptation-test-p-mouse.tsv: results/te-mouse.rds
 	${BIN}/write-adaptation-test-table mouse $@
 
-results/te-liver-matching-scatter-human.pdf:
-	${BIN}/plot-te-scatter human Liver-Adult $@
+# Hack to get a space; from <http://stackoverflow.com/a/1542661/1968>
+nop =
+space = ${nop} ${nop}
+
+results/figure-2/scatter-te-%.pdf:
+	mkdir -p $(@D)
+	${BIN}/plot-te-scatter $(lastword $(subst -, ,$*)) \
+		$(subst ${space},-,$(filter-out $(lastword $(subst -, ,$*)),$(subst -, ,$*))) \
+		$@
+
+# FIXME: Debug: This requirement isn’t found unless the rule above is deleted.
+results/figure-2/scatter-te-cell-specific-match-%.pdf: results/de/up-%.rds
+
+figure-2-type := whole-match whole-mismatch cell-specific-match
+
+.PHONY: figure-2
+figure-2: $(foreach i,${figure-2-type},results/figure-2/scatter-te-$i-human.pdf)
 
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
