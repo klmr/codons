@@ -93,7 +93,7 @@ data/go-descriptions.tsv: data/go-basic.obo
 
 data/go-basic.obo:
 	wget 'http://purl.obolibrary.org/obo/go/go-basic.obo' \
-		--output-document data/go-basic.obo
+		--output-document $@
 
 data/rp-genes-%.txt:
 	${BIN}/download-rp-genes $* > $@
