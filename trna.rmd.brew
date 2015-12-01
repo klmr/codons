@@ -17,6 +17,52 @@ counts = data$trna_counts(config)
 (design = data$trna_design(config))
 ```
 
+Look at replicate variability
+
+```{r replicate-variability}
+order_invariant_paste = function (..., sep = '-') {
+    args = list(...)
+    len = length(args[[1]])
+    sapply(seq_len(len), i -> paste(sort(sapply(args, `[`, i)), collapse = sep))
+}
+
+unique_replicates = function (DO) {
+    combinations = expand.grid(DO, DO)
+    combinations %>%
+        filter(Var1 != Var2) %>%
+        mutate(Iid = order_invariant_paste(Var1, Var2)) %>%
+        filter(! duplicated(Iid)) %>%
+        select(-Iid) %>%
+        t() %>%
+        as.data.frame()
+}
+
+replicates = design %>%
+    group_by(Celltype) %>%
+    do(Replicates = unique_replicates(.$DO)) %>%
+    {setNames(.$Replicates, .$Celltype)}
+```
+
+```{r scatter-replicate-variability}
+pairwise_replicate_variability = function (replicate_pairs)
+    lapply(replicate_pairs, replicate_variability)
+
+replicate_variability = function (pair) {
+    counts = mutate_each(counts, funs(. + min(.[. != 0]) / 2), starts_with('do'))
+    rho = cor(counts[[pair[1]]], counts[[pair[2]]], method = 'spearman')
+    p = ggplot(counts, aes_string(pair[1], pair[2])) +
+        geom_point() +
+        geom_smooth(method = lm, se = FALSE) +
+        scale_x_log10() +
+        scale_y_log10() +
+        annotate('text', x = max(counts[[pair[1]]]), y = min(counts[[pair[2]]]), hjust = 1,
+                 label = sprintf('rho == %.2f', rho), parse = TRUE)
+    plot(p)
+}
+
+invisible(lapply(replicates, pairwise_replicate_variability))
+```
+
 ```{r}
 sf_counts = data$trna_sf_counts(config)
 ```
