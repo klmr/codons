@@ -69,7 +69,7 @@ sf_counts = data$trna_sf_counts(config)
 
 Cluster the samples.
 
-```{r heatman, fig.width=9}
+```{r heatmap, fig.width=9}
 library(gplots)
 cor = cor(select(sf_counts, starts_with('do')), method = 'spearman')
 divergent_colors = colorRampPalette(c('#603D71', 'white', '#A4B962'))(30)
