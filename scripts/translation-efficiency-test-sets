@@ -202,7 +202,7 @@ sys$run({
     te_up = all_translation_efficiencies(upregulated_genes(), te)
     te_go = all_translation_efficiencies(enriched_go_genes(), te)
     te_hk = all_translation_efficiencies(housekeeping_genes, te)
-    te_rb =  all_translation_efficiencies(ribosomal_genes, te)
+    te_rb = all_translation_efficiencies(ribosomal_genes, te)
 
     all_te = bind_rows(tidy_te(te_all, 'All'),
                        tidy_te(te_up, 'Upregulated'),
