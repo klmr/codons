@@ -12,16 +12,8 @@ Load the RNA-seq count data. We are using gene-level counts from
 
 ```{r load-data}
 data = import('data')
-counts = data$mrna_counts(config)
+counts = io$read_table(config$mrna_counts, header = TRUE)
 design = data$mrna_design(config)
-```
-
-Throw out zero rows.
-
-```{r remove-zeros}
-zero_rows = rowSums(select(counts, -Gene, -Name)) == 0
-table(zero_rows)
-(counts = counts[! zero_rows, ])
 ```
 
 Load annotation. We are only interested in protein-coding genes, and filter
@@ -33,6 +25,60 @@ Finally, the annotation is merged with the count data for ease of use.
 ```{r load-annotation}
 annotation = data$mrna_annotation(config)
 (counts = inner_join(annotation, counts, by = 'Gene'))
+```
+
+Look at replicate variability
+
+```{r replicate-variability}
+order_invariant_paste = function (..., sep = '-') {
+    args = list(...)
+    len = length(args[[1]])
+    sapply(seq_len(len), i -> paste(sort(sapply(args, `[`, i)), collapse = sep))
+}
+
+unique_replicates = function (DO) {
+    combinations = expand.grid(DO, DO)
+    combinations %>%
+        filter(Var1 != Var2) %>%
+        mutate(Iid = order_invariant_paste(Var1, Var2)) %>%
+        filter(! duplicated(Iid)) %>%
+        select(-Iid) %>%
+        t() %>%
+        as.data.frame()
+}
+
+replicates = design %>%
+    group_by(Celltype) %>%
+    do(Replicates = unique_replicates(.$DO)) %>%
+    {setNames(.$Replicates, .$Celltype)}
+```
+
+```{r scatter-replicate-variability}
+pairwise_replicate_variability = function (replicate_pairs)
+    lapply(replicate_pairs, replicate_variability)
+
+replicate_variability = function (pair) {
+    counts = mutate_each(counts, funs(. + min(.[. != 0]) / 2), starts_with('do'))
+    rho = cor(counts[[pair[1]]], counts[[pair[2]]], method = 'spearman')
+    p = ggplot(counts, aes_string(pair[1], pair[2])) +
+        geom_point() +
+        geom_smooth(method = lm, se = FALSE) +
+        scale_x_log10() +
+        scale_y_log10() +
+        annotate('text', x = max(counts[[pair[1]]]), y = min(counts[[pair[2]]]), hjust = 1,
+                 label = sprintf('rho == %.2f', rho), parse = TRUE)
+    plot(p)
+}
+
+invisible(lapply(replicates, pairwise_replicate_variability))
+```
+
+Throw out zero rows.
+
+```{r remove-zeros}
+zero_rows = rowSums(select(counts, starts_with('do'))) == 0
+table(zero_rows)
+(counts = counts[! zero_rows, ])
 ```
 
 We have `r nrow(counts)` properly annotated genes.
