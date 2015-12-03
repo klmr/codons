@@ -64,6 +64,13 @@ ${supp_dir}/housekeeping/hk-genes-%.txt: data/hk408.txt
 	mkdir -p $(@D)
 	${BIN}/write-housekeeping-genes-table $* $@
 
+.PHONY: proliferation-genes
+proliferation-genes: $(foreach i,${species},${supp_dir}/proliferation/pro-genes-$i.txt)
+
+${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
+	mkdir -p $(@D)
+	${BIN}/write-proliferation-genes-table $* $@
+
 .PHONY: ${combinations}
 
 .SECONDEXPANSION:
