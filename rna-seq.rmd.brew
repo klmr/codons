@@ -60,9 +60,20 @@ pairwise_replicate_variability = function (replicate_pairs)
 replicate_variability = function (pair) {
     counts = mutate_each(counts, funs(. + min(.[. != 0]) / 2), starts_with('do'))
     rho = cor(counts[[pair[1]]], counts[[pair[2]]], method = 'spearman')
+    bins = 100
+    per_bin = nrow(counts) / bins
+    density = MASS::kde2d(counts[[pair[1]]], counts[[pair[2]]], n = bins)
+    dx = density$x
+    dy = density$y
+    stopifnot(length(dx) == bins, length(dy) == bins)
+    ixd = 1L + as.integer((bins - 1) * (counts[[pair[1]]] - dx[1]) / (dx[bins] - dx[1]))
+    iyd = 1L + as.integer((bins - 1) * (counts[[pair[2]]] - dy[1]) / (dy[bins] - dy[1]))
+    counts = counts %>% mutate(Density = density$z[cbind(ixd, iyd)])
     p = ggplot(counts, aes_string(pair[1], pair[2])) +
-        geom_point() +
+        stat_binhex(aes(fill = ..density.. ^ 0.1), bins = bins) +
+        geom_point(data = filter(counts, Density ^ 0.1 < 0.04), size = 0.5) +
         geom_smooth(method = lm, se = FALSE) +
+        scale_fill_gradientn(colours = colorRampPalette(c('white', blues9))(256), guide = FALSE) +
         scale_x_log10() +
         scale_y_log10() +
         annotate('text', x = max(counts[[pair[1]]]), y = min(counts[[pair[2]]]), hjust = 1,
