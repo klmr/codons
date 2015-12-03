@@ -161,3 +161,12 @@ ribosomal_genes = cache %@% function (config) {
     rp_gene_names = readLines(sprintf('data/rp-genes-%s.txt', config$species))
     filter(mrna_annotation, Name %in% rp_gene_names)$Gene
 }
+
+proliferation_genes = cache %@% function (config) {
+    mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
+    proliferation_gene_names = io$read_table('data/proliferation-genes.tsv',
+                                             header = TRUE) %>%
+        filter(`p-value` < 0.05, cPI > 0) %>%
+        .$Symbol
+    filter(mrna_annotation, Name %in% proliferation_gene_names)$Gene
+}
