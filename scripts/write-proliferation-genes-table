@@ -1,0 +1,17 @@
+#!/usr/bin/env Rscript
+
+options(stringsAsFactors = FALSE)
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('outfile', 'the output filename'))
+
+    data = import('../data')
+    config = import(sprintf('../config_%s', args$species))
+    io = import('ebits/io')
+    io$write_table(data$proliferation_genes(config), args$outfile, col.names = FALSE)
+})
+
+# vim: ft=r
