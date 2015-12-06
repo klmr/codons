@@ -1,0 +1,33 @@
+digraph RNAseq {
+    unmapped_reads [type=data, label="Unmapped reads<br/>" hint="Fastq"]
+    qual_filtering [type=process, label="Quality filtering &amp;<br/>read trimming"]
+    read_mapping [type=process, label="Read mapping<br/>" hint="TopHat2"]
+    mapped_reads [type=data, label="Mapped reads<br/>", hint="BAM"]
+    read_counting [type=process, label="Read counting<br/>", hint="HTSeq-count"]
+    raw_counts [type=data, label="Raw gene level counts<br/>", hint="TSV"]
+    sf_normalization [type=process, label="Library size<br/>normalization"]
+    sf_counts [type=data, label="Normalized gene level<br/>counts"]
+
+    de [type=process, label="Differential expression<br/>analysis " hint="DESeq"]
+    de_genes [type=data, label="Differentially<br/>expressed genes"]
+    go [type=process, label="Gene set analysis<br/>" hint="Piano"]
+    go_terms [type=data, label="Enriched GO terms"]
+
+    gs_normalization [type=process, label="Gene length<br/>normalization"]
+    gs_counts [type=data, label="Normalized gene level<br/>counts"]
+    cu [type=process, label="Codon usage analysis"]
+    cu_counts [type=data, label="Codon usage counts"]
+
+    unmapped_reads ->
+    qual_filtering ->
+    read_mapping ->
+    mapped_reads ->
+    read_counting ->
+    raw_counts ->
+    sf_normalization ->
+    sf_counts;
+
+    sf_counts -> de -> de_genes -> go -> go_terms;
+
+    sf_counts -> gs_normalization -> gs_counts -> cu -> cu_counts;
+}
