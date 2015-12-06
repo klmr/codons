@@ -71,6 +71,9 @@ ${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
 	mkdir -p $(@D)
 	${BIN}/write-proliferation-genes-table $* $@
 
+%-flowchart.png: %-flowchart.dot flowchart.gvpr
+	gvpr -c -f flowchart.gvpr $< | tee debug.dot | dot -Tpng -o $@
+
 .PHONY: ${combinations}
 
 .SECONDEXPANSION:
