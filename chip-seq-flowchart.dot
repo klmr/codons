@@ -1,0 +1,43 @@
+digraph ChIPseq {
+    unmapped_reads [type=data, label="Unmapped reads<br/>" hint="Fastq"]
+    qual_filtering [type=process, label="Quality filtering &amp;<br/>read trimming"]
+    read_mapping [type=process, label="Read mapping<br/>" hint="BWA"]
+    mapped_reads [type=data, label="Mapped reads<br/>", hint="BAM"]
+    subgraph reallocation {
+        reallocate_reads [type=process, label="Reallocate reads"]
+        read_counting [type=process, label="Read counting<br/>", hint="HTSeq-count"]
+        reallocate_reads -> read_counting;
+    }
+    { rank=same; reallocate_reads; read_counting; }
+    raw_counts [type=data, label="Raw gene level counts<br/>", hint="TSV"]
+    subgraph filtering {
+        sf_normalization [type=process, label="Library size<br/>normalization"]
+        filter_expressed [type=process, label="Filter out genes below<br/>expression threshold"]
+        sf_normalization -> filter_expressed;
+    }
+    { rank=same; sf_normalization; filter_expressed; }
+    sf_counts [type=data, label="Normalized gene level<br/>counts"]
+    aa [type=process, label="tRNA anticodon<br/>abundance analysis"]
+    aa_counts [type=data, label="tRNA anticodon<br/>abundance estimates"]
+
+    unmapped_reads ->
+    qual_filtering ->
+    read_mapping ->
+    mapped_reads ->
+    reallocate_reads
+
+    mapped_reads -> read_counting [style=invis]
+    reallocate_reads -> raw_counts [style=invis]
+
+    read_counting ->
+    raw_counts ->
+    sf_normalization
+
+    raw_counts -> filter_expressed [style=invis]
+    sf_normalization -> sf_counts [style=invis]
+
+    filter_expressed ->
+    sf_counts ->
+    aa ->
+    aa_counts;
+}
