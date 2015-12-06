@@ -1,0 +1,35 @@
+BEG_G {
+    $G.nodesep=0.1;
+    $G.ranksep=0.25;
+}
+
+E {
+    arrowsize=0.6;
+}
+
+N {
+    shape="box";
+    width=1.75;
+    fixedsize="true";
+    fontname="Helvetica";
+    fontsize=10;
+    if ($.hint != "") {
+        label=html($G, label + "<font point-size=\"8\">" + hint + "</font>");
+    }
+    else {
+        // Requires addition of some HTML, otherwise won’t convert `label` to
+        // HTML.
+        label=html($G, label + "<br/>");
+    }
+}
+
+N [type=="data"] {
+    style="rounded";
+}
+
+N [type=="process"] {
+    style="rounded,filled";
+    color="#808080";
+}
+
+// vim: ft=dot
