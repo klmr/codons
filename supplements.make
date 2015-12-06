@@ -74,6 +74,9 @@ ${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
 %-flowchart.png: %-flowchart.dot flowchart.gvpr
 	gvpr -c -f flowchart.gvpr $< | dot -Tpng -o $@
 
+%-flowchart.pdf: %-flowchart.dot flowchart.gvpr
+	gvpr -c -f flowchart.gvpr $< | dot -Tpdf -o $@
+
 .PHONY: ${combinations}
 
 .SECONDEXPANSION:
