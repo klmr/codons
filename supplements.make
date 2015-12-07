@@ -74,6 +74,9 @@ ${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
 	mkdir -p $(@D)
 	${BIN}/write-proliferation-genes-table $* $@
 
+.PHONY: flowcharts
+flowcharts: rna-seq-flowchart.pdf chip-seq-flowchart.pdf
+
 %-flowchart.png: %-flowchart.dot flowchart.gvpr
 	gvpr -c -f flowchart.gvpr $< | dot -Tpng -o $@
 
