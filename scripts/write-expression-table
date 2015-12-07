@@ -6,7 +6,8 @@ sys = import('sys')
 sys$run({
     args = sys$cmdline$parse(arg('species', 'the species'),
                              arg('type', 'the type (“mrna” or “trna”)',
-                                 validate = function (x) x %in% c('mrna', 'trna')))
+                                 validate = function (x) x %in% c('mrna', 'trna')),
+                             arg('outfile', 'the output table filename'))
 
     data = import('../data')
     config = import(paste('../config', args$species, sep = '_'))
@@ -37,7 +38,7 @@ sys$run({
         spread(Celltype, Count)
 
     io = import('ebits/io')
-    io$write_table(per_condition_counts, stdout(), sep = '\t')
+    io$write_table(per_condition_counts, args$outfile)
 })
 
 # vim: ft=r
