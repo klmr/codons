@@ -10,12 +10,15 @@ enriched-go-genes-all := $(foreach i,${species},enriched-go-genes-$i)
 .PHONY: all
 all: gene-expression upregulated-all enriched-go-all ribosomal-genes housekeeping-genes
 
+# Helper to reverse a list. <http://stackoverflow.com/a/786530/1968>
+reverse = $(if $1,$(call reverse,$(wordlist 2,$(words $1),$1))) $(firstword $1)
+
 .PHONY: gene-expression
 gene-expression: ${combinations}
 
-${supp_dir}/gene-expression-%.tsv:
+${supp_dir}/gene-expression/gene-expression-%.tsv:
 	mkdir -p $(@D)
-	${BIN}/write-expression-table $(subst -, ,$*) > $@
+	${BIN}/write-expression-table $(call reverse,$(subst -, ,$*)) $@
 
 .PHONY: upregulated-all ${upregulated-all}
 upregulated-all: ${upregulated-all}
@@ -80,6 +83,6 @@ ${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
 .PHONY: ${combinations}
 
 .SECONDEXPANSION:
-${combinations}: ${supp_dir}/gene-expression-$$@.tsv
+${combinations}: ${supp_dir}/gene-expression/gene-expression-$$@.tsv
 
 # vim: ft=make
