@@ -8,7 +8,14 @@ enriched-go-all := $(foreach i,${species},enriched-go-$i)
 enriched-go-genes-all := $(foreach i,${species},enriched-go-genes-$i)
 
 .PHONY: all
-all: gene-expression upregulated-all enriched-go-all ribosomal-genes housekeeping-genes
+all: gene-expression \
+	upregulated-all \
+	enriched-go-all \
+	enriched-go-genes-all \
+	ribosomal-genes \
+	housekeeping-genes \
+	proliferation-genes \
+	flowcharts
 
 # Helper to reverse a list. <http://stackoverflow.com/a/786530/1968>
 reverse = $(if $1,$(call reverse,$(wordlist 2,$(words $1),$1))) $(firstword $1)
