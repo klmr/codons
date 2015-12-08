@@ -69,7 +69,7 @@ plot_gc_cu = function (pca, gc) {
     ggplot(prepare_data(pca, gc), aes(x = PC1, y = `%GC`)) +
         geom_point() +
         geom_smooth(method = lm, se = FALSE) +
-        scale_y_continuous(limits = c(0.4, 0.65)) +
+        scale_y_continuous('GC content', limits = c(0.4, 0.65), labels = scales::percent) +
         geom_rug(sides = 't', size = 0.5, alpha = 0.5)
 }
 
