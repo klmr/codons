@@ -1,6 +1,6 @@
 ```{r}
 modules::import('./scripts/knit', attach = TRUE)
-opts_chunk$set(fig.path = 'figure/pca-versus-go-<%= species %>-',
+opts_chunk$set(fig.path = 'figure/pca-versus-gc-<%= species %>-',
                dev = c('png', 'pdf'))
 
 config = import('./config_<%= species %>')
@@ -61,7 +61,7 @@ go_gc = inner_join(canonical_cds, go_genes, by = 'Gene') %>%
     select(-Sequence)
 ```
 
-```{r plot-go-vs-pc1}
+```{r plot-gc-vs-pc1}
 prepare_data = function (pca, gc)
     inner_join(add_rownames(as.data.frame(pca$x), 'GO'), gc, by = 'GO')
 
