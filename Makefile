@@ -10,6 +10,10 @@ all: sample-size-effect.html figure-2 go te \
 supplements:
 	make -f supplements.make
 
+.PHONY: install-dependencies
+install-dependencies:
+	${BIN}/package-dependencies | Rscript -
+
 .PHONY: go
 go: data/go-descriptions.tsv
 

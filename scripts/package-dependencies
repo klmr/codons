@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+grep -o '\(library\|require\|import_package\)(.*)' *.r{,md} *.brew scripts/* \
+    | cut -d : -f2- \
+    | grep -o '([^,)]*' \
+    | sed 's/[^[:alnum:]]//g' \
+    | grep -v '^$' \
+    | sort -u \
+    | xargs -I{} echo "'{}' " \
+    | (echo 'install.packages('; cat; echo ')') \
+    | sed 's/ /, /g' \
+    | tr -d '\n' \
+    | sed 's/\(.*\), /\1/'
