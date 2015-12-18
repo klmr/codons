@@ -6,11 +6,20 @@ te-methods := simple-te wobble-te tai
 all: sample-size-effect.html figure-2 go te \
 	$(foreach i,${species},pca-versus-gc-$i.html)
 
+.PHONY: supplements
+supplements:
+	make -f supplements.make
+
 .PHONY: go
 go: data/go-descriptions.tsv
 
 .PHONY: te
 te: all-te-tests all-te-plots
+
+figure-2-type := whole-match whole-mismatch cell-specific-match
+
+.PHONY: figure-2
+figure-2: $(foreach i,${figure-2-type},results/figure-2/scatter-te-$i-human.pdf)
 
 .PRECIOUS: $(foreach i,${species},results/de/de-$i.rds)
 results/de/de-%.rds:
@@ -119,11 +128,6 @@ results/figure-2/scatter-te-%.pdf:
 # FIXME: Debug: This requirement isn’t found unless the rule above is deleted.
 results/figure-2/scatter-te-cell-specific-match-%.pdf: results/de/up-%.rds
 
-figure-2-type := whole-match whole-mismatch cell-specific-match
-
-.PHONY: figure-2
-figure-2: $(foreach i,${figure-2-type},results/figure-2/scatter-te-$i-human.pdf)
-
 $(foreach i,${species},pca-versus-adaptation-$i.html): go
 
 codon-anticodon-correlation-human.html: go de data/rp-genes-human.txt
@@ -134,10 +138,6 @@ sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
 results/sampled-cu-fit.rds:
 	${BIN}/sample-codon-usage $@
-
-.PHONY: supplements
-supplements:
-	make -f supplements.make
 
 %-mouse.rmd: %.rmd.brew
 	${BIN}/brew $< $@ 'species="mouse"'
