@@ -3,18 +3,14 @@ species := mouse human
 te-methods := simple-te wobble-te tai
 
 .PHONY: all
-all: go te
-	@echo >&2 No default rule. Please run \`make rule\`
-	exit 1
+all: sample-size-effect.html figure-2 go te \
+	$(foreach i,${species},pca-versus-gc-$i.html)
 
 .PHONY: go
-go: data/go-descriptions.tsv $(foreach i,${species},results/gsa/go-$i.rds)
+go: data/go-descriptions.tsv
 
 .PHONY: te
-te: \
-		$(foreach i,${species},results/te-$i-boxplot.pdf) \
-		$(foreach i,${species},results/te-$i-adaptation-test-p.tsv) \
-		results/te-human-liver-matching-scatter.pdf
+te: all-te-tests all-te-plots
 
 .PRECIOUS: $(foreach i,${species},results/de/de-$i.rds)
 results/de/de-%.rds:
@@ -136,7 +132,7 @@ codon-anticodon-correlation-mouse.html: go de data/rp-genes-mouse.txt
 
 sample-size-effect.html: sample-size-effect.rmd results/sampled-cu-fit.rds
 
-results/sampled-cu-fit.rds: scripts/sample-codon-usage
+results/sampled-cu-fit.rds:
 	${BIN}/sample-codon-usage $@
 
 .PHONY: supplements
