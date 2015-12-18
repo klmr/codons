@@ -7,7 +7,7 @@ plot_te = function (data, summary) {
     import_package('ggplot2', attach = TRUE)
 
     data$Which = factor(data$Which,
-                        levels = c('All', 'Upregulated', 'GO', 'Housekeeping', 'Ribosomal'),
+                        levels = c('All', 'Upregulated', 'GO', 'Housekeeping', 'Ribosomal', 'Proliferation'),
                         ordered = TRUE)
 
     plot = ggplot(data, aes(x = Mode, y = TE)) +

@@ -161,6 +161,9 @@ housekeeping_genes = function (condition)
 ribosomal_genes = function (condition)
     list(data$ribosomal_genes(config))
 
+proliferation_genes = function (condition)
+    list(data$proliferation_genes(config))
+
 sys$run({
     valid_te_methods = c('simple-te', 'wobble-te', 'tai')
     args = sys$cmdline$parse(opt('t', 'te',
@@ -203,12 +206,14 @@ sys$run({
     te_go = all_translation_efficiencies(enriched_go_genes(), te)
     te_hk = all_translation_efficiencies(housekeeping_genes, te)
     te_rb = all_translation_efficiencies(ribosomal_genes, te)
+    te_pr = all_translation_efficiencies(proliferation_genes, te)
 
     all_te = bind_rows(tidy_te(te_all, 'All'),
                        tidy_te(te_up, 'Upregulated'),
                        tidy_te(te_go, 'GO'),
                        tidy_te(te_hk, 'Housekeeping'),
-                       tidy_te(te_rb, 'Ribosomal'))
+                       tidy_te(te_rb, 'Ribosomal'),
+                       tidy_te(te_pr, 'Proliferation'))
 
     saveRDS(all_te, args$outfile)
 })
