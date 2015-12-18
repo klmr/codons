@@ -1,13 +1,21 @@
-#!/usr/bin/env bash
+#!/usr/bin/env Rscript
 
-grep -o '\(library\|require\|import_package\)(.*)' *.r{,md} *.brew scripts/* \
-    | cut -d : -f2- \
-    | grep -o '([^,)]*' \
-    | sed 's/[^[:alnum:]]//g' \
-    | grep -v '^$' \
-    | sort -u \
-    | xargs -I{} echo "'{}' " \
-    | (echo 'install.packages('; cat; echo ')') \
-    | sed 's/ /, /g' \
-    | tr -d '\n' \
-    | sed 's/\(.*\), /\1/'
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    base = import('ebits/base')
+    cmd = "grep -o '\\(library\\|require\\|import_package\\)(.*)' *.r{,md} *.brew scripts/* \
+        | cut -d : -f2- \
+        | grep -o '([^,)]*' \
+        | sed 's/[^[:alnum:]]//g' \
+        | grep -v '^$' \
+        | sort -u"
+    packages = system(gsub('\n', '', cmd), intern = TRUE)
+    versions = sapply(packages, toString %.% packageVersion)
+
+    output = unlist(base$map(paste, packages, versions, sep = ', '))
+    writeLines(output)
+})
+
+# vim: ft=r

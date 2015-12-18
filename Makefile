@@ -10,10 +10,6 @@ all: sample-size-effect.html figure-2 go te \
 supplements:
 	make -f supplements.make
 
-.PHONY: install-dependencies
-install-dependencies:
-	${BIN}/package-dependencies | Rscript -
-
 .PHONY: go
 go: data/go-descriptions.tsv
 
@@ -24,6 +20,9 @@ figure-2-type := whole-match whole-mismatch cell-specific-match
 
 .PHONY: figure-2
 figure-2: $(foreach i,${figure-2-type},results/figure-2/scatter-te-$i-human.pdf)
+
+PACKAGES:
+	${BIN}/package-dependencies > $@
 
 .PRECIOUS: $(foreach i,${species},results/de/de-$i.rds)
 results/de/de-%.rds:
