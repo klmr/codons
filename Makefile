@@ -10,6 +10,11 @@ all: sample-size-effect.html figure-2 go te \
 supplements:
 	make -f supplements.make
 
+.PHONY: download-data
+download-data:
+	mkdir -p data
+	${BIN}/download-data data
+
 .PHONY: go
 go: data/go-descriptions.tsv
 

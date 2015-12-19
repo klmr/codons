@@ -1,0 +1,48 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('out-path', 'data folder name'))
+    filenames = c('gene_association.goa_human',
+                  'hk408.txt',
+                  'Homo_sapiens.GRCh38.78.gene_annot.tsv',
+                  'Homo_sapiens.GRCh38.cds.all.fa.gz',
+                  'Homo_sapiens.GRCh38.dna.primary_assembly.trna.filtered.out',
+                  'libraries-rna-seq-hs19.tsv',
+                  'libraries-rna-seq-mm10.tsv',
+                  'libraries-trna-chip-hs19.tsv',
+                  'libraries-trna-chip-mm10.tsv',
+                  'Mus_musculus.GRCm38.75.gene_annot.tsv',
+                  'Mus_musculus.GRCm38.cds.all.fa.gz',
+                  'proliferation-genes.tsv',
+                  'rnaseq-counts-hs19.tsv',
+                  'rnaseq-counts-mm10.tsv',
+                  'tRNA_Scan_Mus_musculus.GRCm38.69_301014.filtered.out',
+                  'trna-counts-hs19.tsv',
+                  'trna-counts-mm10.tsv')
+    urls = c('https://ndownloader.figshare.com/files/3632310?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632313?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632316?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632319?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632322?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632325?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632328?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632331?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632334?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632337?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632343?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632346?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632349?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632364?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632355?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632358?private_link=2595e5fb890a773cb9b1',
+             'https://ndownloader.figshare.com/files/3632361?private_link=2595e5fb890a773cb9b1')
+
+    for (i in seq_along(filenames))
+        download.file(urls[i], file.path(args$out_path, filenames[i]),
+                      method = 'libcurl')
+})
+
+# vim: ft=r
