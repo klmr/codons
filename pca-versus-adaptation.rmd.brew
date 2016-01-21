@@ -97,6 +97,57 @@ plot_pca(go_pca, with(list(x = rownames(go_pca$x)),
                       'none'))))
 ```
 
+The fact that GO terms cluster by function may simply be due to the fact that
+related GO terms share many of the same genes and thus have similar codon usage.
+Let’s test this explicitly.
+
+```{r gene-set-overlap}
+# Because the naïve approach is too slow, we preprocess the list of GO genes.
+go_terms = unique(go_genes$GO)
+# Use an environment to get hashed indexing
+genes_for_go = list2env(sapply(go_terms, x -> filter(go_genes, GO == x)$Gene,
+                               simplify = FALSE))
+
+go_overlap = function (a, b)
+    mapply(a ~ b -> length(intersect(genes_for_go[[a]], genes_for_go[[b]])),
+           a, b)
+
+total_go_size = function (a, b)
+    mapply(a ~ b -> length(union(genes_for_go[[a]], genes_for_go[[b]])),
+           a, b)
+
+pc1_dist = function (a, b)
+    abs(go_pca$x[a, 1] - go_pca$x[b, 1])
+
+go_vs_go = as.data.frame(t(combn(go_terms, 2))) %>%
+    mutate(Overlap = go_overlap(V1, V2),
+           Prop = Overlap / total_go_size(V1, V2),
+           Distance = pc1_dist(V1, V2)) %>%
+    tbl_df()
+
+all_go_vs_go = go_vs_go
+go_vs_go = filter(go_vs_go, (V1 %in% go_groups$multicellular |
+                             V1 %in% go_groups$cell_autonomous) &
+                            (V2 %in% go_groups$multicellular |
+                             V2 %in% go_groups$cell_autonomous))
+```
+
+```{r go-overlap-scatter-plot}
+ggplot(go_vs_go) +
+    aes(x = Distance, y = Overlap) +
+    geom_point() +
+    geom_smooth(se = FALSE) +
+    scale_x_continuous('Distance on PC1') +
+    scale_y_continuous('# of overlapping genes')
+
+ggplot(go_vs_go) +
+    aes(x = Distance, y = Prop * 100) +
+    geom_point() +
+    geom_smooth(se = FALSE) +
+    scale_x_continuous('Distance on PC1') +
+    scale_y_continuous('% of overlapping genes')
+```
+
 Next, compute translation efficiency for each GO term. For this, we first need
 to load mRNA and tRNA abundance estimates.
 
