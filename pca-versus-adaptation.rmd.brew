@@ -243,8 +243,8 @@ Highlight GO term enriched in each condition, compared to healthy liver.
 
 ```{r gsa}
 gsa_filename = function (contrast)
-    sprintf('results/gsa/%s-%s-vs-%s.tsv',
-            config$species, contrast[1], contrast[2])
+    sprintf('results/supplements/enriched-go/%s-vs-%s-%s.tsv',
+            contrast[1], contrast[2], config$species)
 
 read_gsa = function (contrast)
     io$read_table(gsa_filename(contrast), header = TRUE) %>%
