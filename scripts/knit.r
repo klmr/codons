@@ -135,6 +135,9 @@ melt = function (...) {
 
 base = import('ebits/base')
 # Attach operators to parent environment.
+# Before we can do that, we need to ensure that ‹modules› invariants are
+# satisfied. This requires explicitly registering .GlobalEnv as not a module:
+.GlobalEnv$.__module__. = new.env(parent = emptyenv())
 attach(parent.env(environment()), name = 'operators:base', warn.conflicts = FALSE)
 io = import('ebits/io')
 fs = import('fs')
