@@ -7,25 +7,31 @@ all: sample-size-effect.html figure-2 go te \
 	$(foreach i,${species},pca-versus-gc-$i.html)
 
 .PHONY: supplements
+## Create supplementary files
 supplements:
 	make -f supplements.make
 
 .PHONY: download-data
+## Download raw data necessary to run the pipeline from Figshare
 download-data:
 	mkdir -p data
 	${BIN}/download-data data
 
 .PHONY: go
+## Create Gene Ontology descriptions
 go: data/go-descriptions.tsv
 
 .PHONY: te
+## Perform translation efficiency analysis
 te: all-te-tests all-te-plots
 
 figure-2-type := whole-match whole-mismatch cell-specific-match
 
 .PHONY: figure-2
+## Create figure 2 of the paper
 figure-2: $(foreach i,${figure-2-type},results/figure-2/scatter-te-$i-human.pdf)
 
+## Parse R package dependencies and write to an output file
 PACKAGES:
 	${BIN}/package-dependencies > $@
 
@@ -69,6 +75,7 @@ results/figure-3/test-p-values-simple-te-compare-which-%.tsv: results/simple-te-
 	${BIN}/write-adaptation-test-table --axis=which $* $@
 
 .PHONY: all-te-plots
+## Generate all translation efficiency plots for figure 3
 all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
 	mkdir -p results/figure-3
 	for te in ${te-methods}; do \
@@ -83,6 +90,7 @@ all-te-plots: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds
 	done
 
 .PHONY: all-te-tests
+## Perform all translation efficiency significance tests for figure 3
 all-te-tests: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds))
 	mkdir -p results/figure-3
 	for te in ${te-methods}; do \
@@ -164,6 +172,7 @@ results/sampled-cu-fit.rds:
 
 # Assume that .md files with corresponding .html files are intermediates.
 .PHONY: clean
+## Remove intermediate files
 clean:
 	${RM} $(patsubst %.html,%.md,$(wildcard *.html))
 	${RM} $(patsubst %.brew,%,$(wildcard *.brew))
@@ -171,8 +180,29 @@ clean:
 	${RM} cache/*
 
 .PHONY: cleanall
+## Remove intermediate and final results files and folders
 cleanall: clean
 	${RM} *.html
 	${RM} *.pdf
 	${RM} -r figure
 	${RM} -r results
+
+.DEFAULT_GOAL := show-help
+
+# Inspired by <http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html>
+.PHONY: show-help
+show-help:
+	@echo "$$(tput bold)Available rules:$$(tput sgr0)"
+	@echo
+	@sed -n "/^## / { \
+		h; \
+		n; \
+		s/:.*//; \
+		G; \
+		s/^/$$(tput setaf 6)/; \
+		s/\\n## /$$(tput sgr0)---/; \
+		p; \
+	}" ${MAKEFILE_LIST} \
+	| sort --ignore-case \
+	| awk 'BEGIN {FS = "---"} { printf "%-30s\t%s\n", $$1, $$2 }' \
+	| more --no-init --raw-control-chars
