@@ -172,3 +172,10 @@ proliferation_genes = cache %@% function (config) {
         .$Symbol
     filter(mrna_annotation, Name %in% proliferation_gene_names)$Gene
 }
+
+trna_modifier_genes = cache %@% function (config) {
+    mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
+    gene_names = readLines(mf('data/trna-modifier-genes.txt')) %>%
+        grep(pattern = '^\\s*#', invert = TRUE, value = TRUE)
+    filter(mrna_annotation, Name %in% gene_names)$Gene
+}
