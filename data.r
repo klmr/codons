@@ -4,8 +4,10 @@ tidyr = modules::import_package('tidyr')
 base = modules::import('ebits/base')
 io = modules::import('ebits/io')
 
+mf = modules::module_file
+
 trna_annotation = cache %@% function (config)
-    io$read_table(config$trna_annotation, header = FALSE) %>%
+    io$read_table(mf(config$trna_annotation), header = FALSE) %>%
         select(Chr = 1, Num = 2, AA = 5, Anticodon = 6, Start = 3, Stop = 4) %>%
         filter(grepl('^(chr)?\\d+$', Chr)) %>%
         filter(! Anticodon %in% c('TTA', 'TCA', 'CTA')) %>%
@@ -14,7 +16,7 @@ trna_annotation = cache %@% function (config)
         tbl_df()
 
 trna_counts = cache %@% function (config) {
-    counts = io$read_table(config$trna_counts, header = TRUE) %>%
+    counts = io$read_table(mf(config$trna_counts), header = TRUE) %>%
         `colnames<-`(., c('X', colnames(.)[-1])) %>%
         tbl_df() %>%
         mutate(Gene = sub('.', '.trna', X, fixed = TRUE)) %>%
@@ -50,7 +52,7 @@ filter_expressed = function (design, counts) {
 }
 
 mrna_annotation = cache %@% function (config)
-    io$read_table(config$mrna_annotation, header = TRUE) %>%
+    io$read_table(mf(config$mrna_annotation), header = TRUE) %>%
         tbl_df() %>%
         filter(source == 'protein_coding') %>%
         mutate(Chr = sapply(strsplit(locus, ':'), base$item(1)),
@@ -60,7 +62,7 @@ mrna_annotation = cache %@% function (config)
         select(Gene = ID, Name, Chr, Start, End, GO)
 
 mrna_counts = cache %@% function (config) {
-    counts = io$read_table(config$mrna_counts, header = TRUE) %>%
+    counts = io$read_table(mf(config$mrna_counts), header = TRUE) %>%
         tbl_df() %>%
         inner_join(mrna_annotation(config), ., by = 'Gene') %>%
         select(Gene, Name, starts_with('do'))
@@ -99,7 +101,7 @@ mrna_tpm_counts = cache %@% function (config) {
 }
 
 trna_design = cache %@% function (config)
-    design = io$read_table(config$trna_design) %>%
+    design = io$read_table(mf(config$trna_design)) %>%
         tbl_df() %>%
         select(DO = 1, AB = 2, Celltype = 3) %>%
         filter(AB != 'Input') %>%
@@ -107,14 +109,14 @@ trna_design = cache %@% function (config)
         mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
 
 mrna_design = cache %@% function (config)
-    io$read_table(config$mrna_design) %>%
+    io$read_table(mf(config$mrna_design)) %>%
         tbl_df() %>%
         select(DO = 1, Celltype = 2) %>%
         mutate(Celltype = ifelse(Celltype == 'liver', 'Liver-Adult', Celltype))
 
 canonical_cds = cache %@% function (config) {
     bios = modules::import_package('Biostrings')
-    cds = bios$readDNAStringSet(config$cds)
+    cds = bios$readDNAStringSet(mf(config$cds))
     names(cds) = sub('.*gene:(ENS(MUS)?G\\d+).*', '\\1', names(cds))
     cds = data.frame(Gene = names(cds), Sequence = as.character(cds),
                      stringsAsFactors = FALSE)
@@ -152,19 +154,19 @@ go_genes = cache %@% function (config) {
 
 housekeeping_genes = cache %@% function (config) {
     mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
-    hk_gene_names = readLines('data/hk408.txt')
+    hk_gene_names = readLines(mf('data/hk408.txt'))
     filter(mrna_annotation, Name %in% hk_gene_names)$Gene
 }
 
 ribosomal_genes = cache %@% function (config) {
     mrna_annotation = mrna_annotation(config)
-    rp_gene_names = readLines(sprintf('data/rp-genes-%s.txt', config$species))
+    rp_gene_names = readLines(mf(sprintf('data/rp-genes-%s.txt', config$species)))
     filter(mrna_annotation, Name %in% rp_gene_names)$Gene
 }
 
 proliferation_genes = cache %@% function (config) {
     mrna_annotation = mutate(mrna_annotation(config), Name = toupper(Name))
-    proliferation_gene_names = io$read_table('data/proliferation-genes.tsv',
+    proliferation_gene_names = io$read_table(mf('data/proliferation-genes.tsv'),
                                              header = TRUE) %>%
         filter(`p-value` < 0.05, cPI > 0) %>%
         .$Symbol
