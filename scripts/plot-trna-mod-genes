@@ -4,7 +4,8 @@ library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
 sys$run({
-    args = sys$cmdline$parse(arg('species', 'the species'))
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('outfile', 'the filename of the PDF output'))
 
     import_package('dplyr', attach = TRUE)
     import_package('tidyr', attach = TRUE)
@@ -13,7 +14,9 @@ sys$run({
     config = import(sprintf('../config_%s', args$species))
     trna_modifier_genes = data$trna_modifier_genes(config)
 
-    design = data$mrna_design(config)
+    design = data$mrna_design(config) %>%
+        filter(! grepl('E15.5', Celltype))
+    celltypes = unique(design$Celltype)
     gene_counts = data$mrna_sf_counts(config) %>%
         filter(Gene %in% trna_modifier_genes) %>%
         # Summarize replicates for each celltype
@@ -21,22 +24,25 @@ sys$run({
         inner_join(design, by = 'DO') %>%
         group_by(Gene, Name, Celltype) %>%
         summarize(Count = mean(Count)) %>%
-        # Rowwise scaling
-        group_by(Gene) %>%
-        mutate(`Scaled count` = as.numeric(scale(Count))) %>%
-        ungroup()
+        spread(Celltype, Count) %>%
+        mutate_each(funs(log2(. / `Liver-Adult`)), one_of(celltypes)) %>%
+        gather(Celltype, L2FC, one_of(celltypes))
 
     import_package('ggplot2', attach = TRUE)
+    # Required by ggplot2, see <https://github.com/hadley/ggplot2/issues/1384>
+    library(methods)
 
-    ggplot(gene_counts) +
-        aes(relevel(factor(Celltype), 'Liver-Adult'), Name) +
-        geom_tile(aes(fill = `Scaled count`)) +
-        scale_x_discrete('Celltype', expand = c(0, 0)) +
-        scale_y_discrete(expand = c(0, 0)) +
-        scale_fill_gradient2(low = 'blue', mid = 'white', high = 'red') +
+    p = ggplot(filter(gene_counts, Celltype != 'Liver-Adult')) +
+        aes(Celltype, Name) +
+        geom_tile(aes(fill = L2FC)) +
+        scale_fill_gradient2(low = 'blue', mid = 'black', high = 'yellow') +
         guides(fill = FALSE) +
         theme(axis.ticks = element_blank(),
               panel.background = element_rect(fill = 'transparent'))
+
+    on.exit(dev.off())
+    pdf(args$outfile)
+    plot(p)
 })
 
 # vim: ft=r

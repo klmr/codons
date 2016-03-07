@@ -1,0 +1,33 @@
+#!/usr/bin/env Rscript
+
+library(modules, warn.conflicts = FALSE, quietly = TRUE)
+sys = import('sys')
+
+sys$run({
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('outfile', 'the filename of the TSV output'))
+
+    import_package('dplyr', attach = TRUE)
+    base = import('ebits/base')
+
+    data = import('../data')
+    config = import(sprintf('../config_%s', args$species))
+    trna_modifier_genes = data$trna_modifier_genes(config)
+
+    de_results = readRDS(sprintf('results/de/de-%s.rds', config$species))
+    healthy_contrasts = names(de_results) %>%
+        {grep('^Liver-Adult/', ., value = TRUE)} %>%
+        {grep('E15.5', ., invert = TRUE, value = TRUE)}
+
+    collect_genes = function (contrast, de_results)
+        de_results[[contrast]] %>%
+            filter(Gene %in% trna_modifier_genes) %>%
+            mutate(Contrast = strsplit(contrast, '/')[[1]][2])
+
+    de_results = bind_rows(lapply(healthy_contrasts, collect_genes, de_results))
+
+    io = import('ebits/io')
+    io$write_table(de_results, args$outfile)
+})
+
+# vim: ft=r
