@@ -107,7 +107,7 @@ all-te-tests: $(foreach i,${species},$(foreach j,${te-methods},results/$j-$i.rds
 
 results/figure-3/test-p-values-merged.tsv: \
 		$(filter-out %-merged.tsv,$(shell ls results/figure-3/*.tsv))
-	./scripts/merge-te-test-p-values $^ $@
+	${BIN}/merge-te-test-p-values $^ $@
 
 data/go-descriptions.tsv: data/go-basic.obo
 	${BIN}/write-go-descriptions $< $@
