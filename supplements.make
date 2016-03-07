@@ -15,6 +15,7 @@ all: gene-expression \
 	ribosomal-genes \
 	housekeeping-genes \
 	proliferation-genes \
+	trna-mod-genes \
 	flowcharts
 
 # Helper to reverse a list. <http://stackoverflow.com/a/786530/1968>
@@ -80,6 +81,20 @@ proliferation-genes: $(foreach i,${species},${supp_dir}/proliferation/pro-genes-
 ${supp_dir}/proliferation/pro-genes-%.txt: data/proliferation-genes.tsv
 	mkdir -p $(@D)
 	${BIN}/write-proliferation-genes-table $* $@
+
+.PHONY: trna-mod-genes
+trna-mod-genes: \
+	$(foreach i,${species},${supp_dir}/trna-mod-genes/fold-change-heatmap-$i.pdf) \
+	$(foreach i,${species},${supp_dir}/trna-mod-genes/de-genes-$i.tsv)
+
+${supp_dir}/trna-mod-genes/fold-change-heatmap-%.pdf: data/trna-modifier-genes.txt
+	mkdir -p $(@D)
+	${BIN}/plot-trna-mod-genes $* $@
+
+${supp_dir}/trna-mod-genes/de-genes-%.tsv: data/trna-modifier-genes.txt \
+	results/de/de-%.rds
+	mkdir -p $(@D)
+	${BIN}/write-de-trna-mod-genes-table $* $@
 
 .PHONY: flowcharts
 flowcharts: rna-seq-flowchart.pdf chip-seq-flowchart.pdf
