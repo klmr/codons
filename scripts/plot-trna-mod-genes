@@ -4,7 +4,8 @@ library(modules, warn.conflicts = FALSE, quietly = TRUE)
 sys = import('sys')
 
 sys$run({
-    args = sys$cmdline$parse(arg('species', 'the species'))
+    args = sys$cmdline$parse(arg('species', 'the species'),
+                             arg('outfile', 'the filename of the PDF output'))
 
     import_package('dplyr', attach = TRUE)
     import_package('tidyr', attach = TRUE)
