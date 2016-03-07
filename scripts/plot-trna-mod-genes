@@ -24,10 +24,9 @@ sys$run({
         inner_join(design, by = 'DO') %>%
         group_by(Gene, Name, Celltype) %>%
         summarize(Count = mean(Count)) %>%
-        # Rowwise scaling
-        group_by(Gene) %>%
-        mutate(`Scaled count` = as.numeric(scale(Count))) %>%
-        ungroup()
+        spread(Celltype, Count) %>%
+        mutate_each(funs(log2(. / `Liver-Adult`)), one_of(celltypes)) %>%
+        gather(Celltype, L2FC, one_of(celltypes))
 
     import_package('ggplot2', attach = TRUE)
 
