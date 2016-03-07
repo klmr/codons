@@ -14,7 +14,9 @@ sys$run({
     config = import(sprintf('../config_%s', args$species))
     trna_modifier_genes = data$trna_modifier_genes(config)
 
-    design = data$mrna_design(config)
+    design = data$mrna_design(config) %>%
+        filter(! grepl('E15.5', Celltype))
+    celltypes = unique(design$Celltype)
     gene_counts = data$mrna_sf_counts(config) %>%
         filter(Gene %in% trna_modifier_genes) %>%
         # Summarize replicates for each celltype
