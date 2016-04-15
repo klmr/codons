@@ -16,6 +16,7 @@ all: gene-expression \
 	housekeeping-genes \
 	proliferation-genes \
 	trna-mod-genes \
+	ramp-up \
 	flowcharts
 
 # Helper to reverse a list. <http://stackoverflow.com/a/786530/1968>
@@ -95,6 +96,19 @@ ${supp_dir}/trna-mod-genes/de-genes-%.tsv: data/trna-modifier-genes.txt \
 	results/de/de-%.rds
 	mkdir -p $(@D)
 	${BIN}/write-de-trna-mod-genes-table $* $@
+
+.PHONY: ramp-up
+ramp-up: \
+	$(foreach i,${species},${supp_dir}/ramp-up/boxplot-simple-te-summary-$i.pdf) \
+	$(foreach i,${species},${supp_dir}/ramp-up/test-p-values-simple-te-compare-which-$i.tsv)
+
+${supp_dir}/ramp-up/boxplot-simple-te-summary-%.pdf: results/init-simple-te-%.rds
+	mkdir -p $(@D)
+	${BIN}/plot-te-boxplot --summary --ramp-up $* $@
+
+${supp_dir}/ramp-up/test-p-values-simple-te-compare-which-%.tsv: results/init-simple-te-%.rds
+	mkdir -p $(@D)
+	${BIN}/write-adaptation-test-table --axis=which --ramp-up $* $@
 
 .PHONY: flowcharts
 flowcharts: rna-seq-flowchart.pdf chip-seq-flowchart.pdf

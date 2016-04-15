@@ -19,11 +19,14 @@ sys$run({
                                  valid_te_methods[1],
                                  validate(valid_te_methods)),
                              opt('c', 'mean-center', 'center tRNA strata before plotting?', FALSE),
+                             opt('i', 'ramp-up', 'use codons at start of transcript (“ramp up”) only', FALSE),
                              arg('species', 'the species'),
                              arg('outfile', 'the filename of the output table'))
 
     config = import(sprintf('../config_%s', args$species))
-    te = readRDS(sprintf('results/%s-%s.rds', args$te, args$species))
+    te = readRDS(sprintf('results/%s%s-%s.rds',
+                         if (args$ramp_up) 'init-' else '',
+                         args$te, args$species))
     if (args$mean_center)
         te = import('./plot-te-boxplot')$mean_center(te)
 

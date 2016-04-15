@@ -15,7 +15,7 @@ plot_te = function (data, summary) {
             geom_boxplot(width = 0.4)
         else
             geom_boxplot(width = 0.2, outlier.size = 0)) +
-        scale_y_continuous(limits = c(0.45, 0.85)) +
+        scale_y_continuous(limits = c(0.1, 0.85)) +
         facet_wrap(~ Which, nrow = 1) +
         theme_bw()
 
@@ -57,11 +57,14 @@ sys$run({
                                  function (x) x %in% valid_te_methods),
                              opt('c', 'mean-center', 'center tRNA strata before plotting?', FALSE),
                              opt('s', 'summary', 'plot summary rather than detailed points?', FALSE),
+                             opt('i', 'ramp-up', 'use codons at start of transcript (“ramp up”) only', FALSE),
                              arg('species', 'the species'),
                              arg('outfile', 'the filename of the PDF output'))
 
     config = import(sprintf('../config_%s', args$species))
-    te = readRDS(sprintf('results/%s-%s.rds', args$te, args$species))
+    te = readRDS(sprintf('results/%s%s-%s.rds',
+                         if (args$ramp_up) 'init-' else '',
+                         args$te, args$species))
     if (args$mean_center)
         te = mean_center(te)
 
