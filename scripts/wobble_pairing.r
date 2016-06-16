@@ -1,4 +1,5 @@
 tai = import('./tai')
+import_package('dplyr', attach = TRUE)
 
 # Rules for wobble pairing
 # Codon   Anti        i % 4  wobble_match_index
