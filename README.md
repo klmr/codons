@@ -20,7 +20,7 @@ make supplements
 In order to run the code, the project data needs to be [downloaded from
 Figshare][data] and put directly into the folder `data` under the project root:
 
-[data]: https://figshare.com/s/2595e5fb890a773cb9b1
+[data]: https://doi.org/10.6084/m9.figshare.2056227.v1
 
 ```shell
 make download-data
